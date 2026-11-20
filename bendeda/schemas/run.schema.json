@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/JoeyHammoth/bendEDA/bendeda/schemas/run.schema.json",
+  "title": "Run configuration",
+  "description": "One scored run: task, arm, model, budgets and pinned versions. Every field needed to reproduce the run from the archived image.",
+  "type": "object",
+  "required": ["run_id", "track", "task", "variant", "arm", "model", "tools", "visible_gates", "budgets", "bend_version"],
+  "additionalProperties": false,
+  "properties": {
+    "run_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,80}$" },
+    "track": { "enum": ["A", "B", "C", "D"] },
+    "task": { "type": "string", "pattern": "^tasks/" },
+    "variant": { "type": "string" },
+    "arm": { "enum": ["C0", "C1", "C2", "C3", "C4", "C5", "B0", "B1", "B2", "B3", "P0", "P1", "P2", "P3", "D"] },
+    "ablation": { "enum": ["A1", "A2", "A3", "A4", "A5", "A6", "A7", null] },
+    "model": {
+      "type": "object",
+      "required": ["name", "server"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "digest": { "type": "string" },
+        "family": { "type": "string" },
+        "server": { "enum": ["ollama", "vllm", "llama.cpp", "hosted"] },
+        "temperature": { "type": "number", "minimum": 0, "maximum": 2 },
+        "seed": { "type": "integer" }
+      }
+    },
+    "tools": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "visible_gates": { "type": "array", "items": { "type": "string" } },
+    "budgets": {
+      "type": "object",
+      "required": ["tokens", "tool_calls", "wall_min"],
+      "additionalProperties": false,
+      "properties": {
+        "tokens": { "type": "integer", "minimum": 1 },
+        "tool_calls": { "type": "integer", "minimum": 1 },
+        "wall_min": { "type": "integer", "minimum": 1 },
+        "l0_tokens": { "type": "integer", "minimum": 0 },
+        "l0_tool_calls": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "protected_manifest_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "bend_version": { "type": "string" },
+    "osscad_release": { "type": "string" },
+    "image_digest": { "type": "string" },
+    "excluded": {
+      "type": "object",
+      "description": "Set when a harness or infrastructure failure voids the run (§11.3).",
+      "additionalProperties": false,
+      "properties": {
+        "reason": { "type": "string" },
+        "rerun_of": { "type": "string" }
+      }
+    }
+  }
+}
