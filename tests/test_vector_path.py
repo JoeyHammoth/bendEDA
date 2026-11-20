@@ -151,6 +151,9 @@ class TestVerilatorDut(unittest.TestCase):
         result = vp.compare(model, dut_trace=trace, inject_offset=1)
         self.assertEqual(result.detected_offset, 1)
 
+    def test_a_missing_docker_is_reported_as_unavailable(self) -> None:
+        self.assertFalse(vp.image_available("any/image:1", docker="definitely-not-a-docker-xyz"))
+
 
 class TestRealDut(unittest.TestCase):
     """Compile the model, simulate the RTL, compare. Skipped without Docker."""
@@ -159,6 +162,10 @@ class TestRealDut(unittest.TestCase):
         if shutil.which("docker") is None:
             raise unittest.SkipTest(
                 "no docker: the Verilator DUT runs in the pinned image, and CI covers it"
+            )
+        if not vp.image_available():
+            raise unittest.SkipTest(
+                f"image {vp.DEFAULT_IMAGE} is not present; the oss-cad-image job builds it and runs this test"
             )
         bun, cli = vp.find_bend_toolchain()
         if bun is None or cli is None:

@@ -6,6 +6,7 @@ L2 and L3 need simulation and formal tools and live behind `bendeda gate`.
 """
 
 from bendeda.conformance.vector_path import (
+    image_available,
     CompileResult,
     Comparison,
     compare,
