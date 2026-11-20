@@ -32,6 +32,10 @@ A 4-bit saturating counter.
 5. No testbench is written by hand. `dut.json` is a port manifest (clock, reset,
    enable, inputs, outputs, which output to compare), and the driver generates
    the Verilator bench from it. A new task supplies a manifest.
+6. Inputs are driven independently. The plan's `stimulus` object maps an input
+   name to its own sequence, so an enable can drop mid-run while `inc` keeps
+   changing; `--plan` supplies one from a file, and `incs` remains the model's
+   single-vector stimulus.
 
 ## What it deliberately does not prove
 

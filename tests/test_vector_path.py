@@ -186,9 +186,56 @@ class TestGeneratedTestbench(unittest.TestCase):
             ],
             "outputs": [{"port": "y", "width": 8}],
         }
-        words, width = vp.build_stimulus(spec, [1, 15])
+        words, width = vp.build_stimulus(spec, {"incs": [1, 15]})
         self.assertEqual(width, 8)
         self.assertEqual(words, [0x31, 0x3F])
+
+    def test_two_inputs_follow_their_own_sequences(self) -> None:
+        spec = {
+            "top": "dut",
+            "clock": {"port": "clk"},
+            "inputs": [
+                {"port": "a", "width": 4, "stimulus": "plan", "key": "a"},
+                {"port": "en", "width": 4, "stimulus": "plan", "key": "en"},
+            ],
+            "outputs": [{"port": "y", "width": 8}],
+        }
+        plan = {"incs": [1, 2], "stimulus": {"a": [1, 2], "en": [9, 0]}}
+        words, width = vp.build_stimulus(spec, plan)
+        self.assertEqual(width, 8)
+        self.assertEqual(words, [0x91, 0x02])
+
+    def test_a_missing_sequence_names_the_input(self) -> None:
+        spec = {
+            "top": "dut",
+            "clock": {"port": "clk"},
+            "inputs": [{"port": "en", "width": 1, "stimulus": "plan"}],
+            "outputs": [{"port": "y", "width": 1}],
+        }
+        with self.assertRaises(ValueError) as caught:
+            vp.build_stimulus(spec, {"incs": [1]})
+        self.assertIn("stimulus.en", str(caught.exception))
+
+    def test_a_short_sequence_is_rejected(self) -> None:
+        spec = {
+            "top": "dut",
+            "clock": {"port": "clk"},
+            "inputs": [{"port": "a", "width": 1, "stimulus": "plan"}],
+            "outputs": [{"port": "y", "width": 1}],
+        }
+        with self.assertRaises(ValueError) as caught:
+            vp.build_stimulus(spec, {"incs": [1, 2, 3], "stimulus": {"a": [1, 0]}})
+        self.assertIn("2 values for 3 cycles", str(caught.exception))
+
+    def test_the_default_plan_names_the_fixture_input(self) -> None:
+        plan = vp.default_plan(6)
+        self.assertEqual(plan["stimulus"]["inc"], plan["incs"])
+        self.assertEqual(len(plan["incs"]), 6)
+
+    def test_a_plan_without_count0_defaults_to_zero(self) -> None:
+        plan = vp.load_plan({"incs": [1, 2]})
+        self.assertEqual(plan["count0"], 0)
+        self.assertEqual(plan["entries"], ["step", "run"])
 
     def test_multi_output_bench_samples_every_output(self) -> None:
         spec = {
@@ -259,8 +306,11 @@ class TestRealDut(unittest.TestCase):
             compiled = vp.compile_model(fixture / "model.bend", module, Path(self.cli), self.bun)
             self.assertTrue(compiled.ok, msg=(compiled.stderr or compiled.stdout)[:1500])
             payload = vp.run_vectors(module, vp.default_plan(24))
+        incs = [step["inc"] for step in payload["steps"]]
         trace = vp.simulate_verilator(
-            fixture / "dut.sv", fixture / "dut.json", [step["inc"] for step in payload["steps"]]
+            fixture / "dut.sv",
+            fixture / "dut.json",
+            {"incs": incs, "stimulus": {"inc": list(incs)}},
         )
         comparison = vp.compare(payload["steps"], dut_trace=trace)
         self.assertTrue(comparison.matches, msg=comparison.explain())

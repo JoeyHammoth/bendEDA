@@ -5,7 +5,7 @@
   "reset": { "port": "rst", "active_high": true, "cycles": 1 },
   "enable": { "port": "en", "active_high": true },
   "inputs": [
-    { "port": "inc", "width": 4, "stimulus": "incs" }
+    { "port": "inc", "width": 4, "stimulus": "plan", "key": "inc" }
   ],
   "outputs": [
     { "port": "c", "width": 4 }

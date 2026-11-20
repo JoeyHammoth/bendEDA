@@ -213,12 +213,13 @@ def validate_spec(spec) -> dict:
             raise ValueError(f"port {port!r} appears twice")
         used.add(port)
         stimulus = entry.get("stimulus", "const")
-        if stimulus not in ("incs", "const"):
-            raise ValueError(f"{port}: stimulus must be 'incs' or 'const'")
+        if stimulus not in ("plan", "incs", "const"):
+            raise ValueError(f"{port}: stimulus must be 'plan', 'incs' or 'const'")
         inputs.append({
             "port": port,
             "width": _width(entry.get("width", 1), port),
             "stimulus": stimulus,
+            "key": str(entry.get("key", port)),
             "value": int(entry.get("value", 0)),
         })
 
@@ -344,16 +345,73 @@ def render_testbench(spec) -> str:
     return "\n".join(lines)
 
 
-def build_stimulus(spec, incs: list[int]) -> tuple[list[int], int]:
-    """Pack one stimulus word per cycle, in manifest order, least-significant first."""
+def load_plan(plan) -> dict:
+    """Read a stimulus plan from a path, or accept a mapping as-is."""
+    if isinstance(plan, dict):
+        return validate_plan(plan)
+    return validate_plan(json.loads(Path(plan).read_text(encoding="utf-8")))
+
+
+def validate_plan(plan) -> dict:
+    """Check a stimulus plan and return it with `stimulus` normalised.
+
+    `incs` stays because it is the model's stimulus: the driver walks it one
+    entry per cycle. `stimulus` maps an input name to its own sequence, which is
+    how a design with two or three inputs is driven without inventing a second
+    plan format.
+    """
+    if not isinstance(plan, dict):
+        raise ValueError("plan must be a JSON object")
+    incs = plan.get("incs")
+    if not isinstance(incs, list) or not incs:
+        raise ValueError("plan.incs must be a non-empty list")
+    if not all(isinstance(value, int) and value >= 0 for value in incs):
+        raise ValueError("plan.incs values must be non-negative integers")
+    stimulus = plan.get("stimulus") or {}
+    if not isinstance(stimulus, dict):
+        raise ValueError("plan.stimulus must be an object of name -> sequence")
+    for key, values in stimulus.items():
+        if not isinstance(values, list):
+            raise ValueError(f"plan.stimulus.{key} must be a list")
+        if len(values) < len(incs):
+            raise ValueError(
+                f"plan.stimulus.{key} has {len(values)} values for {len(incs)} cycles"
+            )
+    count0 = plan.get("count0", 0)
+    if not isinstance(count0, int) or count0 < 0:
+        raise ValueError("plan.count0 must be a non-negative integer")
+    entries = plan.get("entries", ["step", "run"])
+    if not isinstance(entries, list) or not entries:
+        raise ValueError("plan.entries must be a non-empty list")
+    return {**plan, "count0": count0, "entries": entries, "stimulus": stimulus}
+
+
+def build_stimulus(spec, plan) -> tuple[list[int], int]:
+    """Pack one stimulus word per cycle, in manifest order, least-significant first.
+
+    Each input takes its values independently: a constant, the model's `incs`, or
+    its own sequence from `plan.stimulus`. That last case is the point — an
+    enable that deasserts mid-run cannot be expressed as a single shared list.
+    """
     spec = validate_spec(spec)
+    plan = validate_plan(plan)
+    cycles = len(plan["incs"])
     width = sum(item["width"] for item in spec["inputs"])
     words: list[int] = []
-    for inc in incs:
+    for index in range(cycles):
         word = 0
         offset = 0
         for item in spec["inputs"]:
-            value = inc if item["stimulus"] == "incs" else item["value"]
+            if item["stimulus"] == "const":
+                value = item["value"]
+            elif item["stimulus"] == "incs":
+                value = plan["incs"][index]
+            else:
+                if item["key"] not in plan["stimulus"]:
+                    raise ValueError(
+                        f"input {item['port']!r} wants plan.stimulus.{item['key']}, which the plan does not define"
+                    )
+                value = plan["stimulus"][item["key"]][index]
             word |= (int(value) & ((1 << item["width"]) - 1)) << offset
             offset += item["width"]
         words.append(word)
@@ -420,22 +478,22 @@ def verilator_command(
 def simulate_verilator(
     rtl: Path,
     spec,
-    incs: list[int],
+    plan,
     image: str = DEFAULT_IMAGE,
     docker: str = "docker",
     timeout: int = 900,
 ) -> list[int]:
     """Run `rtl` against a generated testbench and return the compared output.
 
-    `spec` is a port manifest (path or mapping), so a new task supplies a
-    manifest and gets a working simulation instead of writing a bench.
+    `spec` is a port manifest and `plan` a stimulus plan (path or mapping). Both
+    can describe several inputs, so a new task supplies data rather than code.
     """
-    if not incs:
-        raise ValueError("no stimulus to simulate")
     if not rtl.exists():
         raise FileNotFoundError(f"no RTL at {rtl}")
+    plan = validate_plan(plan)
+    cycles = len(plan["incs"])
     manifest = validate_spec(spec)
-    values, width = build_stimulus(manifest, incs)
+    values, width = build_stimulus(manifest, plan)
 
     with tempfile.TemporaryDirectory(prefix="bendeda-dut-") as raw:
         workdir = Path(raw)
@@ -444,7 +502,7 @@ def simulate_verilator(
         write_stimulus(workdir / "stim.hex", values, width)
         try:
             done = subprocess.run(
-                verilator_command(workdir, len(incs), image=image, docker=docker),
+                verilator_command(workdir, cycles, image=image, docker=docker),
                 capture_output=True,
                 text=True,
                 timeout=timeout,
@@ -459,8 +517,8 @@ def simulate_verilator(
             raise RuntimeError("verilator ran but produced no dut_trace.txt")
         table = parse_trace_table(trace_path, len(manifest["outputs"]))
 
-    if len(table) != len(incs):
-        raise RuntimeError(f"the DUT produced {len(table)} samples for {len(incs)} cycles")
+    if len(table) != cycles:
+        raise RuntimeError(f"the DUT produced {len(table)} samples for {cycles} cycles")
     index = [item["port"] for item in manifest["outputs"]].index(manifest["compare"])
     return [row[index] for row in table]
 
@@ -571,11 +629,19 @@ def compare(
 
 
 def default_plan(cycles: int) -> dict:
-    """A stimulus plan that exercises saturation without needing a simulator."""
+    """A plan that exercises saturation and also names the fixture's input.
+
+    `stimulus.inc` is redundant with `incs` for this fixture; it is here so the
+    default path exercises the per-input plan support that a multi-input design
+    needs, instead of leaving it to the tests alone.
+    """
     incs = [1, 2, 3, 1, 4, 2, 1, 3]
+    incs = (incs * ((cycles // len(incs)) + 1))[:cycles]
     return {
         "count0": 0,
-        "incs": (incs * ((cycles // len(incs)) + 1))[:cycles],
+        "cycles": cycles,
+        "incs": incs,
+        "stimulus": {"inc": list(incs)},
         "entries": ["step", "run"],
     }
 
@@ -626,7 +692,11 @@ def cmd_trace(args) -> int:
     if not module.exists():
         print(f"conformance trace: no module at {module} (run `bendeda conformance compile` first)", file=sys.stderr)
         return 3
-    plan = default_plan(args.cycles)
+    try:
+        plan = load_plan(args.plan) if args.plan else default_plan(args.cycles)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"conformance trace: bad plan: {exc}", file=sys.stderr)
+        return 2
     try:
         payload = run_vectors(module, plan, driver=Path(args.driver), node=args.node)
     except (OSError, RuntimeError, json.JSONDecodeError) as exc:
@@ -642,7 +712,7 @@ def cmd_trace(args) -> int:
             dut_trace = simulate_verilator(
                 Path(args.rtl),
                 Path(args.spec),
-                plan["incs"],
+                plan,
                 image=args.image,
                 docker=args.docker,
                 timeout=args.sim_timeout,

@@ -4,6 +4,18 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-21 - A plan drives each input, not one shared vector
+
+**Decided:** `plan.stimulus` maps an input name to its own sequence; the manifest says `"stimulus": "plan"` (optionally with a `key`), and `--plan` supplies a file. `incs` remains the model's stimulus and keeps working.
+
+**Why:** one shared `incs` list can only express designs whose inputs all change together. An enable that deasserts, a mode that switches, or two data inputs cannot be driven that way, and inventing a second plan format for them would have been worse than extending this one.
+
+**Cost:** the plan is now the place where simulation-only stimulus lives, which means a task can be simulated with inputs the Bend model does not see. That is deliberate — the model is the reference for the compared output, not a description of every pin — but it must be written down, not assumed.
+
+**Evidence:** `build_stimulus`/`validate_plan` in `bendeda/conformance/vector_path.py`; `--plan` in the CLI; tests `test_two_inputs_follow_their_own_sequences`, `test_a_missing_sequence_names_the_input`, `test_a_short_sequence_is_rejected`.
+
+---
+
 ## 2026-11-21 - L1 generates its testbench from a port manifest
 
 **Decided:** a simulated task supplies `dut.json` — top, clock, optional reset and enable, inputs, outputs, compared output — and the driver generates the Verilator bench. No testbench is committed or hand-edited.
