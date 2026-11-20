@@ -69,6 +69,9 @@ jobs:
           [script]
           read_verilog -formal counter.sv
           prep
+
+          [files]
+          counter.sv
           EOF
           (cd smoke && docker run --rm -u "$(id -u):$(id -g)" \
             -v "$PWD:/work" -w /work bendeda/oss-cad:2026-11-20 sby -f counter.sby)
