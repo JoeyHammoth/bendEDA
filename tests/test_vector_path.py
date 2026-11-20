@@ -115,8 +115,10 @@ class TestVerilatorDut(unittest.TestCase):
     def test_stimulus_is_one_hex_value_per_line(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             path = Path(raw) / "stim.hex"
-            vp.write_stimulus(path, [0, 1, 15, 16])
-            self.assertEqual(path.read_text(encoding="utf-8").split(), ["00", "01", "0f", "00"])
+            vp.write_stimulus(path, [0, 1, 15], 4)
+            self.assertEqual(path.read_text(encoding="utf-8").split(), ["0", "1", "f"])
+            vp.write_stimulus(path, [0, 16], 8)
+            self.assertEqual(path.read_text(encoding="utf-8").split(), ["00", "10"])
 
     def test_trace_parser_ignores_blanks_and_comments(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -155,6 +157,84 @@ class TestVerilatorDut(unittest.TestCase):
         self.assertFalse(vp.image_available("any/image:1", docker="definitely-not-a-docker-xyz"))
 
 
+class TestGeneratedTestbench(unittest.TestCase):
+    """The manifest is the contract; the testbench is output."""
+
+    def test_rendered_bench_connects_every_declared_port(self) -> None:
+        bench = vp.render_testbench(ROOT / "experiments" / "fixtures" / "toy_counter" / "dut.json")
+        for fragment in (
+            "module tb_dut;",
+            "toy_counter dut (",
+            ".clk(clk)",
+            ".rst(rst)",
+            ".en(en)",
+            ".inc(inc)",
+            ".c(c)",
+            'readmemh("stim.hex", stim)',
+            'fopen("dut_trace.txt", "w")',
+            '$fdisplay(fd, "%0d", c)',
+        ):
+            self.assertIn(fragment, bench)
+
+    def test_stimulus_packs_inputs_in_manifest_order(self) -> None:
+        spec = {
+            "top": "dut",
+            "clock": {"port": "clk"},
+            "inputs": [
+                {"port": "a", "width": 4, "stimulus": "incs"},
+                {"port": "b", "width": 4, "stimulus": "const", "value": 3},
+            ],
+            "outputs": [{"port": "y", "width": 8}],
+        }
+        words, width = vp.build_stimulus(spec, [1, 15])
+        self.assertEqual(width, 8)
+        self.assertEqual(words, [0x31, 0x3F])
+
+    def test_multi_output_bench_samples_every_output(self) -> None:
+        spec = {
+            "top": "dut",
+            "clock": {"port": "clk"},
+            "inputs": [{"port": "a", "width": 1, "stimulus": "incs"}],
+            "outputs": [{"port": "x", "width": 2}, {"port": "y", "width": 2}],
+            "compare": "y",
+        }
+        bench = vp.render_testbench(spec)
+        self.assertIn('$fdisplay(fd, "%0d %0d", x, y)', bench)
+        self.assertEqual(vp.validate_spec(spec)["compare"], "y")
+
+    def test_manifest_rejects_an_unknown_compare_port(self) -> None:
+        spec = {
+            "top": "dut",
+            "clock": {"port": "clk"},
+            "inputs": [],
+            "outputs": [{"port": "y", "width": 1}],
+            "compare": "nope",
+        }
+        with self.assertRaises(ValueError):
+            vp.validate_spec(spec)
+
+    def test_manifest_rejects_a_bad_identifier(self) -> None:
+        spec = {
+            "top": "dut",
+            "clock": {"port": "clk"},
+            "inputs": [{"port": "1bad", "width": 1}],
+            "outputs": [{"port": "y", "width": 1}],
+        }
+        with self.assertRaises(ValueError):
+            vp.validate_spec(spec)
+
+    def test_manifest_requires_an_output(self) -> None:
+        spec = {"top": "dut", "clock": {"port": "clk"}, "inputs": [], "outputs": []}
+        with self.assertRaises(ValueError):
+            vp.validate_spec(spec)
+
+    def test_trace_table_parses_each_column(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / "dut_trace.txt"
+            path.write_text("0 3\n# note\n1 2\n", encoding="utf-8")
+            self.assertEqual(vp.parse_trace_table(path, 2), [[0, 3], [1, 2]])
+
+
 class TestRealDut(unittest.TestCase):
     """Compile the model, simulate the RTL, compare. Skipped without Docker."""
 
@@ -180,7 +260,7 @@ class TestRealDut(unittest.TestCase):
             self.assertTrue(compiled.ok, msg=(compiled.stderr or compiled.stdout)[:1500])
             payload = vp.run_vectors(module, vp.default_plan(24))
         trace = vp.simulate_verilator(
-            fixture / "dut.sv", fixture / "tb_dut.sv", [step["inc"] for step in payload["steps"]]
+            fixture / "dut.sv", fixture / "dut.json", [step["inc"] for step in payload["steps"]]
         )
         comparison = vp.compare(payload["steps"], dut_trace=trace)
         self.assertTrue(comparison.matches, msg=comparison.explain())

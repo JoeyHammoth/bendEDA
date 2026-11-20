@@ -29,11 +29,16 @@ A 4-bit saturating counter.
    with the model's. `dut_wrap.sv` is the negative control — RTL that wraps at
    16 instead of saturating — and the gate must reject it as a *value* mismatch,
    not as an offset.
+5. No testbench is written by hand. `dut.json` is a port manifest (clock, reset,
+   enable, inputs, outputs, which output to compare), and the driver generates
+   the Verilator bench from it. A new task supplies a manifest.
 
 ## What it deliberately does not prove
 
-- Nothing about generality: the testbench is written for this fixture's port
-  list, so a new task needs its own harness. A generic RTL runner is Phase 2.
+- Nothing beyond the manifest's reach: one clock, optional reset and enable,
+  inputs driven from `incs` or constants. Asynchronous multi-clock designs, handshakes
+  and memories need a real harness, and a manifest that pretended otherwise would
+  generate a bench nobody could trust.
 - Nothing about the DUT's timing beyond one sample per clock; CDC, reset
   sequencing and multi-clock behaviour are outside L1.
 - Nothing about laws: no `LAWS.bend`, no `PROOF.bend`, no conformance ladder above
