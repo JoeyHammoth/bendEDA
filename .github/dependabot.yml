@@ -1,0 +1,18 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    # Pinning matters more than freshness in this project: a dependency bump
+    # that changes a tool version mid-study is a protocol amendment, so these
+    # PRs are intentionally reviewed rather than auto-merged.

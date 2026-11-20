@@ -1,0 +1,49 @@
+# CODEOWNERS — separation of duties, expressed as review ownership.
+#
+# The roles in Appendix J are agent role groups, not teams of people. GitHub
+# teams for those groups do not exist yet, so every path routes to the human
+# release approver who acts as the accountable reviewer of record. When the
+# role groups get their own teams, replace the @JoeyHammoth entry on that line
+# with the team handle; the comment names the group that must review.
+#
+# Two rules from GOVERNANCE.md are load-bearing here:
+#   1. The implementation agent's owners may never review a locked law set.
+#   2. Law-author paths and oracle-author paths must be reviewed by different
+#      groups, which is why they are separate blocks below.
+
+# Default: any maintainer
+*                                   @JoeyHammoth
+
+# Law-author group (LAA): models, laws, manifests, abstraction maps
+/tasks/**/LAWS.bend                 @JoeyHammoth
+/tasks/**/model.bend                @JoeyHammoth
+/tasks/**/laws.manifest.yaml        @JoeyHammoth
+/tasks/**/abs.yaml                  @JoeyHammoth
+/tasks/**/checklist.yaml            @JoeyHammoth
+/tasks/**/provenance.yaml           @JoeyHammoth
+/bv/                                @JoeyHammoth
+
+# Reference-proof group (RPA), hidden from the implementation agent
+/tasks/**/PROOF_ref.bend            @JoeyHammoth
+
+# Oracle-author group (OAA) and parity group (PA)
+/tasks/**/oracle/**                 @JoeyHammoth
+/tasks/**/bugs/**                   @JoeyHammoth
+/tasks/**/props_c2.sv               @JoeyHammoth
+/oracle_sealed/                     @JoeyHammoth
+
+# Harness group
+/bendeda/                           @JoeyHammoth
+/bendeda/schemas/                   @JoeyHammoth
+/docker/                            @JoeyHammoth
+/experiments/                       @JoeyHammoth
+/.github/workflows/                 @JoeyHammoth
+
+# Freeze and integrity: two reviews required, enforced by branch protection
+/prereg/                            @JoeyHammoth
+/amendments/                        @JoeyHammoth
+
+# Public-facing documentation
+/site/                              @JoeyHammoth
+/docs/                              @JoeyHammoth
+/README.md                          @JoeyHammoth

@@ -1,0 +1,50 @@
+name: Protocol amendment
+description: A dated, reviewable change to a locked artifact, threshold, metric or the protocol itself.
+title: "[amendment] "
+labels: ["amendment"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        An amendment is how this project changes its mind in public. It must say what
+        breaks and what has to be re-run; an amendment that hides its cost is worse than
+        the defect it fixes.
+  - type: input
+    id: targets
+    attributes:
+      label: What is being amended
+      placeholder: "tasks/seq/B1_fifo/LAWS.bend, or §11.4 D3 threshold"
+    validations:
+      required: true
+  - type: textarea
+    id: reason
+    attributes:
+      label: Why
+      description: The defect or new evidence that forces the change. Link the issue or log.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact on collected runs
+      value: |
+        - Runs invalidated:
+        - Runs salvageable:
+        - Gates re-run:
+        - New hashes:
+    validations:
+      required: true
+  - type: textarea
+    id: diff
+    attributes:
+      label: Proposed diff
+      description: The change itself, or a link to the draft PR that carries it.
+      render: diff
+  - type: checkboxes
+    id: process
+    attributes:
+      label: Process
+      options:
+        - label: An entry has been added under `amendments/`
+        - label: The design-document version has been bumped
+        - label: The human release approver has signed off (required only for one-way doors)

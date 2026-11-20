@@ -1,0 +1,102 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: tests (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Byte-compile the package
+        run: python -m compileall -q bendeda
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: CLI smoke test
+        run: |
+          python -m bendeda --version
+          python -m bendeda --help
+      - name: Schema and task-package validation
+        run: python -m bendeda validate --all
+
+  hygiene:
+    name: repository hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Secret scan
+        run: python tools/check_secrets.py .
+      - name: Licence headers
+        run: python tools/check_license_headers.py .
+      - name: Whitespace and newline endings
+        run: python tools/check_whitespace.py .
+      - name: No plaintext oracle in history
+        run: python tools/check_oracle_absence.py .
+      - name: DCO sign-off on every commit in the pull request
+        if: github.event_name == 'pull_request'
+        run: python tools/check_dco.py "origin/${{ github.base_ref }}"
+
+  locked-files:
+    name: locked-file guard
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fail on any change to a locked artifact without the amendment label
+        env:
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: python tools/check_locked.py --base "origin/${{ github.base_ref }}" --labels "$PR_LABELS"
+
+  docs:
+    name: docs site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Site integrity (assets exist, links resolve)
+        run: python tools/check_site.py site
+
+  bend-and-eda:
+    name: bend and EDA gates
+    runs-on: [self-hosted, linux, bendeda-tools]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Law lint, model mutation, canary suite, translation fidelity
+        run: |
+          bendeda canary --image pinned
+          bendeda law lint tasks --recursive
+          bendeda tf run --all
+
+  # The full agent run matrix is never run in CI: it is expensive, stochastic and
+  # needs local models. It runs on the study host and publishes bundles as release
+  # assets. Recorded here so the absence is a decision, not an oversight.
