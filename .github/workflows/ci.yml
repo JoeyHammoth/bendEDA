@@ -101,6 +101,12 @@ jobs:
         run: python tools/fetch_bend.py
       - name: Comparator unit tests (no compiler needed)
         run: python -m unittest tests.test_vector_path.TestComparator -v
+      - name: BendBV proofs check, and the unmasked control is refused
+        env:
+          BENDEDA_BUN: bun
+          BENDEDA_BEND_CLI: .bend-cache/bend-2.0.40/bend2/main.ts
+        run: python -m unittest tests.test_bv -v
+
       - name: Compile the fixture, trace it, and detect an injected offset
         env:
           BENDEDA_BUN: bun
@@ -138,6 +144,29 @@ jobs:
         run: |
           node tools/model_vectors.mjs .bend-cache/out/model.mjs experiments/fixtures/toy_counter/plan.json \
             | head -20
+
+      - name: The released binary accepts the BendBV proofs
+        run: |
+          out=$(docker run --rm -v "$PWD:/work" -w /work bendeda/bend:2.0.40 bv/bv.bend 2>&1)
+          echo "$out"
+          echo "$out" | grep -q "ALL PROOFS CHECK"
+
+      - name: The released binary refuses the unmasked control
+        # Bend writes failures to stderr, so both streams are captured; the gate
+        # reads the verdict text as well as the exit status, because the verdict
+        # is what the proof discipline actually promises.
+        run: |
+          set +e
+          out=$(docker run --rm -v "$PWD:/work" -w /work bendeda/bend:2.0.40 bv/negative/unmasked_add.bend 2>&1)
+          rc=$?
+          set -e
+          echo "$out"
+          test "$rc" -ne 0
+          echo "$out" | grep -q "SOME PROOFS FAIL"
+          if echo "$out" | grep -q "ALL PROOFS CHECK"; then
+            echo "the unmasked control was accepted"
+            exit 1
+          fi
 
   bend-and-eda:
     name: bend and EDA gates

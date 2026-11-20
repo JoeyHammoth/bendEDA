@@ -4,6 +4,28 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-21 - BendBV proves the mask layer and names what it cannot prove
+
+**Decided:** `bv/bv.bend` carries `mask`, `bv_add`, `bv_sub` and the laws that check — `Bool.and_idem/comm/assoc`, `Word.and_idem`, `Word.and_assoc`, `mask.idem`, `bv_add.comm`, and the concrete `bv_add(8n, 200, 100) == 44`. `bv/negative/unmasked_add.bend` deletes `mask(w)` and states the same wrap; it must be refused.
+
+**Why:** exit criterion 3 asks for lemmas that check with no escape hatch, and proves only what checks. An open law prints the same `SOME PROOFS FAIL` as a deleted mask, so keeping the library clean is what lets `ALL PROOFS CHECK` mean something.
+
+**Cost:** the width contract is carried by one concrete 8-bit claim, not by a symbolic closure lemma. Closure, identity, wrap and associativity sit in `bv/OPEN.md` beside the base lemma each one is missing; a model relying on the library beyond the proved set is relying on that file, not on the checker.
+
+**Evidence:** `bend bv/bv.bend` prints `ALL PROOFS CHECK`; `bend bv/negative/unmasked_add.bend` prints `SOME PROOFS FAIL` with `expected 300, observed 44`; the same two assertions run in the `vector-path` and `bend-image` CI jobs; `tests/test_bv.py`.
+
+---
+
+## 2026-11-21 - BendBV is one file, because the two-file convention does not check reliably
+
+**Decided:** definitions, claims and proofs share `bv/bv.bend`; the gate is `bend bv/bv.bend`.
+
+**Why:** the guide's `LAWS.bend`/`PROOF.bend` split assumes the proof file can import the claims. On 2.0.40 an import resolves against the working directory rather than the importing file, and a path containing `.bend` is rejected ("expected: an import path of plain names"). A split would check only when the gate happened to run from a particular directory — and a CI job that ran it from the wrong one would report a pass it had not earned.
+
+**Cost:** claims and proofs are checked together, so the claims cannot be read without the proof scripts. `bv/README.md` says which is which.
+
+---
+
 ## 2026-11-21 - A plan drives each input, not one shared vector
 
 **Decided:** `plan.stimulus` maps an input name to its own sequence; the manifest says `"stimulus": "plan"` (optionally with a `key`), and `--plan` supplies a file. `incs` remains the model's stimulus and keeps working.

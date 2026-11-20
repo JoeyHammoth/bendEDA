@@ -1,21 +1,27 @@
 # BendBV — the bit-vector library the models stand on
 
 Bend has three numeric types and no arbitrary-width bit-vectors, so every model
-that needs modular arithmetic needs a small library first. This directory will
-hold `bv.bend` plus its proofs.
+that needs modular arithmetic needs a small library first. `bv.bend` is that
+library, with its claims and proofs in one file.
 
-**Status: not written yet.** It is Phase 0.4 and is tracked as an issue; the plan
-below is the specification it must satisfy.
+**Status: the mask layer checks.** `bend bv/bv.bend` prints `ALL PROOFS CHECK` on
+the pinned Bend 2.0.40, and `bend bv/negative/unmasked_add.bend` prints
+`SOME PROOFS FAIL` — the control deletes `mask(w)` and must not pass. What is
+still unproved is in `OPEN.md`, each claim beside the base lemma it is missing.
 
 ## Representation (decided in Appendix K, G-01)
 
 `BV(w)` is a `U32` with an explicit `mask(w)` applied on every operation:
 
 ```text
-mask(w, x)        = x & ((1 << w) - 1)          # w <= 32
+mask(w, x)        = x & (2^w - 1)               # w <= 32
 bv_add(w, a, b)   = mask(w, a + b)              # wraps as hardware does
 bv_sub(w, a, b)   = mask(w, a - b)
 ```
+
+`mask` is computed in `U32`, so `w = 0` gives `0` and `w = 32` wraps the shift to
+`0`, making the mask `0xFFFFFFFF` — the identity. Widths above 32 are out of
+scope for v1.
 
 Why `U32` and not `Nat`: the released guide states that `Nat` literals above
 `256n` are `U32.to_nat` underneath and cap at `4294967295n`, and that `U32` is the
@@ -23,25 +29,49 @@ only released type carrying `and or xor not shl shr`. An earlier draft of the
 design document assumed a `Nat` encoding below `2^w`; that assumption was wrong
 and was corrected rather than quietly worked around.
 
-## What must be proved
+## What checks
 
 | Lemma | Statement |
 |---|---|
-| closure | `bv_add(w, a, b) < 2^w` for `a, b < 2^w` |
-| commutativity | `bv_add(w, a, b) == bv_add(w, b, a)` |
-| associativity | `bv_add(w, bv_add(w, a, b), c) == bv_add(w, a, bv_add(w, b, c))` |
-| identity | `bv_add(w, a, 0) == a` |
-| wrap | `bv_add(w, 2^w - 1, 1) == 0` |
-| mask idempotence | `mask(w, mask(w, x)) == mask(w, x)` |
+| `Bool.and_idem`, `Bool.and_comm`, `Bool.and_assoc` | the bitwise laws Base does not ship |
+| `Word.and_idem` | `Word.and(n, a, a) == a`, by structural induction on the word |
+| `Word.and_assoc` | `Word.and(n, Word.and(n, a, b), c) == Word.and(n, a, Word.and(n, b, c))` |
+| `mask.idem` | `mask(w, mask(w, x)) == mask(w, x)` |
+| `bv_add.comm` | `bv_add(w, a, b) == bv_add(w, b, a)` |
+| `bv_add.wrap8` | `bv_add(8n, 200, 100) == 44` — the concrete 8-bit wrap |
 
-Plus FSM helpers: `step`, `run(init, inputs)`, `trace_equal`.
+## The negative control
+
+`negative/unmasked_add.bend` is the library with `mask(w)` deleted and the same
+8-bit wrap claim. It prints `SOME PROOFS FAIL` with `expected 300, observed 44`.
+Closure, identity and wrap are not proved yet (see `OPEN.md`), so this concrete
+claim is currently the only thing that would catch a missing mask in the
+arithmetic itself; the gate refuses it in `tests/test_bv.py` and in CI.
+
+## Why one file, not `LAWS.bend` plus `PROOF.bend`
+
+The guide's two-file convention assumes `PROOF.bend` can import `LAWS.bend`. On
+2.0.40 that import resolves against the working directory rather than the
+importing file, and a path containing `.bend` is rejected outright —
+
+```text
+expected : an import path of plain names (each starts with a letter or _, then letters, digits, _ and -)
+observed : 'LAWS.bend'
+```
+
+— so a split would check only when the gate happened to run in a particular
+directory, and a CI job that got it wrong would report a pass it had not earned.
+One file checks identically from anywhere.
 
 ## Constraints
 
-- Every definition must terminate under Bend's structural-recursion rule; no
+- Every definition terminates under Bend's structural-recursion rule; no
   `@unsafe`.
 - No escape hatches: a proof using one is invalid, not merely weak (Appendix H.8).
-- Reduced widths for L2 exhaustive runs are declared per task, smallest values that
-  still exhibit wrap-around.
+- Law-filling defs are untyped, and a parameter reused more than once needs a `+`
+  binding (`case U32{+xw}`, `+ww = w`) because Bend bindings are affine. This is
+  the idiom Base uses in `U32.popcount`, and it is not stated in the guide.
+- Reduced widths for L2 exhaustive runs are declared per task, smallest values
+  that still exhibit wrap-around.
 - The library is visible to the implementation agent on purpose: a law that needs
   a lemma the agent cannot see is a design error, not a difficulty setting.
