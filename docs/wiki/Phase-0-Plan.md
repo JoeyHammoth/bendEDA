@@ -34,7 +34,7 @@
 
 Phase 0 is done when all of these are true, not when the tickets are closed:
 
-1. Three images build offline and record their digests. **Bend: done** (built in CI from the pinned digest). OSS CAD Suite: candidate pin only, no image built.
+1. Three images build offline and record their digests. **Bend: built in CI from the pinned digest.** **OSS CAD Suite: built in CI from the verified digest, tools answer, and an `sby` BMC proof passes.** Harness: not yet built, and no image has been shown to build offline.
 2. `bend model.bend -o model.mjs` drives a model from Node and a one-cycle injected offset is detected. **Done** — `bendeda conformance trace --inject-offset 1` reports `offset detected`.
 3. BendBV's lemmas all check with no escape hatch.
 4. 30+ canary controls, zero false accepts, `verdict_available` recorded with evidence.

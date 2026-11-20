@@ -4,6 +4,18 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-21 - The OSS CAD pin is verified by a proof, not by a version string
+
+**Decided:** the OSS CAD image counts as pinned only when a build from the recorded digest runs a real SymbiYosys BMC that passes.
+
+**Why:** printing `yosys -V` proves a binary exists. It does not prove the archive unpacked correctly, that the solver came with it, or that the gate that will judge RTL works. The first attempt failed twice for exactly those reasons - a missing `[files]` entry and an unreadable generated fixture - which is the kind of thing a version check would have hidden.
+
+**Cost:** the job downloads 754 MB, so it runs only when the pin, the Dockerfile or the workflow changes, never on every pull request.
+
+**Evidence:** `.github/workflows/oss-cad-image.yml`; digests match the release's published per-asset sha256 (`6e200a57...` x64, `d58ee2fa...` arm64); `sby` reports `DONE (PASS, rc=0)`.
+
+---
+
 ## 2026-11-21 · The vector path runs at a pinned commit, and the gate must be able to fail
 
 **Decided:** the L1 gate compiles the model at commit `624dd9f` (Bend 2.0.40), using either the release binary or the pinned sources under Bun 1.4.5, and every run includes an injected one-cycle offset that must be detected.

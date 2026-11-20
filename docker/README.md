@@ -16,7 +16,7 @@ Phase 0 requires that each image builds **offline from a lockfile** and records
 | Image | Pin | Digest verified | Built |
 |---|---|---|---|
 | `bend` | release 2.0.40, tag commit `624dd9f` | **yes** — linux-x64 archive `c9ff8d67…` matches both the GitHub asset digest and the installer's embedded hash | **yes**, by the `bend-image` CI job |
-| `osscad` | release 2026-11-20 | digest recorded from release metadata, **archive not hashed locally** | **no** — candidate pin, tracked in issue #6 |
+| `osscad` | release 2026-11-20 | **yes** - the release publishes a sha256 per asset and `6e200a57...` matches it; re-checked at build | **yes**, by the `oss-cad-image` workflow |
 | `harness` | python 3.12 + node 20 | n/a | no (trivial) |
 
 `docker/versions.lock` is the human record; `docker/bend-sources.sha256` is the

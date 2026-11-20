@@ -29,3 +29,6 @@ results/runs/
 
 # Bend compiler sources fetched at the pinned commit (never committed)
 .bend-cache/
+
+# SymbiYosys work directories (smoke runs)
+docker/smoke/*_prove/

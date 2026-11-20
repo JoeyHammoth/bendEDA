@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: Apache-2.0
+# Building the OSS CAD Suite image is a 754 MB download and ~2.5 GB unpacked, so
+# it runs only when the pin or the image changes — not on every pull request.
+name: oss-cad-image
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - docker/Dockerfile.oss-cad
+      - docker/versions.lock
+      - .github/workflows/oss-cad-image.yml
+  push:
+    branches: [main]
+    paths:
+      - docker/Dockerfile.oss-cad
+      - docker/versions.lock
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oss-cad-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: oss-cad suite image (pinned)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build from the pinned archive digest
+        run: docker build -f docker/Dockerfile.oss-cad -t bendeda/oss-cad:2026-11-20 .
+      - name: The tools answer with their versions
+        run: |
+          docker run --rm bendeda/oss-cad:2026-11-20 yosys -V
+          docker run --rm bendeda/oss-cad:2026-11-20 verilator --version
+          docker run --rm bendeda/oss-cad:2026-11-20 iverilog -V | head -1
+          docker run --rm bendeda/oss-cad:2026-11-20 sby --help | head -3
+      - name: Yosys reads the fixture on its own
+        run: |
+          docker run --rm -v "$PWD:/work" -w /work bendeda/oss-cad:2026-11-20 \
+            yosys -p "read_verilog -formal -sv docker/smoke/counter.sv; hierarchy -top counter; ls"
+      - name: A real SymbiYosys run passes
+        run: |
+          # Existence is not evidence: run an actual BMC over Yosys with an SMT
+          # solver and require PASS. A 4-bit counter cannot exceed 15, so a
+          # passing proof means the toolchain reasoned rather than skipping the
+          # assertion. The fixture lives in the repo so this step contains no
+          # generated Verilog and no indentation traps.
+          (cd docker/smoke && docker run --rm -u "$(id -u):$(id -g)" \
+            -v "$PWD:/work" -w /work bendeda/oss-cad:2026-11-20 \
+            sby -f -d counter_prove counter.sby)
+          # SBY writes its verdict as an empty marker file, so this is a file
+          # test, not a grep. The command above already enforces rc=0.
+          test -f docker/smoke/counter_prove/PASS
+          ls -l docker/smoke/counter_prove/PASS
+          echo "oss-cad: BMC smoke test PASS"
