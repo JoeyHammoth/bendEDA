@@ -306,10 +306,11 @@ class TestRealDut(unittest.TestCase):
             compiled = vp.compile_model(fixture / "model.bend", module, Path(self.cli), self.bun)
             self.assertTrue(compiled.ok, msg=(compiled.stderr or compiled.stdout)[:1500])
             payload = vp.run_vectors(module, vp.default_plan(24))
+        incs = [step["inc"] for step in payload["steps"]]
         trace = vp.simulate_verilator(
             fixture / "dut.sv",
             fixture / "dut.json",
-            {"incs": [step["inc"] for step in payload["steps"]]},
+            {"incs": incs, "stimulus": {"inc": list(incs)}},
         )
         comparison = vp.compare(payload["steps"], dut_trace=trace)
         self.assertTrue(comparison.matches, msg=comparison.explain())
