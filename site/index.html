@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bendEDA — proof gates for agent-written hardware</title>
+<meta name="description" content="bendeda is the harness for a pre-registered study of Bend 2 laws and proof gates in agentic electronic design automation. Install it, run the gates, read the metrics.">
+<link rel="icon" type="image/png" href="assets/icons/circuit.png">
+<link rel="stylesheet" href="styles.css">
+<meta property="og:title" content="bendEDA — proof gates for agent-written hardware">
+<meta property="og:description" content="A pre-registered study of Bend 2 laws and proof gates in agentic EDA, with an open harness, sealed oracles and agent-authored laws.">
+<meta property="og:type" content="website">
+</head>
+<body>
+<div class="backdrop" aria-hidden="true"></div>
+
+<header class="site-header">
+  <a class="brand" href="#top" aria-label="bendEDA home">
+    <img src="assets/icons/circuit.png" alt="" width="28" height="28">
+    <span>bend<span class="accent">EDA</span></span>
+  </a>
+  <nav class="site-nav" aria-label="Sections">
+    <a href="#problem">Problem</a>
+    <a href="#ladder">Ladder</a>
+    <a href="#quickstart">Quickstart</a>
+    <a href="#cli">CLI</a>
+    <a href="#metrics">Metrics</a>
+    <a href="#authorship">Authorship</a>
+  </nav>
+  <div class="header-actions">
+    <a class="btn btn-ghost" href="https://github.com/JoeyHammoth/bendEDA/wiki">Wiki</a>
+    <a class="btn btn-primary" href="https://github.com/JoeyHammoth/bendEDA">GitHub</a>
+  </div>
+</header>
+
+<main id="top">
+
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="pill"><span class="dot"></span> Phase 0 · protocol open for review</p>
+      <h1>Proof gates that<br><span class="gradient-text">don't lie to you.</span></h1>
+      <p class="lede">
+        An agent that can write a proof of a weak specification has produced assurance, not correctness.
+        <strong>bendEDA</strong> is the harness for a pre-registered study of that gap: Bend 2 laws on one side,
+        a hidden oracle on the other, and a conformance ladder measuring the distance between them.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary btn-lg" href="#quickstart">Get the harness</a>
+        <a class="btn btn-outline btn-lg" href="https://github.com/JoeyHammoth/bendEDA/blob/main/bend2-agentic-eda-research-design.md">Read the protocol</a>
+      </div>
+      <dl class="stats">
+        <div><dt>5</dt><dd>arms, C0-C4</dd></div>
+        <div><dt>1,800</dt><dd>planned runs</dd></div>
+        <div><dt>L0-L3</dt><dd>conformance rungs</dd></div>
+        <div><dt>0</dt><dd>human law authors</dd></div>
+      </dl>
+    </div>
+
+    <div class="hero-visual">
+      <div class="glow" aria-hidden="true"></div>
+      <img class="hero-art" src="assets/icons/integrated-circuit.png" alt="" width="220" height="220">
+      <div class="float-card card-a">
+        <img src="assets/icons/check-all.png" alt="" width="20" height="20">
+        <div><strong>ALL PROOFS CHECK</strong><span>bend PROOF.bend</span></div>
+      </div>
+      <div class="float-card card-b">
+        <img src="assets/icons/spec-lock.png" alt="" width="20" height="20">
+        <div><strong>LAWS.bend locked</strong><span>hash 9f2ac1…</span></div>
+      </div>
+      <div class="float-card card-c">
+        <img src="assets/icons/law.png" alt="" width="20" height="20">
+        <div><strong>FAR 0.31 → 0.08</strong><span>the question</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="problem" class="section">
+    <div class="section-head">
+      <p class="eyebrow">The problem</p>
+      <h2>Agentic EDA is open-loop</h2>
+      <p class="sub">Three failure modes this programme measures rather than assumes away.</p>
+    </div>
+    <div class="grid grid-3">
+      <article class="card">
+        <img src="assets/icons/ai-chip.png" alt="" width="34" height="34">
+        <h3>Plausible is not correct</h3>
+        <p>Agents emit synthesizable-looking RTL with no deterministic ground truth. Syntax checks pass, synthesis passes, the design is wrong.</p>
+        <p class="tagline">Measured by FAR and HFP</p>
+      </article>
+      <article class="card">
+        <img src="assets/icons/law.png" alt="" width="34" height="34">
+        <h3>A weak spec proves fine</h3>
+        <p>A valid proof of an under-specified law is worthless, and an agent rewarded for closing proofs is rewarded for weakening what is proved.</p>
+        <p class="tagline">Measured by RBW, VR, AER</p>
+      </article>
+      <article class="card">
+        <img src="assets/icons/spec-lock.png" alt="" width="34" height="34">
+        <h3>Hidden state, unsafe actions</h3>
+        <p>Long EDA sessions accumulate tool state; an agent can overwrite a golden file or run formal before the RTL exists.</p>
+        <p class="tagline">Measured by IAR and UAR</p>
+      </article>
+    </div>
+  </section>
+
+  <section id="ladder" class="section">
+    <div class="section-head">
+      <p class="eyebrow">Architecture</p>
+      <h2>The conformance ladder</h2>
+      <p class="sub">Bend has no hardware semantics. A proof about a model constrains Verilog only through these links — so each one is a separate, measured gate.</p>
+    </div>
+
+    <ol class="ladder">
+      <li class="rung">
+        <span class="rung-id">L0</span>
+        <div>
+          <h3>Laws proved on the model</h3>
+          <p><code>bend PROOF.bend</code> must print <code>ALL PROOFS CHECK</code>. This says nothing about RTL, and the site will not pretend otherwise.</p>
+        </div>
+        <span class="status planned">planned</span>
+      </li>
+      <li class="rung">
+        <span class="rung-id">L1</span>
+        <div>
+          <h3>Trace conformance</h3>
+          <p>Identical stimulus through <code>model.mjs</code> and the RTL, compared cycle by cycle. Catches divergence on sampled traces.</p>
+        </div>
+        <span class="status planned">planned</span>
+      </li>
+      <li class="rung">
+        <span class="rung-id">L2</span>
+        <div>
+          <h3>Exhaustive, reduced parameters</h3>
+          <p>Complete over a 4-bit datapath or a depth-4 FIFO. Complete over a small space is not complete, and is labelled as such.</p>
+        </div>
+        <span class="status planned">planned</span>
+      </li>
+      <li class="rung">
+        <span class="rung-id">L3</span>
+        <div>
+          <h3>Property transfer</h3>
+          <p>Laws translated to SVA and proved on the RTL with SymbiYosys. Strongest rung — bounded by translation fidelity, which is itself measured.</p>
+        </div>
+        <span class="status planned">planned</span>
+      </li>
+      <li class="rung rung-future">
+        <span class="rung-id">L4</span>
+        <div>
+          <h3>Bend-to-SystemVerilog emitter</h3>
+          <p>Removes the translation gap entirely. Out of scope for this study; listed so the gap is a roadmap item, not a footnote.</p>
+        </div>
+        <span class="status future">research</span>
+      </li>
+    </ol>
+
+    <div class="chain">
+      <img src="assets/icons/pipeline.png" alt="" width="26" height="26">
+      <code>LAWS.bend</code><span>→</span><code>model.bend</code><span>→</span><code>ref_model.sv / SVA</code><span>→</span><code>RTL</code>
+    </div>
+  </section>
+
+  <section id="quickstart" class="section">
+    <div class="section-head">
+      <p class="eyebrow">Quickstart</p>
+      <h2>Five minutes, no toolchain</h2>
+      <p class="sub">The harness is dependency-free at import time: the CLI and the metric definitions run on a bare Python 3.12 install.</p>
+    </div>
+
+    <div class="quickstart">
+      <div class="terminal">
+        <div class="terminal-bar">
+          <span class="tl"></span><span class="tl"></span><span class="tl"></span>
+          <span class="terminal-title">bash</span>
+          <button class="copy" data-copy="clone">copy</button>
+        </div>
+        <pre id="clone"><code><span class="c"># 1. clone and install</span>
+git clone https://github.com/JoeyHammoth/bendEDA
+<span class="c">cd</span> bendEDA
+python -m venv .venv &amp;&amp; . .venv/bin/activate
+pip install -e ".[dev]"
+
+<span class="c"># 2. check the harness</span>
+bendeda --version
+bendeda validate --all
+python -m unittest discover -s tests -v</code></pre>
+      </div>
+
+      <div class="quickstart-notes">
+        <div class="note">
+          <img src="assets/icons/command-line.png" alt="" width="22" height="22">
+          <div>
+            <h3>Windows</h3>
+            <p>Activate with <code>.venv\Scripts\activate</code>, or open the devcontainer. Bend and the EDA suite run in Linux containers either way.</p>
+          </div>
+        </div>
+        <div class="note">
+          <img src="assets/icons/check-all.png" alt="" width="22" height="22">
+          <div>
+            <h3>Stubs exit non-zero</h3>
+            <p>Commands that are not implemented print what they will do and exit <code>3</code>. Nothing silently passes — that is the whole subject of the study.</p>
+          </div>
+        </div>
+        <div class="note">
+          <img src="assets/icons/open-book.png" alt="" width="22" height="22">
+          <div>
+            <h3>Where to read next</h3>
+            <p><a href="https://github.com/JoeyHammoth/bendEDA/blob/main/README.md">README</a> for the shape,
+               <a href="https://github.com/JoeyHammoth/bendEDA/blob/main/tasks/README.md">tasks/README</a> for a task package,
+               <a href="https://github.com/JoeyHammoth/bendEDA/wiki">wiki</a> for the running log.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="cli" class="section">
+    <div class="section-head">
+      <p class="eyebrow">Reference</p>
+      <h2>The <code>bendeda</code> CLI</h2>
+      <p class="sub">Every command below exists in the package. “Working” means it does something; “planned” means it exits 3 and tells you which phase implements it.</p>
+    </div>
+
+    <div class="cli-toolbar">
+      <label class="sr-only" for="cli-filter">Filter commands</label>
+      <input id="cli-filter" type="search" placeholder="Filter commands — try “law”, “oracle”, “gate”…" autocomplete="off">
+      <span class="cli-count" id="cli-count">16 commands</span>
+    </div>
+
+    <div class="table-wrap">
+      <table class="cli-table" id="cli-table">
+        <thead>
+          <tr><th scope="col">Command</th><th scope="col">What it does</th><th scope="col">State</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>bendeda init [path]</code></td><td>Scaffold an experiment or task repository</td><td><span class="status working">working</span></td></tr>
+          <tr><td><code>bendeda task new &lt;name&gt; --tier B</code></td><td>Create a task package skeleton (9 files, status draft)</td><td><span class="status working">working</span></td></tr>
+          <tr><td><code>bendeda validate --all</code></td><td>Validate shipped schemas and every task package</td><td><span class="status working">working</span></td></tr>
+          <tr><td><code>bendeda law lint &lt;path&gt;</code></td><td>Apply rules L001-L015: witnesses, traceability, vacuity, escape hatches, provenance</td><td><span class="status planned">planned</span></td></tr>
+          <tr><td><code>bendeda law mutate &lt;model.bend&gt;</code></td><td>Mutate the model; every law must be falsified by at least one mutation (LA3)</td><td><span class="status planned">planned</span></td></tr>
+          <tr><td><code>bendeda law translate --to sva</code></td><td>Translate laws through templates and emit a translation-fidelity plan</td><td><span class="status planned">planned</span></td></tr>
+          <tr><td><code>bendeda law provenance &lt;task&gt;</code></td><td>Verify the agent authoring chain: run ids, model digests, forbidden reads</td><td><span class="status planned">planned</span></td></tr>
+          <tr><td><code>bendeda tf run &lt;task&gt;</code></td><td>Compute translation fidelity over random and mutated traces</td><td><span class="status planned">planned</span></td></tr>
+          <tr><td><code>bendeda canary</code></td><td>Run the checker negative-control suite; one false accept blocks the Bend arms</td><td><span class="status planned">planned</span></td></tr>
+          <tr><td><code>bendeda gate run &lt;name&gt;</code></td><td>Run one gate (lint, sim, formal, conformance) on an artifact directory</td><td><span class="status planned">planned</span></td></tr>
+          <tr><td><code>bendeda gate calibrate</code></td><td>Gate sensitivity and specificity against the seeded-bug corpus</td><td><span class="status planned">planned</span></td></tr>
+          <tr><td><code>bendeda run &lt;experiment.yaml&gt;</code></td><td>Execute an arm × task × model × seed matrix within budgets</td><td><span class="status planned">planned</span></td></tr>
+          <tr><td><code>bendeda replay &lt;run_id&gt;</code></td><td>Replay a run deterministically from its event log</td><td><span class="status planned">planned</span></td></tr>
+          <tr><td><code>bendeda oracle seal | verify-commitment | score</code></td><td>Commit-reveal the sealed oracle, verify the commitment, score a run</td><td><span class="status planned">planned</span></td></tr>
+          <tr><td><code>bendeda report &lt;experiment&gt;</code></td><td>Primary and secondary tables, forest plots, results bundle</td><td><span class="status planned">planned</span></td></tr>
+          <tr><td><code>bendeda bundle verify &lt;dir&gt;</code></td><td>Re-check a proof-carrying design bundle in the pinned image</td><td><span class="status planned">planned</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <img src="assets/icons/tree.png" alt="" width="24" height="24">
+      <p><strong>Extension surface.</strong> Law languages, translators, gates, oracles and hardware boards are <code>Protocol</code>s in
+        <code>bendeda/plugins/interfaces.py</code>. A new tool is a plugin, not a fork: the harness never imports a plugin to describe it.</p>
+    </div>
+  </section>
+
+  <section id="metrics" class="section">
+    <div class="section-head">
+      <p class="eyebrow">Measurements</p>
+      <h2>Metrics with definitions, not vibes</h2>
+      <p class="sub">Each is a pure function of counts, implemented in <code>bendeda/metrics/</code> and pinned by a hand-computed test. Undefined returns <code>None</code>, never a reassuring <code>0.0</code>.</p>
+    </div>
+    <div class="grid grid-3">
+      <article class="metric-card">
+        <span class="metric-sym">FAR</span>
+        <h3>False assurance rate</h3>
+        <p class="formula">FP / N</p>
+        <p>The confirmatory endpoint: runs that looked verified and were wrong, as a share of all runs. Unconditional, so it cannot be gamed by selection.</p>
+      </article>
+      <article class="metric-card">
+        <span class="metric-sym">HFP</span>
+        <h3>Hidden functional pass</h3>
+        <p class="formula">Σ O / N</p>
+        <p>Correctness yield against the hidden oracle. The non-inferiority partner of FAR, so a gate cannot win by rejecting everything.</p>
+      </article>
+      <article class="metric-card">
+        <span class="metric-sym">ER</span>
+        <h3>Escape rate</h3>
+        <p class="formula">FP / (TP + FP)</p>
+        <p>The headline number people quote, reported with <code>n_V</code> because it is conditional on a post-randomisation variable.</p>
+      </article>
+      <article class="metric-card">
+        <span class="metric-sym">TF</span>
+        <h3>Translation fidelity</h3>
+        <p class="formula">agreement / traces</p>
+        <p>How faithfully a Bend law became an RTL property. Admission requires mean ≥ 0.999 and minimum ≥ 0.99.</p>
+      </article>
+      <article class="metric-card">
+        <span class="metric-sym">MKR</span>
+        <h3>Mutation kill ratio</h3>
+        <p class="formula">killed / relevant</p>
+        <p>How much a verification set actually checks, over mutants whose output change is confirmed by equivalence checking.</p>
+      </article>
+      <article class="metric-card">
+        <span class="metric-sym">CPVS</span>
+        <h3>Cost per verified success</h3>
+        <p class="formula">Σ tokens / TP</p>
+        <p>Efficiency of trustworthy output. Undefined with no verified success — which is a finding, not a division error.</p>
+      </article>
+    </div>
+  </section>
+
+  <section id="authorship" class="section">
+    <div class="section-head">
+      <p class="eyebrow">Authorship</p>
+      <h2>No human writes the laws</h2>
+      <p class="sub">Every artifact in the specification path is written by a separately scoped agent under Freebuff control. The separation of authority that Bend assumes between a spec owner and a prover is preserved exactly; both parties are models.</p>
+    </div>
+
+    <div class="role-grid">
+      <div class="role"><strong>LAA</strong><span>writes model and laws; must not read the oracle</span></div>
+      <div class="role"><strong>RPA</strong><span>writes reference proofs, different model family</span></div>
+      <div class="role"><strong>OAA</strong><span>writes the oracle; must not read the laws</span></div>
+      <div class="role"><strong>PA</strong><span>writes the C2 control pack from the spec alone</span></div>
+      <div class="role"><strong>AA</strong><span>audits, attacks and signs off LA9-A/B/C</span></div>
+      <div class="role"><strong>Conductor</strong><span>schedules, locks, merges; authors nothing</span></div>
+    </div>
+
+    <div class="callout callout-warn">
+      <img src="assets/icons/open-book.png" alt="" width="24" height="24">
+      <p><strong>The threat this creates, named in public.</strong> If the law author and the implementer share a model family, the laws can be self-consistently weak.
+        The protocol answers with cross-family authoring, mutation pressure, an adversarial auditor, an ablation (A7) and a metric (LAW-FAR) — see
+        <a href="https://github.com/JoeyHammoth/bendEDA/blob/main/bend2-agentic-eda-research-design.md#appendix-j-agent-authored-laws-the-no-human-author-amendment-v04-normative">Appendix J</a>.</p>
+    </div>
+  </section>
+
+  <section id="status" class="section">
+    <div class="section-head">
+      <p class="eyebrow">Status</p>
+      <h2>Where the programme is</h2>
+      <p class="sub">Nothing is frozen until the signed <code>prereg-v1</code> tag. Before that, every change is a reviewable diff.</p>
+    </div>
+    <ol class="timeline">
+      <li class="done"><span class="marker"></span><div><h3>Phase 0 · environment and feasibility</h3><p>Protocol v0.4, repository foundation, harness skeleton and metric definitions. In progress: pinned images, BendBV, canary suite, sealed-oracle tooling.</p></div></li>
+      <li><span class="marker"></span><div><h3>Phase 1 · tasks, laws, oracles</h3><p>12 task packages, agent-authored law sets, hidden oracles, parity audit.</p></div></li>
+      <li><span class="marker"></span><div><h3>Phase 2 · harness and tool layer</h3><p>MCP servers, policy proxy, runner, replay.</p></div></li>
+      <li><span class="marker"></span><div><h3>Phase 3 · pilot and freeze</h3><p>Calibration, power analysis, signed <code>prereg-v1</code>.</p></div></li>
+      <li><span class="marker"></span><div><h3>Phases 4-7 · runs, analysis, release</h3><p>Longitudinal study, tracks B-D, report, oracle reveal.</p></div></li>
+    </ol>
+  </section>
+
+  <section id="contribute" class="section">
+    <div class="cta">
+      <div>
+        <h2>Break it, then tell us how</h2>
+        <p>The most useful contribution is a defect in the protocol: a law that admits a bad design, an assumption that excludes legal behaviour, an oracle that misses a plausible bug.</p>
+      </div>
+      <div class="cta-actions">
+        <a class="btn btn-primary btn-lg" href="https://github.com/JoeyHammoth/bendEDA/issues/new/choose">Open an issue</a>
+        <a class="btn btn-outline btn-lg" href="https://github.com/JoeyHammoth/bendEDA/blob/main/CONTRIBUTING.md">Contributing guide</a>
+      </div>
+    </div>
+    <div class="grid grid-4">
+      <a class="link-card" href="https://github.com/JoeyHammoth/bendEDA/blob/main/bend2-agentic-eda-research-design.md"><h3>Design document</h3><p>Protocol, metrics, appendices G-J.</p></a>
+      <a class="link-card" href="https://github.com/JoeyHammoth/bendEDA/wiki"><h3>Wiki</h3><p>Phase plan, decision log, running notes.</p></a>
+      <a class="link-card" href="https://github.com/JoeyHammoth/bendEDA/blob/main/SECURITY.md"><h3>Security</h3><p>Sandbox escape and leak reporting.</p></a>
+      <a class="link-card" href="https://github.com/JoeyHammoth/bendEDA/blob/main/CITATION.cff"><h3>Citation</h3><p>Cite the protocol tag, not the repo.</p></a>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="footer-brand">
+    <img src="assets/icons/circuit.png" alt="" width="24" height="24">
+    <span>bendEDA · Apache-2.0 code, CC BY 4.0 docs</span>
+  </div>
+  <nav aria-label="Footer">
+    <a href="https://github.com/JoeyHammoth/bendEDA">Repository</a>
+    <a href="https://github.com/JoeyHammoth/bendEDA/wiki">Wiki</a>
+    <a href="https://github.com/JoeyHammoth/bendEDA/blob/main/CODE_OF_CONDUCT.md">Conduct</a>
+    <a href="https://github.com/JoeyHammoth/bendEDA/blob/main/GOVERNANCE.md">Governance</a>
+    <a href="https://www.apache.org/licenses/LICENSE-2.0">Licence</a>
+  </nav>
+  <p class="fineprint">Icons by <a href="https://icons8.com">Icons8</a>. This site describes a research harness; it is not a hardware design product, and no result here is a claim about silicon.</p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
