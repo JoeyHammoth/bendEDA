@@ -138,11 +138,11 @@ class TestVerilatorDut(unittest.TestCase):
         self.assertIn("+cycles=12", joined)
 
     def test_a_recorded_trace_can_be_judged(self) -> None:
-        model = steps([1, 2, 3, 4])
+        model = steps([1, 2, 3, 4])  # model: 1, 3, 6, 7
         result = vp.compare(model, dut_trace=[1, 3, 3, 15])
         self.assertFalse(result.matches)
         self.assertEqual(result.detected_offset, 0)
-        self.assertEqual(result.first_divergence, 1)
+        self.assertEqual(result.first_divergence, 2)  # third sample: 6 vs 3
         self.assertIn("value mismatch", result.explain())
 
     def test_injected_offset_applies_to_a_real_trace_too(self) -> None:

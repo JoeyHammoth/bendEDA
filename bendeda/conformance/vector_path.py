@@ -162,7 +162,10 @@ def verilator_command(
     command = [docker, "run", "--rm", "-v", f"{workdir}:/work", "-w", "/work"]
     if hasattr(os, "getuid"):
         command += ["-u", f"{os.getuid()}:{os.getgid()}"]
-    return command + [image, "bash", "-lc", inner]
+    # `bash -c`, never `bash -lc`: a login shell sources /etc/profile, which
+    # rewrites PATH and loses the image's /opt/oss-cad-suite/bin. The failure is
+    # `verilator: command not found` even though the image ships it.
+    return command + [image, "bash", "-c", inner]
 
 
 def simulate_verilator(
