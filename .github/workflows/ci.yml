@@ -124,8 +124,13 @@ jobs:
         run: docker run --rm bendeda/bend:2.0.40 version
       - name: The released binary compiles the fixture
         run: |
-          docker run --rm -v "$PWD:/work" -w /work bendeda/bend:2.0.40 \
+          # `.bend-cache/` is gitignored, so a fresh checkout has no output
+          # directory. Run as the runner's uid too: the image's `bend` user has
+          # no claim on the mounted workspace.
+          mkdir -p .bend-cache/out
+          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work bendeda/bend:2.0.40 \
             experiments/fixtures/toy_counter/model.bend -o .bend-cache/out/model.mjs
+          test -s .bend-cache/out/model.mjs
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
