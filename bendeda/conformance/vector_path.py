@@ -29,7 +29,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_DRIVER = Path("tools/model_vectors.mjs")
-DEFAULT_TB = Path("experiments/fixtures/toy_counter/tb_dut.sv")
+DEFAULT_SPEC = Path("experiments/fixtures/toy_counter/dut.json")
+IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]*$")
 DEFAULT_IMAGE = "bendeda/oss-cad:2026-11-20"
 SATURATION = 15
 
@@ -115,13 +116,14 @@ def saturating_dut(count: int, inc: int) -> int:
     return min(count + inc, SATURATION)
 
 
-def write_stimulus(path: Path, incs: list[int]) -> None:
-    """Write one two-digit hex value per line, which is what `$readmemh` wants."""
-    path.write_text("".join(f"{inc & 0xF:02x}\n" for inc in incs), encoding="utf-8")
+def write_stimulus(path: Path, values: list[int], width: int) -> None:
+    """Write stimulus as hex words of `width` bits, one per line, for `$readmemh`."""
+    digits = (width + 3) // 4
+    path.write_text("".join(f"{value:0{digits}x}\n" for value in values), encoding="utf-8")
 
 
 def parse_trace(path: Path) -> list[int]:
-    """Read one decimal sample per line, ignoring blanks and `#` comments."""
+    """Read a single decimal sample per line, ignoring blanks and `#` comments."""
     values: list[int] = []
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
@@ -129,6 +131,233 @@ def parse_trace(path: Path) -> list[int]:
             continue
         values.append(int(line, 10))
     return values
+
+
+def parse_trace_table(path: Path, columns: int) -> list[list[int]]:
+    """Read one row of `columns` decimal samples per line."""
+    rows: list[list[int]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) != columns:
+            raise ValueError(f"expected {columns} sample(s) per line, got {len(parts)}: {line!r}")
+        rows.append([int(part, 10) for part in parts])
+    return rows
+
+
+def load_spec(spec) -> dict:
+    """Read a port manifest from a path, or accept a mapping as-is."""
+    if isinstance(spec, dict):
+        return spec
+    return json.loads(Path(spec).read_text(encoding="utf-8"))
+
+
+def _port_name(value, where: str) -> str:
+    if not isinstance(value, str) or not IDENTIFIER.match(value):
+        raise ValueError(f"{where}: {value!r} is not a port identifier")
+    return value
+
+
+def _width(value, where: str) -> int:
+    width = int(value)
+    if not 1 <= width <= 4096:
+        raise ValueError(f"{where}: width must be 1..4096, got {width}")
+    return width
+
+
+def validate_spec(spec) -> dict:
+    """Return a normalised port manifest, or raise ValueError naming the problem.
+
+    The manifest is deliberately small: one clock, optional reset and enable, any
+    number of inputs and outputs. A task that needs more than this needs a real
+    harness; stretching this generator past what it can express would produce
+    benches that are wrong in ways nobody notices.
+    """
+    spec = load_spec(spec)
+    if not isinstance(spec, dict):
+        raise ValueError("spec must be a JSON object")
+
+    top = _port_name(spec.get("top", ""), "top")
+    clock = spec.get("clock") or {}
+    if not isinstance(clock, dict):
+        raise ValueError("clock must be an object")
+    clock_port = _port_name(clock.get("port", ""), "clock.port")
+    period = int(clock.get("period_ns", 10))
+    if period < 2:
+        raise ValueError("clock.period_ns must be at least 2")
+    used = {clock_port}
+
+    def optional(key: str) -> dict | None:
+        entry = spec.get(key)
+        if entry is None:
+            return None
+        if not isinstance(entry, dict):
+            raise ValueError(f"{key} must be an object")
+        port = _port_name(entry.get("port", ""), f"{key}.port")
+        if port in used:
+            raise ValueError(f"port {port!r} appears twice")
+        used.add(port)
+        return {"port": port, **{k: v for k, v in entry.items() if k != "port"}}
+
+    reset = optional("reset")
+    enable = optional("enable")
+
+    inputs: list[dict] = []
+    for index, entry in enumerate(spec.get("inputs", [])):
+        if not isinstance(entry, dict):
+            raise ValueError(f"inputs[{index}] must be an object")
+        port = _port_name(entry.get("port", ""), f"inputs[{index}].port")
+        if port in used:
+            raise ValueError(f"port {port!r} appears twice")
+        used.add(port)
+        stimulus = entry.get("stimulus", "const")
+        if stimulus not in ("incs", "const"):
+            raise ValueError(f"{port}: stimulus must be 'incs' or 'const'")
+        inputs.append({
+            "port": port,
+            "width": _width(entry.get("width", 1), port),
+            "stimulus": stimulus,
+            "value": int(entry.get("value", 0)),
+        })
+
+    if not inputs:
+        raise ValueError("spec needs at least one input; there is nothing to drive")
+
+    outputs: list[dict] = []
+    for index, entry in enumerate(spec.get("outputs", [])):
+        if not isinstance(entry, dict):
+            raise ValueError(f"outputs[{index}] must be an object")
+        port = _port_name(entry.get("port", ""), f"outputs[{index}].port")
+        if port in used:
+            raise ValueError(f"port {port!r} appears twice")
+        used.add(port)
+        outputs.append({"port": port, "width": _width(entry.get("width", 1), port)})
+    if not outputs:
+        raise ValueError("spec needs at least one output")
+
+    compare = spec.get("compare", outputs[0]["port"])
+    if compare not in {item["port"] for item in outputs}:
+        raise ValueError(f"compare {compare!r} is not one of the outputs")
+
+    return {
+        "top": top,
+        "clock": {"port": clock_port, "period_ns": period},
+        "reset": reset,
+        "enable": enable,
+        "inputs": inputs,
+        "outputs": outputs,
+        "compare": compare,
+    }
+
+
+def _declaration(kind: str, name: str, width: int, initial: str | None) -> str:
+    text = f"{kind} {name}" if width == 1 else f"{kind} [{width - 1}:0] {name}"
+    if initial is not None:
+        text += f" = {initial}"
+    return text + ";"
+
+
+def render_testbench(spec) -> str:
+    """Generate a Verilator testbench from a port manifest.
+
+    The generated bench is written into a temporary directory and discarded: the
+    manifest is the source of truth, so a new task supplies a manifest instead of
+    a hand-written testbench. Generation is deterministic, which is what makes it
+    reviewable in tests rather than by eye.
+    """
+    spec = validate_spec(spec)
+    clock = spec["clock"]
+    reset = spec["reset"]
+    enable = spec["enable"]
+    inputs = spec["inputs"]
+    outputs = spec["outputs"]
+    half = max(1, clock["period_ns"] // 2)
+    width = sum(item["width"] for item in inputs)
+
+    lines = [
+        "// SPDX-License-Identifier: Apache-2.0",
+        "// Generated from a port manifest by `bendeda conformance trace`. Do not edit;",
+        "// change the manifest instead.",
+        "`timescale 1ns/1ps",
+        "`default_nettype none",
+        "module tb_dut;",
+        f"  reg {clock['port']} = 1'b0;",
+    ]
+    if reset:
+        initial = 1 if reset.get("active_high", True) else 0
+        lines.append(f"  reg {reset['port']} = 1'b{initial};")
+    if enable:
+        initial = 1 if enable.get("active_high", True) else 0
+        lines.append(f"  reg {enable['port']} = 1'b{initial};")
+    for item in inputs:
+        lines.append("  " + _declaration("reg", item["port"], item["width"], f"{item['width']}'d0"))
+    for item in outputs:
+        lines.append("  " + _declaration("wire", item["port"], item["width"], None))
+    lines += [
+        f"  reg [{width - 1}:0] row;",
+        f"  reg [{width - 1}:0] stim [0:1023];",
+        "  integer cycles;",
+        "  integer i;",
+        "  integer fd;",
+        "",
+        f"  {spec['top']} dut (",
+    ]
+    connections = [f"    .{clock['port']}({clock['port']})"]
+    if reset:
+        connections.append(f"    .{reset['port']}({reset['port']})")
+    if enable:
+        connections.append(f"    .{enable['port']}({enable['port']})")
+    for item in inputs + outputs:
+        connections.append(f"    .{item['port']}({item['port']})")
+    lines.append(",\n".join(connections))
+    lines += [
+        "  );",
+        "",
+        f"  always #{half} {clock['port']} = ~{clock['port']};",
+        "",
+        "  initial begin",
+        '    if (!$value$plusargs("cycles=%d", cycles))',
+        "      cycles = 16;",
+        '    $readmemh("stim.hex", stim);',
+        '    fd = $fopen("dut_trace.txt", "w");',
+        "    if (fd == 0) begin",
+        '      $display("tb_dut: cannot open dut_trace.txt");',
+        "      $finish;",
+        "    end",
+    ]
+    if reset:
+        lines += [
+            f"    repeat ({int(reset.get('cycles', 1))}) @(posedge {clock['port']});",
+            f"    #1 {reset['port']} = 1'b{0 if reset.get('active_high', True) else 1};",
+        ]
+    lines += ["    for (i = 0; i < cycles; i = i + 1) begin", "      row = stim[i];"]
+    offset = 0
+    for item in inputs:
+        lines.append(f"      {item['port']} = row[{offset} +: {item['width']}];")
+        offset += item["width"]
+    lines += [f"      @(posedge {clock['port']});", "      #1;"]
+    fmt = " ".join(["%0d"] * len(outputs))
+    args = ", ".join(item["port"] for item in outputs)
+    lines += [f'      $fdisplay(fd, "{fmt}", {args});', "    end", "    $fclose(fd);", "    $finish;", "  end", "endmodule", "`default_nettype wire", ""]
+    return "\n".join(lines)
+
+
+def build_stimulus(spec, incs: list[int]) -> tuple[list[int], int]:
+    """Pack one stimulus word per cycle, in manifest order, least-significant first."""
+    spec = validate_spec(spec)
+    width = sum(item["width"] for item in spec["inputs"])
+    words: list[int] = []
+    for inc in incs:
+        word = 0
+        offset = 0
+        for item in spec["inputs"]:
+            value = inc if item["stimulus"] == "incs" else item["value"]
+            word |= (int(value) & ((1 << item["width"]) - 1)) << offset
+            offset += item["width"]
+        words.append(word)
+    return words, width
 
 
 def shift_trace(trace: list[int], offset: int) -> list[int]:
@@ -190,25 +419,29 @@ def verilator_command(
 
 def simulate_verilator(
     rtl: Path,
-    tb: Path,
+    spec,
     incs: list[int],
     image: str = DEFAULT_IMAGE,
     docker: str = "docker",
     timeout: int = 900,
 ) -> list[int]:
-    """Run `rtl` under Verilator in the pinned image and return one sample per cycle."""
+    """Run `rtl` against a generated testbench and return the compared output.
+
+    `spec` is a port manifest (path or mapping), so a new task supplies a
+    manifest and gets a working simulation instead of writing a bench.
+    """
     if not incs:
         raise ValueError("no stimulus to simulate")
     if not rtl.exists():
         raise FileNotFoundError(f"no RTL at {rtl}")
-    if not tb.exists():
-        raise FileNotFoundError(f"no testbench at {tb}")
+    manifest = validate_spec(spec)
+    values, width = build_stimulus(manifest, incs)
 
     with tempfile.TemporaryDirectory(prefix="bendeda-dut-") as raw:
         workdir = Path(raw)
         shutil.copyfile(rtl, workdir / "dut.sv")
-        shutil.copyfile(tb, workdir / "tb_dut.sv")
-        write_stimulus(workdir / "stim.hex", incs)
+        (workdir / "tb_dut.sv").write_text(render_testbench(manifest), encoding="utf-8")
+        write_stimulus(workdir / "stim.hex", values, width)
         try:
             done = subprocess.run(
                 verilator_command(workdir, len(incs), image=image, docker=docker),
@@ -224,11 +457,12 @@ def simulate_verilator(
         trace_path = workdir / "dut_trace.txt"
         if not trace_path.exists():
             raise RuntimeError("verilator ran but produced no dut_trace.txt")
-        trace = parse_trace(trace_path)
+        table = parse_trace_table(trace_path, len(manifest["outputs"]))
 
-    if len(trace) != len(incs):
-        raise RuntimeError(f"the DUT produced {len(trace)} samples for {len(incs)} cycles")
-    return trace
+    if len(table) != len(incs):
+        raise RuntimeError(f"the DUT produced {len(table)} samples for {len(incs)} cycles")
+    index = [item["port"] for item in manifest["outputs"]].index(manifest["compare"])
+    return [row[index] for row in table]
 
 
 def compile_model(
@@ -407,7 +641,7 @@ def cmd_trace(args) -> int:
         try:
             dut_trace = simulate_verilator(
                 Path(args.rtl),
-                Path(args.tb),
+                Path(args.spec),
                 plan["incs"],
                 image=args.image,
                 docker=args.docker,
@@ -433,6 +667,7 @@ def cmd_trace(args) -> int:
         "injected_offset": args.inject_offset,
         "dut": args.dut,
         "rtl": args.rtl,
+        "spec": args.spec,
         "exports": payload.get("exports", []),
         "convention": payload.get("convention"),
         "runtime": payload.get("runtime"),
@@ -445,6 +680,8 @@ def cmd_trace(args) -> int:
         print(f"module   : {module}")
         print(f"exports  : {', '.join(report['exports']) or '(none)'}")
         print(f"dut      : {args.dut}{' (' + str(args.rtl) + ')' if args.rtl else ''}")
+        if args.dut == "verilator":
+            print(f"spec     : {args.spec}")
         print(f"cycles   : {report['cycles']}")
         print(f"result   : {comparison.explain()}")
         if report["model_steps"]:

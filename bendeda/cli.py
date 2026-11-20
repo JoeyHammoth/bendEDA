@@ -244,7 +244,8 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--dut", choices=["stub", "verilator"], default="stub",
                     help="stub: Python reference; verilator: real RTL in the pinned image")
     sp.add_argument("--rtl", default=None, help="RTL for --dut verilator")
-    sp.add_argument("--tb", default=str(conformance.DEFAULT_TB), help="testbench for --dut verilator")
+    sp.add_argument("--spec", default=str(conformance.DEFAULT_SPEC),
+                    help="port manifest for the generated testbench (--dut verilator)")
     sp.add_argument("--image", default=conformance.DEFAULT_IMAGE, help="simulator image for --dut verilator")
     sp.add_argument("--docker", default="docker")
     sp.add_argument("--sim-timeout", type=int, default=900)

@@ -4,6 +4,18 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-21 - L1 generates its testbench from a port manifest
+
+**Decided:** a simulated task supplies `dut.json` — top, clock, optional reset and enable, inputs, outputs, compared output — and the driver generates the Verilator bench. No testbench is committed or hand-edited.
+
+**Why:** a hand-written bench per task is the same code with different port names, copied twelve times and silently diverging. Generating it makes the port list the single source of truth, and makes the generator testable: the packing, the port connections and the sample format are asserted in unit tests instead of inspected by eye.
+
+**Cost:** the manifest cannot express multi-clock designs, handshakes or memories. That is stated in the fixture spec rather than stretched: a design outside it needs a real harness, and a generator that guessed would produce benches nobody could trust.
+
+**Evidence:** `experiments/fixtures/toy_counter/dut.json`; `render_testbench` / `build_stimulus` / `validate_spec` in `bendeda/conformance/vector_path.py`; `TestGeneratedTestbench` in `tests/test_vector_path.py`.
+
+---
+
 ## 2026-11-21 - L1 judges real RTL, not a second model
 
 **Decided:** `bendeda conformance trace --dut verilator` runs the fixture's RTL under Verilator in the pinned OSS CAD image, and the gate must reject `dut_wrap.sv` as a *value* mismatch.

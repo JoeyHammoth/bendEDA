@@ -55,8 +55,10 @@ To judge real RTL rather than the Python reference, run the DUT under Verilator 
 the pinned image (needs Docker; the image is `bendeda/oss-cad:2026-11-20`):
 
 ```bash
+# the testbench is generated from dut.json — a port manifest, not hand-written code
 bendeda conformance trace --module .bend-cache/out/model.mjs --cycles 24 \
-  --dut verilator --rtl experiments/fixtures/toy_counter/dut.sv
+  --dut verilator --rtl experiments/fixtures/toy_counter/dut.sv \
+  --spec experiments/fixtures/toy_counter/dut.json
 
 # the negative control: wrapping RTL must fail as a value mismatch
 bendeda conformance trace --module .bend-cache/out/model.mjs --cycles 24 \

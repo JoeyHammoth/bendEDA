@@ -1,0 +1,14 @@
+{
+  "_comment": "Port manifest for the toy counter. The conformance driver generates the Verilator testbench from this file, so a new task replaces this instead of hand-writing one. Widths and port names are the only contract; the generator supports one clock, optional reset/enable, and any number of inputs and outputs.",
+  "top": "toy_counter",
+  "clock": { "port": "clk", "period_ns": 10 },
+  "reset": { "port": "rst", "active_high": true, "cycles": 1 },
+  "enable": { "port": "en", "active_high": true },
+  "inputs": [
+    { "port": "inc", "width": 4, "stimulus": "incs" }
+  ],
+  "outputs": [
+    { "port": "c", "width": 4 }
+  ],
+  "compare": "c"
+}
