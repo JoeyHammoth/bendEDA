@@ -1,0 +1,19 @@
+# Normalise everything to LF in the repository and in working trees, so the
+# whitespace gate means the same thing on Windows and Linux.
+* text=auto eol=lf
+
+*.bend text eol=lf
+*.sv  text eol=lf
+*.sby text eol=lf
+*.v   text eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
+*.age binary

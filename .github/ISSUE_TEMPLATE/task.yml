@@ -1,0 +1,68 @@
+name: Implementation slice
+description: A vertical slice of the Phase 0-3 plan that can be completed and verified on its own.
+title: "[slice] "
+labels: ["ready-for-agent"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Slices are vertical: each one ends in something demonstrable, testable, or runnable.
+        If this slice needs a law set or oracle artifact, say which role group (Appendix J.2) produces it.
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What this makes work
+      description: The end state, from the user's or the researcher's perspective. Not a file-by-file list.
+      placeholder: "`bendeda canary` runs the negative-control suite against the pinned Bend image and fails loudly on any false accept."
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: How a reviewer knows it is done. Prefer commands and observable outputs.
+      value: |
+        - [ ] 
+        - [ ] 
+        - [ ] Documented in the relevant doc or wiki page
+    validations:
+      required: true
+  - type: textarea
+    id: blocked
+    attributes:
+      label: Blocked by
+      description: Issue numbers that must close first, or "None (can start immediately)".
+      placeholder: "None (can start immediately)"
+    validations:
+      required: true
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Phase
+      options:
+        - "Phase 0 — environment and feasibility"
+        - "Phase 1 — tasks, laws, oracles"
+        - "Phase 2 — harness and tool layer"
+        - "Phase 3 — pilot and freeze"
+        - "Phase 4-7 — runs, tracks, analysis, release"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - harness
+        - tasks
+        - oracle
+        - ci
+        - docs
+        - governance
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Pointers
+      description: Design-document sections, research notes, prior art. Pointers, not duplicated text.
+      placeholder: "Design doc §8 Phase 0.5, Appendix K G-02"

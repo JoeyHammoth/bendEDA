@@ -1,0 +1,24 @@
+{
+  "name": "bendEDA harness (python + EDA)",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" }
+  },
+  "postCreateCommand": "pip install --user -e '.[dev]' && python -m unittest discover -s tests",
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python", "ms-python.vscode-pylance", "tamasfe.even-better-toml"],
+      "settings": {
+        "python.testing.unittestEnabled": true,
+        "python.testing.pytestEnabled": false,
+        "editor.formatOnSave": false
+      }
+    }
+  },
+  "remoteEnv": {
+    "BENDEDA_ENV": "devcontainer"
+  },
+  "mounts": [],
+  "runArgs": ["--init"],
+  "// note": "The EDA toolchain (Yosys/SBY/MCY/Verilator) and the Bend compiler are built from docker/ so this container stays light. Gates that need them report 'skipped: image not built' rather than failing."
+}

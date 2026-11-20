@@ -1,0 +1,35 @@
+# Local hooks only: the research pipeline must not require network access to
+# commit. CI repeats every check here, so a contributor without pre-commit
+# installed is not silently unprotected.
+repos:
+  - repo: local
+    hooks:
+      - id: secret-scan
+        name: secret scan (no credentials, no private keys)
+        entry: python tools/check_secrets.py
+        language: system
+        pass_filenames: true
+
+      - id: locked-files-guard
+        name: locked-file guard (locked task artifacts are immutable)
+        entry: python tools/check_locked.py
+        language: system
+        pass_filenames: true
+
+      - id: license-headers
+        name: SPDX header on new source files
+        entry: python tools/check_license_headers.py
+        language: system
+        pass_filenames: true
+
+      - id: python-tests
+        name: unit tests (stdlib unittest)
+        entry: python -m unittest discover -s tests
+        language: system
+        pass_filenames: false
+
+      - id: trailing-whitespace
+        name: trailing whitespace
+        entry: python tools/check_whitespace.py
+        language: system
+        pass_filenames: true

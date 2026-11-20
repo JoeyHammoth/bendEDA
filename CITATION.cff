@@ -1,0 +1,45 @@
+cff-version: 1.2.0
+message: "Cite the protocol version you used, not the repository as a whole. If you used the harness only, cite the software release."
+title: "BendEDA: Evaluating Bend 2 Laws and Proof Gates in Agentic Electronic Design Automation"
+abstract: >-
+  A pre-registered, fully digital and fully public study of whether Bend 2's
+  laws-and-proofs workflow improves the trustworthiness of agent-written
+  hardware designs, measured against a hidden oracle and against an equivalent
+  locked SystemVerilog Assertion specification. No human authors the Bend 2
+  laws: law, model, reference-proof and oracle artifacts are produced by
+  separately scoped agents under Freebuff control, with separation of duties
+  enforced by sandboxes, hash locks and provenance records.
+type: software
+version: 0.4.0
+date-released: "2026-11-21"
+license: Apache-2.0
+license-url: "https://www.apache.org/licenses/LICENSE-2.0"
+repository-code: "https://github.com/JoeyHammoth/bendEDA"
+url: "https://joeyhammoth.github.io/bendEDA/"
+keywords:
+  - electronic design automation
+  - formal verification
+  - Bend 2
+  - LLM agents
+  - RTL
+  - proof engineering
+  - reproducibility
+authors:
+  - name: "The BendEDA authors"
+    alias: "bendEDA"
+    website: "https://github.com/JoeyHammoth/bendEDA"
+preferred-citation:
+  type: report
+  title: "BendEDA design and implementation document (v0.4)"
+  authors:
+    - name: "The BendEDA authors"
+      alias: "bendEDA"
+  year: 2026
+  month: 11
+  notes: >-
+    Pre-registration is the signed tag prereg-v1; before that tag, cite the
+    commit hash you read. The protocol freezes only at that tag.
+identifiers:
+  - type: url
+    value: "https://github.com/JoeyHammoth/bendEDA/blob/main/bend2-agentic-eda-research-design.md"
+    description: "Design and implementation document"

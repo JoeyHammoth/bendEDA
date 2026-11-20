@@ -1,0 +1,51 @@
+name: Bug or correctness defect
+description: The harness misbehaves, a metric computes the wrong value, or a locked artifact is wrong.
+title: "[bug] "
+labels: ["type: bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two kinds of report belong here:
+        * a **harness defect** (crash, wrong log, flaky gate), and
+        * a **correctness defect** (a law set that admits a bad design, a proof that is false, a metric that disagrees with its definition).
+        Security problems do **not** belong here — use the private advisory flow.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Observed behaviour, with the exact command and version.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened
+      description: Quote the definition, gate or spec clause you are measuring against.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Minimal commands, commit hash, and whether a container image was involved.
+      render: shell
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - "Blocks the study (canary false accept, oracle leak, wrong primary metric)"
+        - "Corrupts a result but is recoverable"
+        - "Harness inconvenience"
+    validations:
+      required: true
+  - type: checkboxes
+    id: integrity
+    attributes:
+      label: Integrity
+      options:
+        - label: This defect was found after a protocol freeze and may invalidate collected runs
+        - label: This defect involves a protected or locked artifact

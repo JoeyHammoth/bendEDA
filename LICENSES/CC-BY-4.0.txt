@@ -1,0 +1,26 @@
+SPDX-License-Identifier: CC-BY-4.0
+
+Documents, prompts, protocol text, task specifications and task data in this
+repository are licensed under the Creative Commons Attribution 4.0
+International licence.
+
+The canonical licence text is published by Creative Commons at:
+
+    https://creativecommons.org/licenses/by/4.0/legalcode
+
+A human-readable summary (not a substitute for the licence) is at:
+
+    https://creativecommons.org/licenses/by/4.0/
+
+Attribution: "BendEDA project contributors, https://github.com/JoeyHammoth/bendEDA",
+and for versioned artifacts the release tag or commit they were taken from.
+
+Scope notes
+-----------
+- Executable code, including the `bendeda` package, MCP servers, gates,
+  translators, plugins and CI scripts, is Apache-2.0; see ../LICENSE.
+- Everything that mixes both (task packages containing prose plus RTL plus
+  scripts) is dual-licensed: prose under CC BY 4.0, code under Apache-2.0.
+- Third-party tools are never vendored here. Their own licences apply; see
+  ../THIRD_PARTY.md.
+- Model weights are not distributed by this project.
