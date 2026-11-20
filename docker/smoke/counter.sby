@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0
+# SymbiYosys job for docker/smoke/counter.sv. `-formal` defines FORMAL so the
+# assertion is compiled in; `prep -top` removes any doubt about which module is
+# the design.
+[tasks]
+prove
+
+[options]
+prove: mode bmc
+prove: depth 8
+
+[engines]
+smtbmc
+
+[script]
+read_verilog -formal -sv counter.sv
+prep -top counter
+
+[files]
+counter.sv

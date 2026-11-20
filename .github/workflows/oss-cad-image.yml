@@ -38,42 +38,18 @@ jobs:
           docker run --rm bendeda/oss-cad:2026-11-20 verilator --version
           docker run --rm bendeda/oss-cad:2026-11-20 iverilog -V | head -1
           docker run --rm bendeda/oss-cad:2026-11-20 sby --help | head -3
+      - name: Yosys reads the fixture on its own
+        run: |
+          docker run --rm -v "$PWD:/work" -w /work bendeda/oss-cad:2026-11-20 \
+            yosys -p "read_verilog -formal -sv docker/smoke/counter.sv; hierarchy -top counter; ls"
       - name: A real SymbiYosys run passes
         run: |
           # Existence is not evidence: run an actual BMC over Yosys with an SMT
-          # solver and require PASS. A counter that counts past 15 is impossible
-          # for 4 bits, so a passing proof means the toolchain reasoned, not that
-          # it skipped the assertion.
-          mkdir -p smoke
-          cat > smoke/counter.sv <<'EOF'
-          module counter(input clk, input rst, output reg [3:0] c);
-            always @(posedge clk)
-              if (rst) c <= 4'd0; else c <= c + 4'd1;
-          `ifdef FORMAL
-            always @(posedge clk)
-              if (!rst) assert(c <= 4'd15);
-          `endif
-          endmodule
-          EOF
-          cat > smoke/counter.sby <<'EOF'
-          [tasks]
-          prove
-
-          [options]
-          prove: mode bmc
-          prove: depth 8
-
-          [engines]
-          smtbmc
-
-          [script]
-          read_verilog -formal counter.sv
-          prep
-
-          [files]
-          counter.sv
-          EOF
-          (cd smoke && docker run --rm -u "$(id -u):$(id -g)" \
+          # solver and require PASS. A 4-bit counter cannot exceed 15, so a
+          # passing proof means the toolchain reasoned rather than skipping the
+          # assertion. The fixture lives in the repo so this step contains no
+          # generated Verilog and no indentation traps.
+          (cd docker/smoke && docker run --rm -u "$(id -u):$(id -g)" \
             -v "$PWD:/work" -w /work bendeda/oss-cad:2026-11-20 sby -f counter.sby)
-          grep -q PASS smoke/counter_prove/PASS
+          grep -q PASS docker/smoke/counter_prove/PASS
           echo "oss-cad: BMC smoke test PASS"
