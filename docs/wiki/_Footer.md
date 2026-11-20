@@ -1,0 +1,1 @@
+Code [Apache-2.0](https://github.com/JoeyHammoth/bendEDA/blob/main/LICENSE) · documents and task data [CC BY 4.0](https://github.com/JoeyHammoth/bendEDA/blob/main/LICENSES/CC-BY-4.0.txt) · this wiki records decisions, not the current state of the code — the design document and the repository are normative.
