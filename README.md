@@ -38,7 +38,7 @@ ref_model.sv + SVA ──SymbiYosys proof──▶ RTL
 | Level | Check | Status |
 |---|---|---|
 | L0 | Laws proved on the model (`bend PROOF.bend`) | planned |
-| L1 | Cycle-accurate trace conformance | planned |
+| L1 | Cycle-accurate trace conformance | **working** - `bendeda conformance trace`, offset self-test |
 | L2 | Exhaustive conformance at reduced parameters | planned |
 | L3 | Property transfer proved on RTL (BMC, k-induction, PDR) | planned |
 | L4 | Bend-to-SystemVerilog emitter | out of scope (research) |
