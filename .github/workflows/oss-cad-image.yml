@@ -50,6 +50,10 @@ jobs:
           # assertion. The fixture lives in the repo so this step contains no
           # generated Verilog and no indentation traps.
           (cd docker/smoke && docker run --rm -u "$(id -u):$(id -g)" \
-            -v "$PWD:/work" -w /work bendeda/oss-cad:2026-11-20 sby -f counter.sby)
-          grep -q PASS docker/smoke/counter_prove/PASS
+            -v "$PWD:/work" -w /work bendeda/oss-cad:2026-11-20 \
+            sby -f -d counter_prove counter.sby)
+          # SBY writes its verdict as an empty marker file, so this is a file
+          # test, not a grep. The command above already enforces rc=0.
+          test -f docker/smoke/counter_prove/PASS
+          ls -l docker/smoke/counter_prove/PASS
           echo "oss-cad: BMC smoke test PASS"

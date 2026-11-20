@@ -30,6 +30,7 @@ oss-cad-suite:
   archives:
     linux-x64: "6e200a57cb7cc47a8a1a4772e3feda3777917edcb3fa5e8ee5743d962d265a7e"
     linux-arm64: "d58ee2faa0b0b1e43aa8783f66df9fbed5f23fe9d179a638f3d26d75301a6c93"
+  verified: "image built from the digest; yosys/verilator/iverilog/sby answer; an sby BMC proof passes (.github/workflows/oss-cad-image.yml)"
 
 node:
   required: ">=20"
