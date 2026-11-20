@@ -65,6 +65,23 @@ bendeda conformance trace --module .bend-cache/out/model.mjs --cycles 24 \
   --dut verilator --rtl experiments/fixtures/toy_counter/dut_wrap.sv; echo "exit=$?"
 ```
 
+A plan can drive each input separately. `incs` stays the model's stimulus; the
+`stimulus` object maps an input name to its own sequence:
+
+```json
+{
+  "incs": [1, 2, 3],
+  "stimulus": { "inc": [1, 2, 3], "en": [1, 1, 0] }
+}
+```
+
+```bash
+bendeda conformance trace --module .bend-cache/out/model.mjs \
+  --dut verilator --rtl experiments/fixtures/toy_counter/dut.sv \
+  --spec experiments/fixtures/toy_counter/dut.json \
+  --plan path/to/plan.json
+```
+
 ## What is planned, and where
 
 | Command | Issue |
