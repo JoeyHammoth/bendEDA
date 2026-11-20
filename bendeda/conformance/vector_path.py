@@ -10,9 +10,10 @@ Three steps, each testable on its own:
                      value, and conflating them is how trace conformance turns
                      into a shrug.
 
-The DUT here is a Python cycle-accurate stub. That is deliberate: it proves the
-path (compile -> execute -> compare -> detect) without pretending a simulator ran.
-The cocotb adapter arrives with the EDA image, and until it does the CLI says so.
+The DUT comes in two kinds. `stub` is a Python cycle-accurate reference, used by
+the unit tests and by a machine with no simulator. `verilator` compiles real RTL
+in the pinned OSS CAD image and returns the samples it produced, so the
+comparator judges silicon-shaped behaviour instead of a second copy of the model.
 """
 
 from __future__ import annotations
@@ -23,10 +24,13 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_DRIVER = Path("tools/model_vectors.mjs")
+DEFAULT_TB = Path("experiments/fixtures/toy_counter/tb_dut.sv")
+DEFAULT_IMAGE = "bendeda/oss-cad:2026-11-20"
 SATURATION = 15
 
 
@@ -111,6 +115,102 @@ def saturating_dut(count: int, inc: int) -> int:
     return min(count + inc, SATURATION)
 
 
+def write_stimulus(path: Path, incs: list[int]) -> None:
+    """Write one two-digit hex value per line, which is what `$readmemh` wants."""
+    path.write_text("".join(f"{inc & 0xF:02x}\n" for inc in incs), encoding="utf-8")
+
+
+def parse_trace(path: Path) -> list[int]:
+    """Read one decimal sample per line, ignoring blanks and `#` comments."""
+    values: list[int] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        values.append(int(line, 10))
+    return values
+
+
+def shift_trace(trace: list[int], offset: int) -> list[int]:
+    """Move a DUT trace later by `offset` cycles, keeping its length.
+
+    This is the negative control applied to whichever DUT ran, stub or
+    simulator: a comparator that cannot see a one-cycle shift is not checking
+    anything, and the shift is easier to inject here than in RTL.
+    """
+    if offset <= 0 or not trace:
+        return list(trace)
+    return [trace[0]] * offset + trace[: max(0, len(trace) - offset)]
+
+
+def verilator_command(
+    workdir: Path,
+    cycles: int,
+    image: str = DEFAULT_IMAGE,
+    docker: str = "docker",
+) -> list[str]:
+    """Build the container command that compiles and runs the testbench.
+
+    Verilator's `--binary` mode needs a C++ compiler and make, which is why the
+    image carries them; the compile happens inside the container so the host
+    needs no toolchain at all.
+    """
+    inner = (
+        "verilator --binary --timing -Wno-fatal -j 2 --top-module tb_dut "
+        f"tb_dut.sv dut.sv && ./obj_dir/Vtb_dut +cycles={cycles}"
+    )
+    command = [docker, "run", "--rm", "-v", f"{workdir}:/work", "-w", "/work"]
+    if hasattr(os, "getuid"):
+        command += ["-u", f"{os.getuid()}:{os.getgid()}"]
+    # `bash -c`, never `bash -lc`: a login shell sources /etc/profile, which
+    # rewrites PATH and loses the image's /opt/oss-cad-suite/bin. The failure is
+    # `verilator: command not found` even though the image ships it.
+    return command + [image, "bash", "-c", inner]
+
+
+def simulate_verilator(
+    rtl: Path,
+    tb: Path,
+    incs: list[int],
+    image: str = DEFAULT_IMAGE,
+    docker: str = "docker",
+    timeout: int = 900,
+) -> list[int]:
+    """Run `rtl` under Verilator in the pinned image and return one sample per cycle."""
+    if not incs:
+        raise ValueError("no stimulus to simulate")
+    if not rtl.exists():
+        raise FileNotFoundError(f"no RTL at {rtl}")
+    if not tb.exists():
+        raise FileNotFoundError(f"no testbench at {tb}")
+
+    with tempfile.TemporaryDirectory(prefix="bendeda-dut-") as raw:
+        workdir = Path(raw)
+        shutil.copyfile(rtl, workdir / "dut.sv")
+        shutil.copyfile(tb, workdir / "tb_dut.sv")
+        write_stimulus(workdir / "stim.hex", incs)
+        try:
+            done = subprocess.run(
+                verilator_command(workdir, len(incs), image=image, docker=docker),
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+        except OSError as exc:
+            raise RuntimeError(f"cannot run {docker!r}: {exc}") from exc
+        if done.returncode != 0:
+            detail = (done.stderr or done.stdout).strip()
+            raise RuntimeError(f"verilator failed ({done.returncode}): {detail[:1500]}")
+        trace_path = workdir / "dut_trace.txt"
+        if not trace_path.exists():
+            raise RuntimeError("verilator ran but produced no dut_trace.txt")
+        trace = parse_trace(trace_path)
+
+    if len(trace) != len(incs):
+        raise RuntimeError(f"the DUT produced {len(trace)} samples for {len(incs)} cycles")
+    return trace
+
+
 def compile_model(
     model: Path,
     out: Path,
@@ -171,22 +271,27 @@ def compare(
     count0: int = 0,
     max_offset: int = 3,
     inject_offset: int = 0,
+    dut_trace: list[int] | None = None,
 ) -> Comparison:
     """Diff model cycle outputs against the DUT.
 
-    `inject_offset` shifts the DUT's answers forward, which is how the acceptance
-    criterion "detects an injected one-cycle offset" is checked.
+    `dut_trace` supplies samples from a real simulation; without it the Python
+    reference computes them. `inject_offset` shifts whichever trace was used,
+    which is how the acceptance criterion "detects an injected one-cycle offset"
+    is checked against a simulator as well as against the stub.
     """
     model_steps: list[int] = [int(step["out"]) for step in steps]
 
-    dut_steps: list[int] = []
-    count = count0
-    for step in steps:
-        count = dut(count, int(step["inc"]))
-        dut_steps.append(count)
+    if dut_trace is not None:
+        dut_steps = list(dut_trace)
+    else:
+        dut_steps = []
+        count = count0
+        for step in steps:
+            count = dut(count, int(step["inc"]))
+            dut_steps.append(count)
     if inject_offset:
-        pad = [dut_steps[0]] * inject_offset if dut_steps else []
-        dut_steps = pad + dut_steps[: max(0, len(dut_steps) - inject_offset)]
+        dut_steps = shift_trace(dut_steps, inject_offset)
 
     def mismatch_count(offset: int) -> tuple[int, tuple[int, ...]]:
         bad: list[int] = []
@@ -274,10 +379,29 @@ def cmd_trace(args) -> int:
         print(f"conformance trace: {exc}", file=sys.stderr)
         return 1
 
+    dut_trace = None
+    if args.dut == "verilator":
+        if not args.rtl:
+            print("conformance trace: --dut verilator needs --rtl", file=sys.stderr)
+            return 2
+        try:
+            dut_trace = simulate_verilator(
+                Path(args.rtl),
+                Path(args.tb),
+                plan["incs"],
+                image=args.image,
+                docker=args.docker,
+                timeout=args.sim_timeout,
+            )
+        except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as exc:
+            print(f"conformance trace: {exc}", file=sys.stderr)
+            return 1
+
     comparison = compare(
         payload["steps"],
         count0=plan["count0"],
         inject_offset=args.inject_offset,
+        dut_trace=dut_trace,
     )
     report = {
         "module": str(module),
@@ -287,6 +411,8 @@ def cmd_trace(args) -> int:
         "first_divergence": comparison.first_divergence,
         "mismatches": len(comparison.mismatches),
         "injected_offset": args.inject_offset,
+        "dut": args.dut,
+        "rtl": args.rtl,
         "exports": payload.get("exports", []),
         "convention": payload.get("convention"),
         "runtime": payload.get("runtime"),
@@ -298,6 +424,7 @@ def cmd_trace(args) -> int:
     else:
         print(f"module   : {module}")
         print(f"exports  : {', '.join(report['exports']) or '(none)'}")
+        print(f"dut      : {args.dut}{' (' + str(args.rtl) + ')' if args.rtl else ''}")
         print(f"cycles   : {report['cycles']}")
         print(f"result   : {comparison.explain()}")
         if report["model_steps"]:

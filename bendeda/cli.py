@@ -241,6 +241,13 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--cycles", type=int, default=24)
     sp.add_argument("--driver", default="tools/model_vectors.mjs")
     sp.add_argument("--node", default="node")
+    sp.add_argument("--dut", choices=["stub", "verilator"], default="stub",
+                    help="stub: Python reference; verilator: real RTL in the pinned image")
+    sp.add_argument("--rtl", default=None, help="RTL for --dut verilator")
+    sp.add_argument("--tb", default=str(conformance.DEFAULT_TB), help="testbench for --dut verilator")
+    sp.add_argument("--image", default=conformance.DEFAULT_IMAGE, help="simulator image for --dut verilator")
+    sp.add_argument("--docker", default="docker")
+    sp.add_argument("--sim-timeout", type=int, default=900)
     sp.add_argument("--inject-offset", type=int, default=0, help="self-test: shift the DUT and expect detection")
     sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=conformance.cmd_trace)

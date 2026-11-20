@@ -51,6 +51,18 @@ The last command is a self-test of the comparator: it shifts the DUT by one cycl
 and the gate passes only if the offset is *detected*. A trace checker that cannot
 see a one-cycle shift is measuring nothing.
 
+To judge real RTL rather than the Python reference, run the DUT under Verilator in
+the pinned image (needs Docker; the image is `bendeda/oss-cad:2026-11-20`):
+
+```bash
+bendeda conformance trace --module .bend-cache/out/model.mjs --cycles 24 \
+  --dut verilator --rtl experiments/fixtures/toy_counter/dut.sv
+
+# the negative control: wrapping RTL must fail as a value mismatch
+bendeda conformance trace --module .bend-cache/out/model.mjs --cycles 24 \
+  --dut verilator --rtl experiments/fixtures/toy_counter/dut_wrap.sv; echo "exit=$?"
+```
+
 ## What is planned, and where
 
 | Command | Issue |

@@ -24,11 +24,17 @@ A 4-bit saturating counter.
 3. The comparator (`bendeda conformance trace`) diffs model output against a DUT
    and **detects a one-cycle offset**, which is the acceptance criterion that
    separates "it ran" from "it checks".
+4. The same comparator judges **real RTL**: `--dut verilator --rtl dut.sv` runs
+   `dut.sv` under Verilator in the pinned OSS CAD image and compares its samples
+   with the model's. `dut_wrap.sv` is the negative control — RTL that wraps at
+   16 instead of saturating — and the gate must reject it as a *value* mismatch,
+   not as an offset.
 
 ## What it deliberately does not prove
 
-- Nothing about RTL correctness: the DUT used in the self-test is a Python
-  cycle-accurate stub, standing in for the cocotb adapter that arrives with the
-  EDA image. The path is proved; the simulator is not.
+- Nothing about generality: the testbench is written for this fixture's port
+  list, so a new task needs its own harness. A generic RTL runner is Phase 2.
+- Nothing about the DUT's timing beyond one sample per clock; CDC, reset
+  sequencing and multi-clock behaviour are outside L1.
 - Nothing about laws: no `LAWS.bend`, no `PROOF.bend`, no conformance ladder above
   L1. Those are issues #8 and #14.

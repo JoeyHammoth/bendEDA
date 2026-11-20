@@ -27,7 +27,10 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       ca-certificates curl tar xz-utils python3 \
       libstdc++6 zlib1g libreadline8 \
+      g++ make \
  && rm -rf /var/lib/apt/lists/*
+# g++ and make are for `verilator --binary`: it compiles the testbench harness
+# before it simulates anything. Without them Verilator exits before running RTL.
 
 RUN set -eu; \
     arch="$(dpkg --print-architecture)"; \
@@ -48,6 +51,8 @@ RUN set -eu; \
 # exits non-zero after printing usage, so the check is the pipeline, not sby.
 RUN yosys -V \
  && verilator --version \
+ && g++ --version | head -1 \
+ && make --version | head -1 \
  && iverilog -V | head -1 \
  && sby --help | head -3 \
  && yosys-smtbmc --help >/dev/null
