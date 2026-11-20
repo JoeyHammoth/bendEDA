@@ -4,6 +4,18 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-21 · The vector path runs at a pinned commit, and the gate must be able to fail
+
+**Decided:** the L1 gate compiles the model at commit `624dd9f` (Bend 2.0.40), using either the release binary or the pinned sources under Bun 1.4.5, and every run includes an injected one-cycle offset that must be detected.
+
+**Why:** a trace checker that reports agreement against a shifted DUT proves nothing, and the first driver agreed with everything because it accepted a wrapper *function* as a value — JavaScript serialises that to a missing JSON key, so the check passed by producing nothing. A gate without a negative control is decoration.
+
+**Cost:** the harness depends on Bun for the source path, and the driver encodes the compiler's erased field names (`head`/`tail`, not the source's `h`/`t`). A compiler change will break the driver loudly rather than silently, which is the trade we want.
+
+**Evidence:** PR #19; `bendeda conformance trace --inject-offset 1` reports `offset detected`; CI jobs `vector-path` and `bend-image`. Authority: Appendix K G-01, Phase 0 exit criterion 2.
+
+---
+
 ## 2026-11-21 · No human author for Bend 2 laws
 
 **Decided:** law, model, reference-proof, parity and oracle artifacts are authored by separately scoped agents under Freebuff control. Humans are release approvers and incident adjudicators only.
