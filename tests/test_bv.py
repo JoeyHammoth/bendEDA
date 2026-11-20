@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """BendBV gate (issue #8).
 
 Two things are checked, and the second is the point: the library's claims must
