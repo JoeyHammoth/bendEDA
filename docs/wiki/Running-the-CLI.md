@@ -38,7 +38,18 @@ bendeda init --dry-run
 bendeda task new B1_fifo --tier B --dry-run
 bendeda validate --all
 bendeda --help
+
+# L1 vector path (needs bun + the pinned compiler source)
+python tools/fetch_bend.py
+export BENDEDA_BEND_CLI=.bend-cache/bend-2.0.40/bend2/main.ts
+bendeda conformance compile --model experiments/fixtures/toy_counter/model.bend --out .bend-cache/out/model.mjs
+bendeda conformance trace --module .bend-cache/out/model.mjs --cycles 24
+bendeda conformance trace --module .bend-cache/out/model.mjs --cycles 24 --inject-offset 1
 ```
+
+The last command is a self-test of the comparator: it shifts the DUT by one cycle
+and the gate passes only if the offset is *detected*. A trace checker that cannot
+see a one-cycle shift is measuring nothing.
 
 ## What is planned, and where
 
@@ -48,6 +59,7 @@ bendeda --help
 | `canary` | [#9](https://github.com/JoeyHammoth/bendEDA/issues/9) |
 | `oracle seal`, `oracle verify-commitment` | [#13](https://github.com/JoeyHammoth/bendEDA/issues/13) |
 | `tf run` | blocked by BendBV ([#8](https://github.com/JoeyHammoth/bendEDA/issues/8)) |
+| `conformance` (L2/L3 rungs) | arrives with the EDA image ([#6](https://github.com/JoeyHammoth/bendEDA/issues/6)) |
 | `gate run`, `gate calibrate`, `run`, `replay` | [#15](https://github.com/JoeyHammoth/bendEDA/issues/15) |
 | `report`, `bundle verify`, `serve` | Phase 6 / Phase 2 |
 

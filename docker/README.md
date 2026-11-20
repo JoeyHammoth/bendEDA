@@ -11,10 +11,29 @@ The study needs three environments, and they are deliberately separate:
 Phase 0 requires that each image builds **offline from a lockfile** and records
 `bend version`, the OSS CAD Suite release and the image digest in every run.
 
+## Pinned versions (2026-11-21)
+
+| Image | Pin | Digest verified | Built |
+|---|---|---|---|
+| `bend` | release 2.0.40, tag commit `624dd9f` | **yes** — linux-x64 archive `c9ff8d67…` matches both the GitHub asset digest and the installer's embedded hash | **yes**, by the `bend-image` CI job |
+| `osscad` | release 2026-11-20 | digest recorded from release metadata, **archive not hashed locally** | **no** — candidate pin, tracked in issue #6 |
+| `harness` | python 3.12 + node 20 | n/a | no (trivial) |
+
+`docker/versions.lock` is the human record; `docker/bend-sources.sha256` is the
+machine-checked one, consumed by `python tools/fetch_bend.py`. The Bend *source*
+is pinned as well as the release, because a machine without a Linux binary (or
+without Docker) can run the compiler at the same commit under Bun:
+
 ```bash
-# build (Phase 0.1 — not yet automated)
-docker build -f docker/Dockerfile.bend      -t bendeda/bend:2.0.39 .
-docker build -f docker/Dockerfile.oss-cad   -t bendeda/oss-cad:2026-11 .
+python tools/fetch_bend.py                  # fetch + verify 5 files at v2.0.40
+BENDEDA_BEND_CLI=.bend-cache/bend-2.0.40/bend2/main.ts \
+  python -m bendeda conformance compile --model experiments/fixtures/toy_counter/model.bend --out out/model.mjs
+```
+
+```bash
+# build
+docker build -f docker/Dockerfile.bend      -t bendeda/bend:2.0.40 .
+docker build -f docker/Dockerfile.oss-cad   -t bendeda/oss-cad:2026-11-20 .
 docker build -f docker/Dockerfile.harness   -t bendeda/harness:0.0.1 .
 ```
 
