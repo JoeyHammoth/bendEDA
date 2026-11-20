@@ -10,7 +10,7 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 **Why:** printing `yosys -V` proves a binary exists. It does not prove the archive unpacked correctly, that the solver came with it, or that the gate that will judge RTL works. The first attempt failed twice for exactly those reasons - a missing `[files]` entry and an unreadable generated fixture - which is the kind of thing a version check would have hidden.
 
-**Cost:** the job downloads 754 MB, so it runs only when the pin. the Dockerfile or the workflow changes, never on every pull request.
+**Cost:** the job downloads 754 MB, so it runs only when the pin, the Dockerfile or the workflow changes, never on every pull request.
 
 **Evidence:** `.github/workflows/oss-cad-image.yml`; digests match the release's published per-asset sha256 (`6e200a57...` x64, `d58ee2fa...` arm64); `sby` reports `DONE (PASS, rc=0)`.
 
