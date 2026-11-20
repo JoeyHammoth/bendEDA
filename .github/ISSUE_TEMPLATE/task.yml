@@ -22,9 +22,9 @@ body:
       label: Acceptance criteria
       description: How a reviewer knows it is done. Prefer commands and observable outputs.
       value: |
-        - [ ] 
-        - [ ] 
-        - [ ] Documented in the relevant doc or wiki page
+        - [ ] first observable outcome
+        - [ ] second observable outcome
+        - [ ] documented in the relevant doc or wiki page
     validations:
       required: true
   - type: textarea

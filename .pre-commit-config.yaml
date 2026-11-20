@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # Local hooks only: the research pipeline must not require network access to
 # commit. CI repeats every check here, so a contributor without pre-commit
 # installed is not silently unprotected.

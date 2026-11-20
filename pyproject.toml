@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: Apache-2.0
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bendeda"
+version = "0.0.1"
+description = "Harness for evaluating Bend 2 laws and proof gates in agentic EDA"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+authors = [{ name = "The BendEDA authors" }]
+keywords = ["eda", "formal-verification", "bend2", "agents", "rtl"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["ruff>=0.6", "mypy>=1.11"]
+analysis = ["pandas>=2.2", "scipy>=1.13", "statsmodels>=0.14"]
+sim = ["cocotb>=1.9"]
+mcp = ["mcp>=1.2"]
+
+[project.scripts]
+bendeda = "bendeda.cli:main"
+
+[project.urls]
+Homepage = "https://joeyhammoth.github.io/bendEDA/"
+Repository = "https://github.com/JoeyHammoth/bendEDA"
+Protocol = "https://github.com/JoeyHammoth/bendEDA/blob/main/bend2-agentic-eda-research-design.md"
+
+[tool.setuptools.packages.find]
+include = ["bendeda*"]
+
+[tool.setuptools.package-data]
+bendeda = ["schemas/*.json"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+# A stub that silently passes would be worse than a stub that refuses to run, so
+# unimplemented commands raise SystemExit(3) and are allowed to stay visible.
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_ignores = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+# The repository standardises on stdlib unittest so contributors need no plugins;
+# this section exists only so `pytest` does not fight over collection.
+testpaths = ["tests"]
