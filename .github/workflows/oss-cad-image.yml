@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: Apache-2.0
+# Building the OSS CAD Suite image is a 754 MB download and ~2.5 GB unpacked, so
+# it runs only when the pin or the image changes — not on every pull request.
+name: oss-cad-image
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - docker/Dockerfile.oss-cad
+      - docker/versions.lock
+      - .github/workflows/oss-cad-image.yml
+  push:
+    branches: [main]
+    paths:
+      - docker/Dockerfile.oss-cad
+      - docker/versions.lock
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oss-cad-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: oss-cad suite image (pinned)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build from the pinned archive digest
+        run: docker build -f docker/Dockerfile.oss-cad -t bendeda/oss-cad:2026-11-20 .
+      - name: The tools answer with their versions
+        run: |
+          docker run --rm bendeda/oss-cad:2026-11-20 yosys -V
+          docker run --rm bendeda/oss-cad:2026-11-20 verilator --version
+          docker run --rm bendeda/oss-cad:2026-11-20 iverilog -V | head -1
+          docker run --rm bendeda/oss-cad:2026-11-20 sby --help | head -3
+      - name: A real SymbiYosys run passes
+        run: |
+          # Existence is not evidence: run an actual BMC over Yosys with an SMT
+          # solver and require PASS. A counter that counts past 15 is impossible
+          # for 4 bits, so a passing proof means the toolchain reasoned, not that
+          # it skipped the assertion.
+          mkdir -p smoke
+          cat > smoke/counter.sv <<'EOF'
+          module counter(input clk, input rst, output reg [3:0] c);
+            always @(posedge clk)
+              if (rst) c <= 4'd0; else c <= c + 4'd1;
+          `ifdef FORMAL
+            always @(posedge clk)
+              if (!rst) assert(c <= 4'd15);
+          `endif
+          endmodule
+          EOF
+          cat > smoke/counter.sby <<'EOF'
+          [tasks]
+          prove
+
+          [options]
+          prove: mode bmc
+          prove: depth 8
+
+          [engines]
+          smtbmc
+
+          [script]
+          read_verilog -formal counter.sv
+          prep
+          EOF
+          (cd smoke && docker run --rm -u "$(id -u):$(id -g)" \
+            -v "$PWD:/work" -w /work bendeda/oss-cad:2026-11-20 sby -f counter.sby)
+          grep -q PASS smoke/counter_prove/PASS
+          echo "oss-cad: BMC smoke test PASS"
