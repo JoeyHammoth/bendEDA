@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+# Bend 2.0.40 compiler sources, tag commit 624dd9f4607cd29b0871a9b96d413bfb11e92f52.
+# Format matches `sha256sum -c`. Consumed by tools/fetch_bend.py and by CI, so a
+# changed file fails the fetch instead of silently changing the semantics of
+# every proof in the study.
+1aabcfdf921a7a0fc971f1982787cbd385afe3441d3e2cc640c8f0e5c0b5630e  bend2/main.ts
+6b86606fd096cc8322b5e3ffc624dbfeef63ef4c6c5e72d78148fb179d0d26b7  bend2/bend.ts
+078699d307485cf8fa01260b0590832aff2ff90755fe3d8af55d28a90e33e188  bend2/comp.ts
+9c45b3cec5b931be19036ac447587c7093f86fcf64b09d104f4b657b8555ac21  bend2/safe.ts
+ff90fb27ed19d5c7a6165170f28ad81562bf345b9a9e6134e5c2e326beff9de4  bend2/base.bend

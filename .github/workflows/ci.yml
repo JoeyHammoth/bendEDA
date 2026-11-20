@@ -86,6 +86,59 @@ jobs:
       - name: Site integrity (assets exist, links resolve)
         run: python tools/check_site.py site
 
+  vector-path:
+    name: L1 vector path
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.5"
+      - name: Fetch the pinned compiler sources and verify digests
+        run: python tools/fetch_bend.py
+      - name: Comparator unit tests (no compiler needed)
+        run: python -m unittest tests.test_vector_path.TestComparator -v
+      - name: Compile the fixture, trace it, and detect an injected offset
+        env:
+          BENDEDA_BUN: bun
+          BENDEDA_BEND_CLI: .bend-cache/bend-2.0.40/bend2/main.ts
+        run: |
+          python -m bendeda conformance compile \
+            --model experiments/fixtures/toy_counter/model.bend \
+            --out .bend-cache/out/model.mjs
+          python -m bendeda conformance trace --module .bend-cache/out/model.mjs --cycles 24
+          python -m bendeda conformance trace --module .bend-cache/out/model.mjs --cycles 24 --inject-offset 1
+          python -m unittest tests.test_vector_path -v
+
+  bend-image:
+    name: bend image (pinned)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image from the pinned archive digest
+        run: docker build -f docker/Dockerfile.bend -t bendeda/bend:2.0.40 .
+      - name: The image reports its own version
+        run: docker run --rm bendeda/bend:2.0.40 version
+      - name: The released binary compiles the fixture
+        run: |
+          # `.bend-cache/` is gitignored, so a fresh checkout has no output
+          # directory. Run as the runner's uid too: the image's `bend` user has
+          # no claim on the mounted workspace.
+          mkdir -p .bend-cache/out
+          docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work bendeda/bend:2.0.40 \
+            experiments/fixtures/toy_counter/model.bend -o .bend-cache/out/model.mjs
+          test -s .bend-cache/out/model.mjs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: The binary's module passes the same trace gate as the source build
+        run: |
+          node tools/model_vectors.mjs .bend-cache/out/model.mjs experiments/fixtures/toy_counter/plan.json \
+            | head -20
+
   bend-and-eda:
     name: bend and EDA gates
     # Runs only once the tools runner exists. Set the repository variable

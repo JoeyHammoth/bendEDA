@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Sequence
 
 from bendeda import __version__
+from bendeda.conformance import vector_path as conformance
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -225,6 +226,24 @@ def build_parser() -> argparse.ArgumentParser:
     sp = bundle_sub.add_parser("verify", help="re-run checks for a bundle")
     sp.add_argument("path")
     sp.set_defaults(func=lambda _a: _todo("bundle verify", "re-check laws, TF and gates in the pinned image", "Phase 2"))
+
+    p_conf = sub.add_parser("conformance", help="conformance rungs that need no EDA toolchain")
+    conf_sub = p_conf.add_subparsers(dest="conformance_command", metavar="<subcommand>")
+    sp = conf_sub.add_parser("compile", help="compile a Bend model to an ES module")
+    sp.add_argument("--model", required=True)
+    sp.add_argument("--out", required=True)
+    sp.add_argument("--bend-cli", default=None, help="path to bend2/main.ts at the pinned commit")
+    sp.add_argument("--bun", default=None)
+    sp.set_defaults(func=conformance.cmd_compile)
+
+    sp = conf_sub.add_parser("trace", help="compare compiled model output against a DUT cycle by cycle")
+    sp.add_argument("--module", required=True)
+    sp.add_argument("--cycles", type=int, default=24)
+    sp.add_argument("--driver", default="tools/model_vectors.mjs")
+    sp.add_argument("--node", default="node")
+    sp.add_argument("--inject-offset", type=int, default=0, help="self-test: shift the DUT and expect detection")
+    sp.add_argument("--json", action="store_true")
+    sp.set_defaults(func=conformance.cmd_trace)
 
     p_serve = sub.add_parser("serve", help="expose tools as MCP or REST")
     p_serve.add_argument("--mcp", action="store_true")

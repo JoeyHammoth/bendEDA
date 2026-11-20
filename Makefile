@@ -4,7 +4,7 @@
 
 PY ?= python
 
-.PHONY: help install test lint hygiene validate site-check all clean
+.PHONY: help install test lint hygiene validate site-check vectors bend-fetch all clean
 
 help:
 	@echo "make install     install the package in editable mode with dev extras"
@@ -13,6 +13,7 @@ help:
 	@echo "make hygiene     secrets, licence headers, whitespace, oracle absence, DCO"
 	@echo "make validate    validate schemas and task packages"
 	@echo "make site-check  structural checks on the GitHub Pages site"
+	@echo "make vectors     compile the fixture and run the L1 trace gate (needs bun)"
 	@echo "make all         test + hygiene + validate + site-check"
 
 install:
@@ -36,6 +37,14 @@ validate:
 
 site-check:
 	$(PY) tools/check_site.py site
+
+bend-fetch:
+	$(PY) tools/fetch_bend.py
+
+vectors: bend-fetch
+	$(PY) -m bendeda conformance compile 		--model experiments/fixtures/toy_counter/model.bend --out .bend-cache/out/model.mjs
+	$(PY) -m bendeda conformance trace --module .bend-cache/out/model.mjs --cycles 24
+	$(PY) -m bendeda conformance trace --module .bend-cache/out/model.mjs --cycles 24 --inject-offset 1
 
 all: test hygiene validate site-check
 

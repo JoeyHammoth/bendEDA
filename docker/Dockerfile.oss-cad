@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+# OSS CAD Suite (Yosys, SymbiYosys, MCY, Verilator, Icarus, nextpnr).
+#
+# STATUS: NOT YET BUILT. The digest below is recorded from the GitHub release
+# metadata on 2026-11-21, but no image has been produced from this file, so it
+# is a candidate pin rather than a verified one. Tracked in issue #6; the
+# `bend-image` CI job verifies the Bend image only.
+#
+# Pinned by release tag and archive digest. The archive is ~750 MB; the digest
+# check is what makes a cached layer trustworthy.
+FROM debian:bookworm-slim
+
+ARG OSS_CAD_TAG=2026-11-20
+ARG OSS_CAD_SHA256_LINUX_X64=6e200a57cb7cc47a8a1a4772e3feda3777917edcb3fa5e8ee5743d962d265a7e
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PATH=/opt/oss-cad-suite/bin:$PATH
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates curl xz-utils tar \
+       build-essential python3 python3-venv python3-pip git \
+       libboost-filesystem-dev libboost-thread-dev zlib1g-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN set -eu; \
+    name="oss-cad-suite-linux-x64-$(echo "$OSS_CAD_TAG" | tr -d '-').tgz"; \
+    curl --proto '=https' --tlsv1.2 -fsSL -o /tmp/oss.tgz \
+      "https://github.com/YosysHQ/oss-cad-suite-build/releases/download/${OSS_CAD_TAG}/${name}"; \
+    echo "${OSS_CAD_SHA256_LINUX_X64}  /tmp/oss.tgz" | sha256sum -c - ; \
+    tar -xzf /tmp/oss.tgz -C /opt --no-same-owner; \
+    rm /tmp/oss.tgz; \
+    test -x /opt/oss-cad-suite/bin/yosys
+
+# Fail the build, not the run, if the tools the gates need are missing.
+RUN yosys -V && sby --help >/dev/null 2>&1 && verilator --version && iverilog -V 2>&1 | head -1
+
+RUN useradd --create-home --uid 10003 eda
+USER eda
+WORKDIR /work
+CMD ["/bin/bash"]

@@ -217,13 +217,13 @@ python -m unittest discover -s tests -v</code></pre>
     <div class="section-head">
       <p class="eyebrow">Reference</p>
       <h2>The <code>bendeda</code> CLI</h2>
-      <p class="sub">Every command below exists in the package. “Working” means it does something; “planned” means it exits 3 and tells you which phase implements it.</p>
+      <p class="sub">Every command below exists in the package. “Working” means it does something; “planned” means it exits 3 and tells you which phase implements it. The L1 trace gate is working today — it compiles a Bend model, runs it under Node, and detects an injected one-cycle offset.</p>
     </div>
 
     <div class="cli-toolbar">
       <label class="sr-only" for="cli-filter">Filter commands</label>
       <input id="cli-filter" type="search" placeholder="Filter commands — try “law”, “oracle”, “gate”…" autocomplete="off">
-      <span class="cli-count" id="cli-count">16 commands</span>
+      <span class="cli-count" id="cli-count">17 commands</span>
     </div>
 
     <div class="table-wrap">
@@ -235,6 +235,8 @@ python -m unittest discover -s tests -v</code></pre>
           <tr><td><code>bendeda init [path]</code></td><td>Scaffold an experiment or task repository</td><td><span class="status working">working</span></td></tr>
           <tr><td><code>bendeda task new &lt;name&gt; --tier B</code></td><td>Create a task package skeleton (9 files, status draft)</td><td><span class="status working">working</span></td></tr>
           <tr><td><code>bendeda validate --all</code></td><td>Validate shipped schemas and every task package</td><td><span class="status working">working</span></td></tr>
+          <tr><td><code>bendeda conformance compile</code></td><td>Compile a Bend model to an ES module at the pinned compiler commit</td><td><span class="status working">working</span></td></tr>
+          <tr><td><code>bendeda conformance trace</code></td><td>Drive the model cycle by cycle, diff against a DUT, and name the defect (value vs one-cycle offset)</td><td><span class="status working">working</span></td></tr>
           <tr><td><code>bendeda law lint &lt;path&gt;</code></td><td>Apply rules L001-L015: witnesses, traceability, vacuity, escape hatches, provenance</td><td><span class="status planned">planned</span></td></tr>
           <tr><td><code>bendeda law mutate &lt;model.bend&gt;</code></td><td>Mutate the model; every law must be falsified by at least one mutation (LA3)</td><td><span class="status planned">planned</span></td></tr>
           <tr><td><code>bendeda law translate --to sva</code></td><td>Translate laws through templates and emit a translation-fidelity plan</td><td><span class="status planned">planned</span></td></tr>

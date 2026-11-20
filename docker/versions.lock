@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+# Every pinned version, with the digest that was actually checked.
+# Verified 2026-11-21. Regenerate with: make versions
+bend:
+  release: "2.0.40"
+  tag_commit: "624dd9f4607cd29b0871a9b96d413bfb11e92f52"
+  # Release archives (verified: linux-x64 downloaded and hashed; the other three
+  # match the published asset digests and the installer's embedded sha256).
+  archives:
+    linux-x64: "c9ff8d67bd903fb6ad9a26b43d8a62c01021de82a44d55ce4a3dcd4732113d6b"
+    linux-arm64: "2f42a6fa34ecdaa71ae105e5fa734f9a07e129d333e45448ab6d2ff03a837570"
+    darwin-x64: "9229c8bdd0a93f63fa45cc5af5e9e56389ebb620d655920915daf966c6ca561c"
+    darwin-arm64: "b2be003b041eb6cfc65326be18f79eb2e0bae2189be79a18c507e661b4b6900b"
+  # Compiler sources, for machines without a Linux binary (source execution under
+  # Bun at the same commit). Fetched at run time; never vendored.
+  sources:
+    bend2/main.ts: "1aabcfdf921a7a0fc971f1982787cbd385afe3441d3e2cc640c8f0e5c0b5630e"
+    bend2/bend.ts: "6b86606fd096cc8322b5e3ffc624dbfeef63ef4c6c5e72d78148fb179d0d26b7"
+    bend2/comp.ts: "078699d307485cf8fa01260b0590832aff2ff90755fe3d8af55d28a90e33e188"
+    bend2/safe.ts: "9c45b3cec5b931be19036ac447587c7093f86fcf64b09d104f4b657b8555ac21"
+    bend2/base.bend: "ff90fb27ed19d5c7a6165170f28ad81562bf345b9a9e6134e5c2e326beff9de4"
+  runner_for_source:
+    bun: "1.4.5"
+  # Recorded, not used in this phase (see Appendix K, R-05).
+  verdict_available: false
+  verdict_evidence: "not re-measured yet; third-party 2.0.39 reproduction reports parse error. See issue #9."
+
+oss-cad-suite:
+  release: "2026-11-20"
+  archives:
+    linux-x64: "6e200a57cb7cc47a8a1a4772e3feda3777917edcb3fa5e8ee5743d962d265a7e"
+    linux-arm64: "d58ee2faa0b0b1e43aa8783f66df9fbed5f23fe9d179a638f3d26d75301a6c93"
+
+node:
+  required: ">=20"
+  verified_with: "24.20.0"
+
+python:
+  required: ">=3.12"
+  verified_with: "3.14.7"
