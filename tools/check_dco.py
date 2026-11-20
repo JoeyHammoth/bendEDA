@@ -11,8 +11,12 @@ import sys
 
 def commits(base: str) -> list[tuple[str, str]]:
     try:
+        # --no-merges is load-bearing: the merge commit GitHub synthesises for a
+        # pull request is created by the platform, not by a contributor, and it
+        # cannot carry a sign-off. Checking it produced a false failure on the
+        # first pull request to run this job.
         log = subprocess.run(
-            ["git", "log", f"{base}..HEAD", "--format=%H%x00%B%x00%ae"],
+            ["git", "log", f"{base}..HEAD", "--no-merges", "--format=%H%x00%B%x00%ae"],
             capture_output=True,
             text=True,
             check=True,
