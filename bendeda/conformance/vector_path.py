@@ -143,6 +143,26 @@ def shift_trace(trace: list[int], offset: int) -> list[int]:
     return [trace[0]] * offset + trace[: max(0, len(trace) - offset)]
 
 
+def image_available(image: str = DEFAULT_IMAGE, docker: str = "docker") -> bool:
+    """True only when the simulator image is already present locally.
+
+    Checked rather than assumed: a host can have Docker installed and still not
+    have the image, and `docker run` would then try to pull a name that is not in
+    any registry. A test must skip with that reason, not fail as if the DUT were
+    broken.
+    """
+    try:
+        done = subprocess.run(
+            [docker, "image", "inspect", image],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return done.returncode == 0
+
+
 def verilator_command(
     workdir: Path,
     cycles: int,
