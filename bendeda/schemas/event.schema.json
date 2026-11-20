@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/JoeyHammoth/bendEDA/bendeda/schemas/event.schema.json",
+  "title": "Event log record",
+  "description": "One line of events.jsonl. Args and results are hashed as well as stored so a replay can detect tampering.",
+  "type": "object",
+  "required": ["t", "run_id", "seq", "actor", "type"],
+  "additionalProperties": false,
+  "properties": {
+    "t": { "type": "string", "format": "date-time" },
+    "run_id": { "type": "string" },
+    "seq": { "type": "integer", "minimum": 0 },
+    "actor": { "enum": ["agent", "proxy", "tool", "harness"] },
+    "type": { "enum": ["tool_call", "tool_result", "policy_block", "budget", "submit", "harness_error", "spec_change_request"] },
+    "tool": { "type": "string" },
+    "args_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "result_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "elapsed_ms": { "type": "integer", "minimum": 0 },
+    "tokens_in": { "type": "integer", "minimum": 0 },
+    "tokens_out": { "type": "integer", "minimum": 0 },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decision": { "enum": ["allow", "block", "skip"] },
+        "rule": { "type": ["string", "null"] },
+        "reason": { "type": "string" }
+      }
+    },
+    "evidence_call_id": { "type": "string" },
+    "detail": { "type": "object" }
+  }
+}

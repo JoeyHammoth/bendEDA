@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/JoeyHammoth/bendEDA/bendeda/schemas/provenance.schema.json",
+  "title": "Authoring provenance",
+  "description": "Who (which agent run) produced each locked artifact, and what it was forbidden to read (Appendix J.4). A task cannot be locked without a complete chain.",
+  "type": "object",
+  "required": ["task", "artifacts", "review", "locked"],
+  "additionalProperties": false,
+  "properties": {
+    "task": { "type": "string" },
+    "artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256", "authored_by", "run_id"],
+        "additionalProperties": false,
+        "properties": {
+          "path": { "type": "string" },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "authored_by": { "enum": ["LAA", "RPA", "OAA", "PA", "AA", "conductor"] },
+          "run_id": { "type": "string" },
+          "model": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "digest": { "type": "string" },
+              "family": { "type": "string" }
+            }
+          },
+          "prompt_sha256": { "type": "string" },
+          "tools_allowed": { "type": "array", "items": { "type": "string" } },
+          "forbidden_reads_attested": { "type": "array", "items": { "type": "string" } },
+          "inputs": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "review": {
+      "type": "object",
+      "required": ["auditor_run", "gates"],
+      "additionalProperties": false,
+      "properties": {
+        "auditor_run": { "type": "string" },
+        "gates": {
+          "type": "object",
+          "additionalProperties": { "enum": ["pass", "fail", "skip"] }
+        },
+        "human_escalations": { "type": "array", "items": { "type": "object" } },
+        "independence": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "lai": { "type": ["number", "integer"] },
+            "colliding_pairs": { "type": "array", "items": { "type": "string" } },
+            "lss": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        }
+      }
+    },
+    "locked": {
+      "type": "object",
+      "required": ["by", "at", "commit"],
+      "additionalProperties": false,
+      "properties": {
+        "by": { "type": "string" },
+        "at": { "type": "string", "format": "date-time" },
+        "commit": { "type": "string" }
+      }
+    }
+  }
+}

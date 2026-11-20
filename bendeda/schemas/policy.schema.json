@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/JoeyHammoth/bendEDA/bendeda/schemas/policy.schema.json",
+  "title": "Sandbox policy",
+  "description": "The contract the policy proxy enforces. A path may not appear in both write_allow and protected_paths.",
+  "type": "object",
+  "required": ["protected_paths", "write_allow", "network", "budgets", "on_violation"],
+  "additionalProperties": false,
+  "properties": {
+    "protected_paths": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "write_allow": { "type": "array", "items": { "type": "string" } },
+    "network": { "enum": ["deny", "local-model-only"] },
+    "budgets": {
+      "type": "object",
+      "required": ["tokens", "tool_calls", "wall_min"],
+      "additionalProperties": false,
+      "properties": {
+        "tokens": { "type": "integer", "minimum": 1 },
+        "tool_calls": { "type": "integer", "minimum": 1 },
+        "wall_min": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "temporal_rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "additionalProperties": true,
+        "properties": {
+          "id": { "type": "string" },
+          "forbid": { "type": "string" },
+          "require_before": { "type": "object" }
+        }
+      }
+    },
+    "on_violation": {
+      "type": "object",
+      "required": ["action"],
+      "additionalProperties": false,
+      "properties": {
+        "action": { "enum": ["block", "warn"] },
+        "feedback": { "enum": ["structured", "text"] },
+        "log": { "type": "boolean" }
+      }
+    }
+  }
+}

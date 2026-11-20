@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/JoeyHammoth/bendEDA/bendeda/schemas/task.schema.json",
+  "title": "Task package manifest",
+  "description": "Metadata for one task package. The law set is described here rather than in Bend so that nothing in the tooling depends on unverified language features (Appendix G).",
+  "type": "object",
+  "required": ["task", "tier", "spec", "status", "requirements", "laws"],
+  "additionalProperties": false,
+  "properties": {
+    "task": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$" },
+    "tier": { "enum": ["A", "B", "C", "C-P"] },
+    "spec": { "type": "string" },
+    "status": { "enum": ["draft", "reviewed", "locked"] },
+    "bend_version": { "type": "string" },
+    "bv_version": { "type": "string" },
+    "conformance_only_requirements": { "type": "array", "items": { "type": "string" } },
+    "oracle_only_requirements": { "type": "array", "items": { "type": "string" } },
+    "requirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "text", "expressible_as"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^R[0-9]+$" },
+          "text": { "type": "string" },
+          "expressible_as": { "enum": ["law", "conformance-only", "oracle-only"] }
+        }
+      }
+    },
+    "laws": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "class", "priority", "requirements"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+          "class": { "enum": ["L-SAFE", "L-FUNC", "L-PROT", "L-LIVE-k", "L-REFN", "L-ALG", "L-WIT", "L-NEG"] },
+          "priority": { "enum": ["core", "important", "extended"] },
+          "requirements": { "type": "array", "items": { "type": "string" } },
+          "witness": { "type": ["string", "null"] },
+          "translation": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "sva": { "type": "string" },
+              "template": { "type": "string" },
+              "fidelity_plan": { "type": "string" }
+            }
+          },
+          "reference_proof": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "file": { "type": "string" },
+              "lines": { "type": "integer", "minimum": 1 },
+              "effort_minutes": { "type": "integer", "minimum": 1 }
+            }
+          }
+        }
+      }
+    },
+    "change_log": { "type": "array", "items": { "type": "object" } }
+  }
+}
