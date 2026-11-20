@@ -4,6 +4,18 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-21 - L1 judges real RTL, not a second model
+
+**Decided:** `bendeda conformance trace --dut verilator` runs the fixture's RTL under Verilator in the pinned OSS CAD image, and the gate must reject `dut_wrap.sv` as a *value* mismatch.
+
+**Why:** comparing the Bend model against a Python function that encodes the same behaviour checks the plumbing, not the design. RTL that wraps at 16 instead of saturating is the control that proves the comparator sees a bug a version check would miss.
+
+**Cost:** the image now carries g++ and make for `verilator --binary`, and each fixture needs its own testbench. There is no generic RTL harness until Phase 2.
+
+**Evidence:** `experiments/fixtures/toy_counter/{dut.sv,dut_wrap.sv,tb_dut.sv}`; the CI step "The gate rejects wrapping RTL" in `.github/workflows/oss-cad-image.yml`.
+
+---
+
 ## 2026-11-21 - The OSS CAD pin is verified by a proof, not by a version string
 
 **Decided:** the OSS CAD image counts as pinned only when a build from the recorded digest runs a real SymbiYosys BMC that passes.

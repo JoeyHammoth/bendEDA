@@ -10,6 +10,10 @@ on:
       - docker/Dockerfile.oss-cad
       - docker/versions.lock
       - .github/workflows/oss-cad-image.yml
+      - bendeda/**
+      - tools/model_vectors.mjs
+      - experiments/fixtures/**
+      - tests/test_vector_path.py
   push:
     branches: [main]
     paths:
@@ -28,6 +32,9 @@ jobs:
     name: oss-cad suite image (pinned)
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      BENDEDA_BUN: bun
+      BENDEDA_BEND_CLI: .bend-cache/bend-2.0.40/bend2/main.ts
     steps:
       - uses: actions/checkout@v7
       - name: Build from the pinned archive digest
@@ -57,3 +64,39 @@ jobs:
           test -f docker/smoke/counter_prove/PASS
           ls -l docker/smoke/counter_prove/PASS
           echo "oss-cad: BMC smoke test PASS"
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.5"
+      - name: Fetch the pinned compiler sources
+        run: python tools/fetch_bend.py
+      - name: Compile the fixture model
+        run: |
+          python -m bendeda conformance compile \
+            --model experiments/fixtures/toy_counter/model.bend \
+            --out .bend-cache/out/model.mjs
+      - name: The model and the simulated RTL agree
+        run: |
+          # This is the point of the job: the comparator judges samples that came
+          # out of Verilator, not a second copy of the model written in Python.
+          python -m bendeda conformance trace --module .bend-cache/out/model.mjs --cycles 24 \
+            --dut verilator --rtl experiments/fixtures/toy_counter/dut.sv
+          python -m bendeda conformance trace --module .bend-cache/out/model.mjs --cycles 24 \
+            --dut verilator --rtl experiments/fixtures/toy_counter/dut.sv --inject-offset 1
+      - name: The gate rejects wrapping RTL
+        run: |
+          set +e
+          out=$(python -m bendeda conformance trace --module .bend-cache/out/model.mjs --cycles 24 \
+            --dut verilator --rtl experiments/fixtures/toy_counter/dut_wrap.sv 2>&1)
+          status=$?
+          echo "$out"
+          test "$status" -eq 1
+          echo "$out" | grep -q "value mismatch"
+      - name: Unit tests
+        run: python -m unittest tests.test_vector_path -v
