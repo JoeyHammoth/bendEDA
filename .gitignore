@@ -1,0 +1,28 @@
+.agents
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# Local scratch & secrets
+.scratch/
+*.pem
+*.age
+!oracle_sealed/*.age
+
+# Large artifacts (hosted as release assets / DVC remotes)
+results/runs/
+*.jsonl.gz
