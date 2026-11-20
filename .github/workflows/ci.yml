@@ -88,6 +88,11 @@ jobs:
 
   bend-and-eda:
     name: bend and EDA gates
+    # Runs only once the tools runner exists. Set the repository variable
+    # BENDEDA_TOOLS_RUNNER=true after registering it (issue #12). Until then the
+    # job is skipped, which is honest: a gate that cannot run must not report a
+    # pass, and it must not sit queued forever pretending it will.
+    if: vars.BENDEDA_TOOLS_RUNNER == 'true'
     runs-on: [self-hosted, linux, bendeda-tools]
     steps:
       - uses: actions/checkout@v7
