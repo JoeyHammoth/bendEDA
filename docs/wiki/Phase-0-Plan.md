@@ -18,13 +18,14 @@
 | Bend 2.0.40 pinned by archive **and** source digest | `docker/versions.lock`, `docker/bend-sources.sha256`, `bend-image` CI job (PR #19) |
 | `model.mjs` vector path proven from Node, one-cycle offset detected | `bendeda conformance compile/trace`, `tools/model_vectors.mjs`, `vector-path` CI job (PR #19) |
 | BendBV mask layer proved, and the unmasked control refused | `bv/bv.bend`, `bv/negative/unmasked_add.bend`, `tests/test_bv.py` |
+| Checker canary suite: 32 negative and 4 positive controls, staged refusals | `bendeda canary`, `docs/research/2026-11-23-checker-canary.md`, CI `vector-path` and `bend-image` |
+| `verdict_available` measured at the pin (false: no Lean toolchain) | exact command and output in `docs/research/2026-11-23-checker-canary.md` |
 
 ## Open work
 
 | # | Item | Why it blocks everything after it |
 |---|---|---|
 | [#6](https://github.com/JoeyHammoth/bendEDA/issues/6) | Pin the OSS CAD Suite image (Bend is done) | A result that cannot name its image digest cannot be reproduced |
-| [#9](https://github.com/JoeyHammoth/bendEDA/issues/9) | Canary suite + `verdict_available` | A checker that accepts a false law invalidates every Bend arm |
 | [#10](https://github.com/JoeyHammoth/bendEDA/issues/10) | `law lint` and `law mutate` | LA3-LA7 cannot be evaluated by hand at 12 tasks |
 | [#11](https://github.com/JoeyHammoth/bendEDA/issues/11) | Proof cookbook and PEH list | Distinguishes "law is hard" from "agent cannot prove" |
 | [#12](https://github.com/JoeyHammoth/bendEDA/issues/12) | Self-hosted tools runner | Otherwise the EDA gates are skipped, and skipped is not green |
@@ -37,7 +38,7 @@ Phase 0 is done when all of these are true, not when the tickets are closed:
 1. Three images build offline and record their digests. **Bend: built in CI from the pinned digest.** **OSS CAD Suite: built in CI from the verified digest, tools answer, and an `sby` BMC proof passes.** Harness: not yet built, and no image has been shown to build offline.
 2. `bend model.bend -o model.mjs` drives a model from Node and a one-cycle injected offset is detected. **Done** — `bendeda conformance trace --inject-offset 1` reports `offset detected`.
 3. BendBV's lemmas all check with no escape hatch. **Partly done** — the mask layer checks (`mask.idem`, `bv_add.comm`, the concrete 8-bit wrap); closure, identity, wrap and associativity are open and listed in `bv/OPEN.md`.
-4. 30+ canary controls, zero false accepts, `verdict_available` recorded with evidence.
+4. **Done** — 32 negative controls and 4 positive controls; zero false accepts and zero mis-staged refusals under the default checker in both `vector-path` and `bend-image`; `verdict_available` is **false** and recorded with its exact command and output.
 5. `law lint` catches each seeded defect in its fixture set.
 6. The EDA gate job actually runs on the tools runner.
 7. A dummy commit-reveal round-trips, and a one-byte change breaks verification.

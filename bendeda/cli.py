@@ -133,6 +133,59 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return validate_all(quiet=args.quiet)
 
 
+def cmd_canary(args: argparse.Namespace) -> int:
+    """Run the checker's negative controls and score the verdicts."""
+    from bendeda import canary
+
+    checker = canary.build_checker(
+        local=args.local,
+        root=ROOT,
+        bun=args.bun,
+        bend_cli=args.bend_cli,
+        image=args.image,
+        docker=args.docker,
+        mode=args.mode,
+    )
+    if isinstance(checker, str):
+        print(f"bendeda canary: cannot run the checker: {checker}", file=sys.stderr)
+        print("  nothing was measured, so this is not a pass (exit 3).", file=sys.stderr)
+        return EXIT_NOT_IMPLEMENTED
+
+    controls = canary.select(args.family, args.only)
+    if not controls:
+        print("bendeda canary: no control matched --family or --only", file=sys.stderr)
+        return EXIT_USAGE
+
+    workdir = ROOT / ".bend-cache" / "canary"
+    if not args.quiet:
+        print(
+            f"canary: {len(controls)} controls through {checker.label} ({checker.mode} checker)",
+            file=sys.stderr,
+        )
+    result = canary.run_suite(controls, checker, workdir, timeout=args.timeout)
+
+    if args.out:
+        canary.write_report(result, Path(args.out))
+    if args.json:
+        print(json.dumps(result.as_json(), indent=2))
+    elif not args.quiet:
+        print(canary.format_table(result))
+
+    canary.print_failures(result)
+    summary = (
+        f"canary: {result.negatives_run} negative controls run, "
+        f"{len(result.false_accepts)} false accepts, "
+        f"{len(result.false_rejects)} false rejects, "
+        f"{len(result.misplaced)} refused at the wrong stage, "
+        f"{len(result.unavailable)} unavailable, "
+        f"{result.law_stage} refused at the law layer"
+    )
+    print(summary, file=sys.stderr if result.exit_code() else sys.stdout)
+    if result.exit_code() == 1:
+        print("canary: a false accept blocks every Bend arm (issue #9).", file=sys.stderr)
+    return result.exit_code()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="bendeda",
@@ -184,8 +237,22 @@ def build_parser() -> argparse.ArgumentParser:
     sp.set_defaults(func=lambda _a: _todo("tf run", "10k traces per law, verdict agreement", "Phase 1.7"))
 
     p_canary = sub.add_parser("canary", help="run the checker negative-control suite")
-    p_canary.add_argument("--image", default="pinned")
-    p_canary.set_defaults(func=lambda _a: _todo("canary", ">= 30 negative controls, 0 false accepts", "Phase 0.5"))
+    p_canary.add_argument("--image", default="pinned", help="checker image (default: the pinned Bend image)")
+    p_canary.add_argument("--docker", default="docker")
+    p_canary.add_argument("--local", action="store_true",
+                          help="use the pinned sources under Bun instead of the image")
+    p_canary.add_argument("--bun", default=None, help="Bun binary for --local")
+    p_canary.add_argument("--bend-cli", default=None, help="bend2/main.ts at the pinned commit for --local")
+    p_canary.add_argument("--mode", choices=["default", "verdict"], default="default")
+    p_canary.add_argument("--verdict", dest="mode", action="store_const", const="verdict",
+                          help="run the same controls through the proven-kernel checker")
+    p_canary.add_argument("--only", action="append", default=None, help="run these control ids only")
+    p_canary.add_argument("--family", action="append", default=None, help="run these families only")
+    p_canary.add_argument("--out", default=None, help="write the full report as JSON")
+    p_canary.add_argument("--json", action="store_true")
+    p_canary.add_argument("--timeout", type=int, default=180, help="per-control timeout in seconds")
+    p_canary.add_argument("--quiet", action="store_true")
+    p_canary.set_defaults(func=cmd_canary)
 
     p_gate = sub.add_parser("gate", help="gate operations")
     gate_sub = p_gate.add_subparsers(dest="gate_command", metavar="<subcommand>")

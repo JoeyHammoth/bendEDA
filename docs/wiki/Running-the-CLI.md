@@ -82,12 +82,32 @@ bendeda conformance trace --module .bend-cache/out/model.mjs \
   --plan path/to/plan.json
 ```
 
+## The checker canary suite
+
+```bash
+python -m bendeda canary --local                       # pinned sources under Bun
+python -m bendeda canary --image pinned                # released binary in the image
+python -m bendeda canary --local --verdict --only a01   # proven-kernel checker
+```
+
+32 negative controls, 4 positive ones, each declaring the stage it must be
+refused at. Exit codes:
+
+| Code | Meaning |
+|---|---|
+| 0 | every control landed where it was declared |
+| 1 | a false accept, a false reject, or a control refused at the wrong stage |
+| 3 | no checker could run, so nothing was measured — not a pass |
+
+`--out <path>` writes the full per-control report. At this pin `--verdict` exits 3
+because the BendTT kernel needs Lean v4.34.0; the record is in
+`docs/research/2026-11-23-checker-canary.md`.
+
 ## What is planned, and where
 
 | Command | Issue |
 |---|---|
 | `law lint`, `law mutate` | [#10](https://github.com/JoeyHammoth/bendEDA/issues/10) |
-| `canary` | [#9](https://github.com/JoeyHammoth/bendEDA/issues/9) |
 | `oracle seal`, `oracle verify-commitment` | [#13](https://github.com/JoeyHammoth/bendEDA/issues/13) |
 | `tf run` | blocked by BendBV ([#8](https://github.com/JoeyHammoth/bendEDA/issues/8)) |
 | `conformance` (L2/L3 rungs) | arrives with the EDA image ([#6](https://github.com/JoeyHammoth/bendEDA/issues/6)) |

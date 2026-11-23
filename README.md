@@ -87,7 +87,7 @@ Nothing here needs a GPU, a network connection, or a Bend install to run the tes
 | `bendeda law translate ... --to sva` | Translate laws to SVA, emit a TF plan |
 | `bendeda law provenance <task>` | Verify the authoring chain (Appendix J.4) |
 | `bendeda tf run <task>` | Compute translation fidelity |
-| `bendeda canary` | Checker negative-control suite |
+| `bendeda canary` | Checker negative-control suite: 32 controls, one false accept blocks the Bend arms |
 | `bendeda gate run <name> --artifacts <dir>` | Run one gate standalone |
 | `bendeda gate calibrate --corpus bugs/` | Gate sensitivity and specificity |
 | `bendeda run <experiment.yaml>` | Execute a run matrix |

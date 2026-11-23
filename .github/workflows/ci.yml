@@ -107,6 +107,12 @@ jobs:
           BENDEDA_BEND_CLI: .bend-cache/bend-2.0.40/bend2/main.ts
         run: python -m unittest tests.test_bv -v
 
+      - name: Checker canary suite (pinned sources under Bun)
+        env:
+          BENDEDA_BUN: bun
+          BENDEDA_BEND_CLI: .bend-cache/bend-2.0.40/bend2/main.ts
+        run: python -m bendeda canary --local --out .bend-cache/canary-local.json
+
       - name: Compile the fixture, trace it, and detect an injected offset
         env:
           BENDEDA_BUN: bun
@@ -167,6 +173,25 @@ jobs:
             echo "the unmasked control was accepted"
             exit 1
           fi
+
+      - name: Checker canary suite (released binary in the pinned image)
+        # Same 35 controls as vector-path, through the artefact a result would
+        # actually cite. The suite writes its .bend files on the host and the
+        # image reads them from the mounted workspace.
+        run: |
+          mkdir -p .bend-cache/canary
+          python -m bendeda canary --image pinned --out .bend-cache/canary-image.json
+
+      - name: Record whether --verdict works at the pinned release
+        # G-02: the proven-kernel checker is what A5 and D5 assumed. This step
+        # must not fail the build when the kernel is absent — that absence is the
+        # finding, and it is written into the report rather than hidden.
+        run: |
+          set +e
+          python -m bendeda canary --image pinned --verdict --only a01 \
+            --out .bend-cache/canary-verdict.json
+          echo "verdict probe exit: $?"
+          set -e
 
   bend-and-eda:
     name: bend and EDA gates

@@ -242,7 +242,7 @@ python -m unittest discover -s tests -v</code></pre>
           <tr><td><code>bendeda law translate --to sva</code></td><td>Translate laws through templates and emit a translation-fidelity plan</td><td><span class="status planned">planned</span></td></tr>
           <tr><td><code>bendeda law provenance &lt;task&gt;</code></td><td>Verify the agent authoring chain: run ids, model digests, forbidden reads</td><td><span class="status planned">planned</span></td></tr>
           <tr><td><code>bendeda tf run &lt;task&gt;</code></td><td>Compute translation fidelity over random and mutated traces</td><td><span class="status planned">planned</span></td></tr>
-          <tr><td><code>bendeda canary</code></td><td>Run the checker negative-control suite; one false accept blocks the Bend arms</td><td><span class="status planned">planned</span></td></tr>
+          <tr><td><code>bendeda canary</code></td><td>Run the checker negative-control suite; one false accept blocks the Bend arms</td><td><span class="status working">working</span></td></tr>
           <tr><td><code>bendeda gate run &lt;name&gt;</code></td><td>Run one gate (lint, sim, formal, conformance) on an artifact directory</td><td><span class="status planned">planned</span></td></tr>
           <tr><td><code>bendeda gate calibrate</code></td><td>Gate sensitivity and specificity against the seeded-bug corpus</td><td><span class="status planned">planned</span></td></tr>
           <tr><td><code>bendeda run &lt;experiment.yaml&gt;</code></td><td>Execute an arm × task × model × seed matrix within budgets</td><td><span class="status planned">planned</span></td></tr>
@@ -338,7 +338,7 @@ python -m unittest discover -s tests -v</code></pre>
       <p class="sub">Nothing is frozen until the signed <code>prereg-v1</code> tag. Before that, every change is a reviewable diff.</p>
     </div>
     <ol class="timeline">
-      <li class="done"><span class="marker"></span><div><h3>Phase 0 · environment and feasibility</h3><p>Protocol v0.4, repository foundation, harness skeleton and metric definitions. In progress: pinned images, BendBV, canary suite, sealed-oracle tooling.</p></div></li>
+      <li class="done"><span class="marker"></span><div><h3>Phase 0 · environment and feasibility</h3><p>Protocol v0.4, repository foundation, harness skeleton and metric definitions. In progress: sealed-oracle tooling and the self-hosted tools runner.</p></div></li>
       <li><span class="marker"></span><div><h3>Phase 1 · tasks, laws, oracles</h3><p>12 task packages, agent-authored law sets, hidden oracles, parity audit.</p></div></li>
       <li><span class="marker"></span><div><h3>Phase 2 · harness and tool layer</h3><p>MCP servers, policy proxy, runner, replay.</p></div></li>
       <li><span class="marker"></span><div><h3>Phase 3 · pilot and freeze</h3><p>Calibration, power analysis, signed <code>prereg-v1</code>.</p></div></li>

@@ -23,7 +23,7 @@ bend:
     bun: "1.4.5"
   # Recorded, not used in this phase (see Appendix K, R-05).
   verdict_available: false
-  verdict_evidence: "not re-measured yet; third-party 2.0.39 reproduction reports parse error. See issue #9."
+  verdict_evidence: "measured 2026-11-23: `bend <file> --verdict` exits 3 with 'the kernel did not build (lean: Executable not found in $PATH); --verdict needs Lean v4.34.0'. The flag exists; the toolchain does not, in this image or the pinned image. See docs/research/2026-11-23-checker-canary.md."
 
 oss-cad-suite:
   release: "2026-11-20"

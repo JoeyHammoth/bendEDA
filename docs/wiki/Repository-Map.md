@@ -43,6 +43,6 @@ prereg/                                (created at Phase 3) frozen protocol, thr
 | Why is C2 needed if C1 exists? | design doc §5.2, §3.1 H2 |
 | What exactly is "false assurance"? | §10.2, `bendeda/metrics/core.py` |
 | Who wrote these laws? | `<task>/provenance.yaml`, Appendix J |
-| Why does `canary` exit 3? | wiki Running-the-CLI, decision log 2026-11-21 |
+| Why does `canary` exit 3? | no checker could run; it prints why rather than passing | wiki Running-the-CLI, decision log 2026-11-23 |
 | What stops me editing a locked law? | `tools/check_locked.py`, `CODEOWNERS` |
 | How is the oracle hidden in a public repo? | Appendix I.4, wiki Contamination-Controls |
