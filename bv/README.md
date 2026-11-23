@@ -4,10 +4,13 @@ Bend has three numeric types and no arbitrary-width bit-vectors, so every model
 that needs modular arithmetic needs a small library first. `bv.bend` is that
 library, with its claims and proofs in one file.
 
-**Status: the mask layer checks.** `bend bv/bv.bend` prints `ALL PROOFS CHECK` on
-the pinned Bend 2.0.40, and `bend bv/negative/unmasked_add.bend` prints
-`SOME PROOFS FAIL` — the control deletes `mask(w)` and must not pass. What is
-still unproved is in `OPEN.md`, each claim beside the base lemma it is missing.
+**Status: every lemma in the file checks.** `bend bv/bv.bend` prints
+`ALL PROOFS CHECK` on the pinned Bend 2.0.40, and
+`bend bv/negative/unmasked_add.bend` prints `SOME PROOFS FAIL` — the control
+deletes `mask(w)` and must not pass. What is still unproved is in `OPEN.md`,
+each claim beside the base lemma it is missing. The library states the width
+contract in the form the pin can support (the mask leaves its own results
+alone), not as a numeric bound it cannot prove.
 
 ## Representation (decided in Appendix K, G-01)
 
@@ -34,19 +37,26 @@ and was corrected rather than quietly worked around.
 | Lemma | Statement |
 |---|---|
 | `Bool.and_idem`, `Bool.and_comm`, `Bool.and_assoc` | the bitwise laws Base does not ship |
+| `Bool.and_false`, `Bool.and_true` | `Word.and`'s absorbing and identity bit |
 | `Word.and_idem` | `Word.and(n, a, a) == a`, by structural induction on the word |
 | `Word.and_assoc` | `Word.and(n, Word.and(n, a, b), c) == Word.and(n, a, Word.and(n, b, c))` |
+| `Word.and_zero`, `Word.and_one` | `Word.and` with zero clears; with all ones preserves |
 | `mask.idem` | `mask(w, mask(w, x)) == mask(w, x)` |
+| `mask.w0`, `mask.w32` | `mask(0n, x) == 0` and `mask(32n, x) == x` |
+| `Word.adc_zero`, `Word.add_zero`, `U32.add_zero` | the additive identity through the carry chain |
 | `bv_add.comm` | `bv_add(w, a, b) == bv_add(w, b, a)` |
+| `bv_add.id_zero` | `bv_add(w, mask(w, a), 0) == mask(w, a)` |
+| `bv_add.in_range`, `bv_sub.in_range` | the result is already a masked value |
 | `bv_add.wrap8` | `bv_add(8n, 200, 100) == 44` — the concrete 8-bit wrap |
+| `bv_add.assoc8_instance` | one concrete 8-bit association, by evaluation |
 
 ## The negative control
 
 `negative/unmasked_add.bend` is the library with `mask(w)` deleted and the same
 8-bit wrap claim. It prints `SOME PROOFS FAIL` with `expected 300, observed 44`.
-Closure, identity and wrap are not proved yet (see `OPEN.md`), so this concrete
-claim is currently the only thing that would catch a missing mask in the
-arithmetic itself; the gate refuses it in `tests/test_bv.py` and in CI.
+A numeric closure bound, symbolic wrap and associativity are not proved yet (see
+`OPEN.md`), so the concrete claims are what would catch a missing mask in the
+arithmetic itself; the gate refuses the control in `tests/test_bv.py` and in CI.
 
 ## Why one file, not `LAWS.bend` plus `PROOF.bend`
 
