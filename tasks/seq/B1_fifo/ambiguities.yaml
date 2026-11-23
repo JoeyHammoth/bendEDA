@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: Apache-2.0
+# B1 FIFO: ambiguities found while authoring the laws, and the reading that
+# became normative. Appendix J's rule is applied: the reading stricter on the
+# design wins for the law set; the other, where it is legal behaviour, becomes an
+# oracle-only requirement. A behaviourally incompatible pair would quarantine
+# the task instead.
+task: B1_fifo
+status: resolved
+
+ambiguities:
+  - id: A1
+    question: "What does dout show while empty is asserted?"
+    readings:
+      - "the last head, unchanged (register holds its value)"
+      - "don't care"
+    resolved_by: LAA
+    rule_applied: "stricter on the design: nothing may read dout while empty, so no law constrains it"
+    consequence: "No law compares dout at occupancy 0. The oracle may still sample it, and a mismatch there is not a defect."
+  - id: A2
+    question: "Which depth does the model use?"
+    readings:
+      - "D = 4 as in the illustrative appendix"
+      - "D = 2, the smallest depth with a head and a second element"
+    resolved_by: LAA
+    rule_applied: "reduced instance, declared and justified (G.8); D = 2 keeps the transition table finite and every proof induction-free"
+    consequence: "The laws are stated over D = 2. A depth-parameterised model and its induction are open work, listed in the package README."
+  - id: A3
+    question: "Is reset synchronous or asynchronous?"
+    readings:
+      - "synchronous, as spec.md item 1 says"
+      - "asynchronous, as many FIFO implementations choose"
+    resolved_by: LAA
+    rule_applied: "the specification is explicit; an asynchronous reset would make the model's reset a different transition"
+    consequence: "FIFO-F-11 is checked at the edge. An implementation with only an asynchronous reset fails it, and that is intended."
+  - id: A4
+    question: "At mid occupancy, does a simultaneous push and pop enqueue the new datum before or after the dequeue?"
+    readings:
+      - "dequeue then enqueue: the old head leaves, din becomes the last element"
+      - "enqueue then dequeue: din would leave immediately, which no FIFO does"
+    resolved_by: LAA
+    rule_applied: "the first reading is the only one consistent with R5 (enqueue order)"
+    consequence: "FIFO-F-09 states the head after the cycle is din, and FIFO-F-08 states occupancy is unchanged."

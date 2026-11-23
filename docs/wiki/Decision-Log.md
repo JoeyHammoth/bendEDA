@@ -4,6 +4,30 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-24 - B1's occupancy is an ADT, because a symbolic Nat would need an induction the property does not
+
+**Decided:** the first task package models a depth-2 FIFO with `Level` (`Empty`/`Half`/`Full`) instead of a `Nat`, and states each law per level rather than quantifying over occupancy. Every law is then a closed computation or a three-way `match`, and all 19 close by evaluation.
+
+**Why:** the first attempt quantified over a symbolic `Nat` for `count <= D`. `Nat.is_le` does not reduce on a symbolic argument, so the law needed an induction that the property itself does not: a proof longer than the statement is a liability under LA8, and a law that is hard to prove invites an escape hatch. The reduced instance is declared in `ambiguities.yaml` A2 and `abs.yaml` rather than hidden in the model.
+
+**Cost:** the transition table is covered row by row, so a depth-parameterised model and a quantified occupancy bound are open work. The package README says so, and the gate table records LA3 as *not measured* rather than passing it.
+
+**Evidence:** `tasks/seq/B1_fifo/{model.bend,LAWS.bend,PROOF_ref.bend}`; `ALL PROOFS CHECK` on the composed book; `tests/test_b1_fifo.py`.
+
+---
+
+## 2026-11-24 - Laws and proofs are separate files, and the composition lives in a test
+
+**Decided:** `LAWS.bend` holds laws only, `PROOF_ref.bend` holds one same-name proof per law, and `tests/test_b1_fifo.py` composes model + laws + proofs into one book because the pin cannot import the model by path and the harness hides the reference proofs from the agent.
+
+**Why:** the package contract in `tasks/README.md` gives the reference proofs to RPA and hides them from LAA, which a single file cannot express. Keeping the proofs in `LAWS.bend` would also hand every agent the answer key at L0, where proof engineering is the thing being measured.
+
+**Cost:** the three files are not individually checkable, so the composition is code that must stay in step with the package layout. That is why it is a test and not a shell line in a README: a package whose proofs were never composed is a claim.
+
+**Evidence:** `tests/test_b1_fifo.py::TestPackageChecks`; `law lint tasks/seq/B1_fifo` reports 0 findings over 19 laws.
+
+---
+
 ## 2026-11-24 - The PEH list is code, because L007 and the harness both read it
 
 **Decided:** the seven proof escape hatches live in `bendeda/laws/peh.py` as `EscapeHatch` records with an id, a regex, why the construct bypasses the checker, and what to do instead. L007 reports the id (`PEH-05`), and the prose table in `docs/proof_cookbook.md` is kept in step by a test.
