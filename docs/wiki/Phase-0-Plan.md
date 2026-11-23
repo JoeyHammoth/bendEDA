@@ -20,13 +20,14 @@
 | BendBV mask layer proved, and the unmasked control refused | `bv/bv.bend`, `bv/negative/unmasked_add.bend`, `tests/test_bv.py` |
 | Checker canary suite: 32 negative and 4 positive controls, staged refusals | `bendeda canary`, `docs/research/2026-11-23-checker-canary.md`, CI `vector-path` and `bend-image` |
 | `verdict_available` measured at the pin (false: no Lean toolchain) | exact command and output in `docs/research/2026-11-23-checker-canary.md` |
+| `law lint` catches each seeded defect, and `law mutate` attributes a kill | `bendeda law lint`, `bendeda law mutate`, `docs/research/2026-11-24-law-lint.md`, `tests/fixtures/law_packages/` |
+| BendBV proves the mask extremes, `Word.and` absorption, additive identity and in-range closure | `bv/bv.bend`, `bv/OPEN.md`, `tests/test_bv.py` |
 
 ## Open work
 
 | # | Item | Why it blocks everything after it |
 |---|---|---|
 | [#6](https://github.com/JoeyHammoth/bendEDA/issues/6) | Pin the OSS CAD Suite image (Bend is done) | A result that cannot name its image digest cannot be reproduced |
-| [#10](https://github.com/JoeyHammoth/bendEDA/issues/10) | `law lint` and `law mutate` | LA3-LA7 cannot be evaluated by hand at 12 tasks |
 | [#11](https://github.com/JoeyHammoth/bendEDA/issues/11) | Proof cookbook and PEH list | Distinguishes "law is hard" from "agent cannot prove" |
 | [#12](https://github.com/JoeyHammoth/bendEDA/issues/12) | Self-hosted tools runner | Otherwise the EDA gates are skipped, and skipped is not green |
 | [#13](https://github.com/JoeyHammoth/bendEDA/issues/13) | Sealed-oracle tooling | The oracle commitment is what makes pre-registration verifiable |
@@ -37,9 +38,9 @@ Phase 0 is done when all of these are true, not when the tickets are closed:
 
 1. Three images build offline and record their digests. **Bend: built in CI from the pinned digest.** **OSS CAD Suite: built in CI from the verified digest, tools answer, and an `sby` BMC proof passes.** Harness: not yet built, and no image has been shown to build offline.
 2. `bend model.bend -o model.mjs` drives a model from Node and a one-cycle injected offset is detected. **Done** — `bendeda conformance trace --inject-offset 1` reports `offset detected`.
-3. BendBV's lemmas all check with no escape hatch. **Partly done** — the mask layer checks (`mask.idem`, `bv_add.comm`, the concrete 8-bit wrap); closure, identity, wrap and associativity are open and listed in `bv/OPEN.md`.
+3. BendBV's lemmas all check with no escape hatch. **Partly done** — every lemma in `bv.bend` checks (`ALL PROOFS CHECK`), including the mask extremes, `Word.and` absorption, the additive identity and in-range closure. Three claims are still open, each beside the base lemma it needs: a numeric closure bound, symbolic associativity and symbolic wrap; the FSM helpers are deferred to Phase 1. Listed in `bv/OPEN.md`.
 4. **Done** — 32 negative controls and 4 positive controls; zero false accepts and zero mis-staged refusals under the default checker in both `vector-path` and `bend-image`; `verdict_available` is **false** and recorded with its exact command and output.
-5. `law lint` catches each seeded defect in its fixture set.
+5. **Done** — `law lint` reports exactly L001-L015 on the seeded fixture, and zero findings on a clean package; `law mutate` returns exit 3 when no checker or no mutable site exists, so nothing is reported as measured. Evidence in `docs/research/2026-11-24-law-lint.md`.
 6. The EDA gate job actually runs on the tools runner.
 7. A dummy commit-reveal round-trips, and a one-byte change breaks verification.
 

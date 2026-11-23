@@ -237,8 +237,8 @@ python -m unittest discover -s tests -v</code></pre>
           <tr><td><code>bendeda validate --all</code></td><td>Validate shipped schemas and every task package</td><td><span class="status working">working</span></td></tr>
           <tr><td><code>bendeda conformance compile</code></td><td>Compile a Bend model to an ES module at the pinned compiler commit</td><td><span class="status working">working</span></td></tr>
           <tr><td><code>bendeda conformance trace</code></td><td>Drive the model cycle by cycle, diff against a DUT, and name the defect (value vs one-cycle offset)</td><td><span class="status working">working</span></td></tr>
-          <tr><td><code>bendeda law lint &lt;path&gt;</code></td><td>Apply rules L001-L015: witnesses, traceability, vacuity, escape hatches, provenance</td><td><span class="status planned">planned</span></td></tr>
-          <tr><td><code>bendeda law mutate &lt;model.bend&gt;</code></td><td>Mutate the model; every law must be falsified by at least one mutation (LA3)</td><td><span class="status planned">planned</span></td></tr>
+          <tr><td><code>bendeda law lint &lt;task-dir&gt;</code></td><td>Apply rules L001-L015: witnesses, traceability, vacuity, escape hatches, provenance; says when a rule could not run</td><td><span class="status working">working</span></td></tr>
+          <tr><td><code>bendeda law mutate &lt;task-dir&gt;</code></td><td>Mutate the model and attribute each kill to a law; 20 mutants / 0.9 kill by default (LA3)</td><td><span class="status working">working</span></td></tr>
           <tr><td><code>bendeda law translate --to sva</code></td><td>Translate laws through templates and emit a translation-fidelity plan</td><td><span class="status planned">planned</span></td></tr>
           <tr><td><code>bendeda law provenance &lt;task&gt;</code></td><td>Verify the agent authoring chain: run ids, model digests, forbidden reads</td><td><span class="status planned">planned</span></td></tr>
           <tr><td><code>bendeda tf run &lt;task&gt;</code></td><td>Compute translation fidelity over random and mutated traces</td><td><span class="status planned">planned</span></td></tr>

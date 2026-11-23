@@ -103,11 +103,29 @@ refused at. Exit codes:
 because the BendTT kernel needs Lean v4.34.0; the record is in
 `docs/research/2026-11-23-checker-canary.md`.
 
+## Law authoring gates
+
+```bash
+bendeda law lint tasks/seq/B1_fifo                       # rules L001-L015
+bendeda law mutate tasks/seq/B1_fifo --out mut.json       # LA3, pinned image by default
+bendeda law lint tasks --recursive --mutation mut.json    # L006 from the mutation report
+```
+
+`law lint` exit codes: 0 every applicable rule ran and found nothing, 1 a rule
+fired or a package could not be read, 3 no task package was found. A rule that
+needs metadata the package does not carry says so (`L004 not evaluated: ...`,
+`L006 not evaluated: ...`) instead of leaving the report looking clean.
+
+`law mutate` exit codes: 0 at least 20 mutants, kill rate at least 0.9 and no law
+surviving every mutant; 1 below any of those; 3 no checker or no mutable site.
+`--local` uses the pinned sources under Bun, and `--max-mutants` caps a run
+because each mutant costs one checker run per law. The catalogue and its limits
+are in `docs/research/2026-11-24-law-lint.md`.
+
 ## What is planned, and where
 
 | Command | Issue |
 |---|---|
-| `law lint`, `law mutate` | [#10](https://github.com/JoeyHammoth/bendEDA/issues/10) |
 | `oracle seal`, `oracle verify-commitment` | [#13](https://github.com/JoeyHammoth/bendEDA/issues/13) |
 | `tf run` | blocked by BendBV ([#8](https://github.com/JoeyHammoth/bendEDA/issues/8)) |
 | `conformance` (L2/L3 rungs) | arrives with the EDA image ([#6](https://github.com/JoeyHammoth/bendEDA/issues/6)) |

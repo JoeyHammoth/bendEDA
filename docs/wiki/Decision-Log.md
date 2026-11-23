@@ -4,6 +4,42 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-24 - Law lint reports what it could not evaluate
+
+**Decided:** L004, L006 and L014 append a note when the package lacks the metadata they need, and `law lint` exits 3 when it found no task package at all.
+
+**Why:** a clean report from zero packages, or from a run where half the rules were skipped, is the same false assurance as a stub exiting 0. The distinction that matters is "every applicable rule ran and found nothing", and it has to be visible in the output rather than inferred.
+
+**Cost:** draft packages print notes that are not defects, so the report is noisier than a list of findings.
+
+**Evidence:** `bendeda law lint tests/fixtures/law_packages/defective` reports all 15 rules and exits 1; a generated clean package produces no findings; an empty directory exits 3.
+
+---
+
+## 2026-11-24 - Mutation isolates each law, because the checker names one failure
+
+**Decided:** `law mutate` inlines the mutated model ahead of each law (and the proofs it calls), and runs the checker once per law per mutant. The gate defaults are LA3's: at least 20 mutants, kill rate 0.9, no law surviving every mutant.
+
+**Why:** Bend 2.0.40 stops at the first failing law, so one run per mutant cannot attribute kills, and `import model` is rejected at this pin. Inlining is the only portable way to check a mutated model against a single law, and a mutation gate that cannot say *which* law noticed is not evidence for LA3.
+
+**Cost:** mutants x laws compiler runs; `--max-mutants` exists to cap a run.
+
+**Evidence:** `docs/research/2026-11-24-law-lint.md`; `tests/test_law_mutate.py` asserts attribution with a fake checker and again through the pinned one.
+
+---
+
+## 2026-11-24 - BendBV states closure as mask idempotence, not a numeric bound
+
+**Decided:** the library now proves `mask(0n, x) == 0`, `mask(32n, x) == x`, `Word.and` against the zero and all-ones words, the additive identity through `Word.adc`, `bv_add(w, mask(w, a), 0) == mask(w, a)`, and that both operations return a value the mask leaves alone. A numeric closure bound, symbolic associativity and symbolic wrap stay open in `bv/OPEN.md`.
+
+**Why:** `Word.to_nat` ships with no laws at the pin, and `Bool.full_add` has none either, so the numeric bound and associativity cannot be stated as proved lemmas today. Stating them anyway would put an open law back in `bv.bend`, and an open law prints the same verdict as a deleted mask.
+
+**Cost:** criterion 3 is closer but not met: the width contract is carried by in-range lemmas and a concrete 8-bit wrap, not by `to_nat(...) < 2^w`.
+
+**Evidence:** `bend bv/bv.bend` prints `ALL PROOFS CHECK`; `bv/negative/unmasked_add.bend` is still refused; `tests/test_bv.py`.
+
+---
+
 ## 2026-11-21 - BendBV proves the mask layer and names what it cannot prove
 
 **Decided:** `bv/bv.bend` carries `mask`, `bv_add`, `bv_sub` and the laws that check — `Bool.and_idem/comm/assoc`, `Word.and_idem`, `Word.and_assoc`, `mask.idem`, `bv_add.comm`, and the concrete `bv_add(8n, 200, 100) == 44`. `bv/negative/unmasked_add.bend` deletes `mask(w)` and states the same wrap; it must be refused.
