@@ -133,6 +133,19 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return validate_all(quiet=args.quiet)
 
 
+def cmd_law_lint(args: argparse.Namespace) -> int:
+    """Code arrives late so `bendeda --help` stays dependency-free."""
+    from bendeda.laws import lint
+
+    return lint.cmd_lint(args)
+
+
+def cmd_law_mutate(args: argparse.Namespace) -> int:
+    from bendeda.laws import mutate
+
+    return mutate.cmd_mutate(args)
+
+
 def cmd_canary(args: argparse.Namespace) -> int:
     """Run the checker's negative controls and score the verdicts."""
     from bendeda import canary
@@ -216,9 +229,39 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_law = sub.add_parser("law", help="law authoring operations")
     law_sub = p_law.add_subparsers(dest="law_command", metavar="<subcommand>")
+
+    p_lint = law_sub.add_parser("lint", help="apply rules L001-L015 to task packages")
+    p_lint.add_argument("paths", nargs="+")
+    p_lint.add_argument("--mutation", default=None,
+                        help="mutation report from `law mutate`; without it L006 is not evaluated")
+    p_lint.add_argument("--recursive", action="store_true",
+                        help="search directories for task packages (the default)")
+    p_lint.add_argument("--json", action="store_true")
+    p_lint.add_argument("--quiet", action="store_true")
+    p_lint.set_defaults(func=cmd_law_lint)
+
+    p_mutate = law_sub.add_parser("mutate", help="mutate the model and report which laws are falsified (LA3)")
+    p_mutate.add_argument("paths", nargs="+", help="task directory, or the model.bend with --laws")
+    p_mutate.add_argument("--laws", default=None, help="LAWS.bend when paths is a model file")
+    p_mutate.add_argument("--bv", default=None, help="bv.bend to inline ahead of the laws")
+    p_mutate.add_argument("--local", action="store_true",
+                          help="use the pinned sources under Bun instead of the image")
+    p_mutate.add_argument("--bun", default=None)
+    p_mutate.add_argument("--bend-cli", default=None)
+    p_mutate.add_argument("--image", default="pinned")
+    p_mutate.add_argument("--docker", default="docker")
+    p_mutate.add_argument("--min-mutants", type=int, default=20,
+                          help="LA3's pre-registered minimum (default 20)")
+    p_mutate.add_argument("--min-kill", type=float, default=0.9,
+                          help="fraction of mutants at least one law must kill (default 0.9)")
+    p_mutate.add_argument("--max-mutants", type=int, default=48)
+    p_mutate.add_argument("--timeout", type=int, default=180)
+    p_mutate.add_argument("--out", default=None)
+    p_mutate.add_argument("--json", action="store_true")
+    p_mutate.add_argument("--quiet", action="store_true")
+    p_mutate.set_defaults(func=cmd_law_mutate)
+
     for name, plan, phase in [
-        ("lint", "apply rules L001-L015 to a law set and its manifest", "Phase 0.8"),
-        ("mutate", "mutate the model and report which laws are falsified (LA3)", "Phase 0.8"),
         ("translate", "translate laws to SVA via templates and emit a TF plan", "Phase 1.6"),
         ("provenance", "verify the authoring chain in provenance.yaml (Appendix J.4)", "Phase 1"),
     ]:
