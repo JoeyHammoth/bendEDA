@@ -122,6 +122,17 @@ surviving every mutant; 1 below any of those; 3 no checker or no mutable site.
 because each mutant costs one checker run per law. The catalogue and its limits
 are in `docs/research/2026-11-24-law-lint.md`.
 
+The catalogue mutates arithmetic *and* table structure: sibling `match` arms that
+bind the same names are exchanged, and a nullary constructor is replaced by
+another of its type. A package that keeps `LAWS.bend` and `PROOF_ref.bend` apart
+must pass a composed file, because `--laws` names one file and a law with no proof
+is recorded as an error, not as a kill:
+
+```bash
+cat tasks/seq/B1_fifo/LAWS.bend tasks/seq/B1_fifo/PROOF_ref.bend > /tmp/laws.bend
+bendeda law mutate tasks/seq/B1_fifo/model.bend --laws /tmp/laws.bend --local
+```
+
 ## The proof cookbook
 
 `docs/proof_cookbook.md` is the guide the agent gets before it writes a proof:
