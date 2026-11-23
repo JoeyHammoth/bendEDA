@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: Apache-2.0
+# B1 FIFO: the variant declaration (Appendix G, J). A variant is a pure
+# function of (task, seed); the generator itself is Phase 2 work and is not
+# implemented here, so `implemented` is false rather than implied by the file's
+# presence.
+task: B1_fifo
+implemented: false
+generator: "variants: f(task=B1_fifo, seed) -> {rtl_parameters, context_hash, mutant_tags}"
+guarantees:
+  - "the same seed always yields the same RTL parameters and mutant set"
+  - "a variant never changes LAWS.bend, model.bend or the abstraction map"
+  - "the seed is recorded in run.json before the agent starts"
+
+rtl_parameters:
+  W: 32
+  D: 2
+  storage: ["registers", "regfile", "memory_macro"]
+  pointer_encoding: ["binary", "gray", "one_hot"]
+
+seeded_bugs:
+  - tag: M_COUNT_OFF_BY_ONE
+    site: "occupancy increment or decrement"
+    killed_by: [FIFO-S-01, FIFO-S-02, FIFO-F-06]
+  - tag: M_NO_FULL_GUARD
+    site: "push accepted while full"
+    killed_by: [FIFO-F-04, FIFO-S-01]
+  - tag: M_NO_EMPTY_GUARD
+    site: "pop accepted while empty"
+    killed_by: [FIFO-F-05, FIFO-S-03]
+  - tag: M_PUSH_WINS_WHEN_FULL
+    site: "simultaneous push and pop when full"
+    killed_by: [FIFO-F-10, FIFO-F-07]
+  - tag: M_POP_WINS_WHEN_EMPTY
+    site: "simultaneous push and pop when empty"
+    killed_by: [FIFO-F-13]
+  - tag: M_LIFO_SHIFT
+    site: "second element promoted on pop instead of the head leaving"
+    killed_by: [FIFO-F-07, FIFO-F-10]
+  - tag: M_RESET_ASYNC_ONLY
+    site: "state not cleared by a synchronous reset edge"
+    killed_by: [FIFO-F-11, FIFO-S-03]
+  - tag: M_FLAG_LATENCY
+    site: "full/empty registered one cycle late"
+    killed_by: [FIFO-S-02, FIFO-S-03]
+
+oracle:
+  commitment: "none yet: the oracle pack is not authored, so no sealed commitment exists"
+  legal_traces: "not generated"

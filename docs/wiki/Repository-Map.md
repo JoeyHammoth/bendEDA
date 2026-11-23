@@ -12,7 +12,7 @@ bendeda/                               the harness
   schemas/                             run, event, task, policy, provenance
 tests/                                 stdlib unittest; metric answers, BendBV gate, law-lint fixture set
 tools/                                 hygiene checkers (secrets, locked files, SPDX, whitespace, DCO, oracle absence, site)
-tasks/<tier>/<task>/                   task packages; see tasks/README.md for the file contract
+tasks/<tier>/<task>/                   task packages; see tasks/README.md; tasks/seq/B1_fifo is the first (draft)
 bv/                                    BendBV: U32 + mask(w) bit-vectors, with proofs
 docker/                                pinned build definitions; Dockerfiles only, no prebuilt images
 experiments/                           run matrices (pilot, trackA, ablations, B, C, D)

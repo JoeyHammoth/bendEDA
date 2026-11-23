@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: Apache-2.0
+# B1 FIFO: abstraction map from the RTL to the reference model (Appendix G.8).
+# Every entry is a claim a reviewer must check against the implementation; this
+# file is not a translation of the model, it is the argument that the model and
+# the design can be compared at all.
+
+task: B1_fifo
+model: model.bend
+
+state_map:
+  level: "count_q decoded: Empty iff count_q == 0, Full iff count_q == D, Half otherwise"
+  count: "count_q (occupancy register, width ceil(log2(D+1)))"
+  a: "mem[rd_ptr] when count_q > 0 (head register or memory read port)"
+  b: "mem[(rd_ptr + 1) % D] when count_q > 1 (second element)"
+
+output_map:
+  full: "full"
+  empty: "empty"
+  dout: "dout (only compared when count_q > 0)"
+
+inputs:
+  push: "push"
+  pop: "pop"
+  din: "din"
+  Push: "push && !pop"
+  Pop: "pop && !push"
+  PushPop: "push && pop"
+  Idle: "!push && !pop"
+
+clocking:
+  edge: "posedge clk"
+  reset: "synchronous, active low; reset beats push and pop on the same edge"
+  step: "one model step per rising edge with rst_n high"
+
+assumptions:
+  - "rst_n is asserted for at least one rising edge before the first operation"
+  - "push, pop and din are held stable while they are sampled; no combinational feedback from dout"
+  - "The environment does not read dout while empty is asserted, because the value is unconstrained"
+  - "D divides the memory depth, so the wrap of (rd_ptr + 1) is the only wrap in the design"
+
+assumptions_counted_by_aer: 4
+
+parameters_reduced:
+  W: 32
+  D: 2
+  why: "D=2 is the smallest depth with a full queue, a head and a second element, so dequeue order and both simultaneous push/pop boundaries are observable. W is the interface width and is not reduced, because no law depends on data width."
+
+aliases:
+  - "a: head_q"
+  - "b: second_q"

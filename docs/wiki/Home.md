@@ -2,7 +2,7 @@
 
 Living project notes. The **design document is the source of truth** for the protocol; this wiki is where the plan, the decisions and the running log live between releases.
 
-> **State as of 2026-11-21.** Phase 0 (bootstrap) in progress. Nothing is frozen: the protocol freezes only at the signed `prereg-v1` tag, so every page here describes a draft.
+> **State as of 2026-11-24.** Phase 0 (bootstrap) is done except offline image builds and digest recording ([#6](https://github.com/JoeyHammoth/bendEDA/issues/6)) and the self-hosted tools runner ([#12](https://github.com/JoeyHammoth/bendEDA/issues/12)). The first task package, `tasks/seq/B1_fifo`, exists as a **draft**: its 19 laws are proved, and its oracle, independent reference proofs, C2 parity and lock are open. Nothing is frozen: the protocol freezes only at the signed `prereg-v1` tag, so every page here describes a draft.
 
 ## Start here
 
