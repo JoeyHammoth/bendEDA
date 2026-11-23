@@ -55,7 +55,7 @@ review:
   gates:
     LA1: pass
     LA2: pass
-    LA3: skip
+    LA3: fail
     LA4: skip
     LA5: skip
     LA6: skip

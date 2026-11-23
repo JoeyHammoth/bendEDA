@@ -15,6 +15,13 @@ only way to attribute a kill.
 Inlining the model is deliberate. `import model` is rejected at this pin
 ("expected: an import ('import Base', or 'import <path> as <Name>')"), and a
 mutation tool cannot depend on an import form the checker refuses.
+
+The catalogue has two halves. Operator swaps and literal bumps need arithmetic,
+so they say nothing about a model that is a finite transition table; for those,
+the catalogue swaps the bodies of sibling `match` arms with the same bound names,
+and replaces a nullary constructor with another of the same declared type. Both
+keep the program well typed, which is the point: a mutant that stops compiling
+is not a killed mutant.
 """
 
 from __future__ import annotations
@@ -54,6 +61,15 @@ SWAPS: tuple[tuple[str, str], ...] = (
 )
 
 _ARITHMETIC = re.compile(r"\b(?:add|sub|mul|shln|shrn|is_lt|is_le|is_gt|is_ge)\b")
+_TYPE_HEAD = re.compile(r"^type\s+(\w+)\s+is\s+\w+\s*:")
+_TYPE_CTOR = re.compile(r"^(\s+)(\w+)\{([^}]*)\}\s*$")
+_MATCH = re.compile(r"^(\s*)match\b.*:\s*$")
+_CASE = re.compile(r"^(\s*)case\s+(.+?):\s*$")
+_CONSTRUCT = re.compile(r"\b([A-Z]\w*)\{\}")
+
+#: Nullary constructors the checker provides, so a `Bool` result can be flipped
+#: in a model that does not declare `Bool` itself.
+_BUILTIN_NULLARY: dict[str, str] = {"True": "Bool", "False": "Bool"}
 _NUMBER = re.compile(r"(?<![\w.\"])(\d+)(n?)(?![\w.\"])")
 _IDENTIFIER = re.compile(r"[A-Za-z_][\w.]*")
 _IMPORT = re.compile(r"^import\b.*$", re.MULTILINE)
@@ -65,6 +81,17 @@ class Mutant:
     description: str
     line: int
     text: str
+
+
+@dataclass(frozen=True)
+class Arm:
+    """One `case` arm, with the 0-based half-open slice of its body."""
+
+    line: int
+    pattern: str
+    bindings: frozenset[str]
+    start: int
+    end: int
 
 
 @dataclass(frozen=True)
@@ -156,18 +183,129 @@ class MutationReport:
         }
 
 
+def indent_of(line: str) -> int:
+    return len(line) - len(line.lstrip(" "))
+
+
+def constructor_types(lines: Sequence[str]) -> tuple[dict[str, str], set[int]]:
+    """Nullary constructor -> declaring type, plus the lines that declare them."""
+    types: dict[str, str] = {}
+    declarations: set[int] = set()
+    current: str | None = None
+    for number, line in enumerate(lines, start=1):
+        head = _TYPE_HEAD.match(line)
+        if head:
+            current = head.group(1)
+            continue
+        if current is None:
+            continue
+        if line.strip() and indent_of(line) == 0:
+            current = None
+            continue
+        ctor = _TYPE_CTOR.match(line)
+        if ctor and not ctor.group(3).strip():
+            types[ctor.group(2)] = current
+            declarations.add(number)
+    return types, declarations
+
+
+def match_arms(lines: Sequence[str]) -> list[tuple[int, list[Arm]]]:
+    """Every `match`, with its sibling arms in source order."""
+    blocks: list[tuple[int, list[Arm]]] = []
+    for index, line in enumerate(lines):
+        head = _MATCH.match(line)
+        if not head:
+            continue
+        match_indent = indent_of(line)
+        arm_indent: int | None = None
+        arms: list[Arm] = []
+        cursor = index + 1
+        while cursor < len(lines):
+            current = lines[cursor]
+            if not current.strip():
+                cursor += 1
+                continue
+            current_indent = indent_of(current)
+            if current_indent <= match_indent:
+                break
+            case = _CASE.match(current)
+            if case and (arm_indent is None or current_indent == arm_indent):
+                arm_indent = current_indent
+                start = cursor + 1
+                end = start
+                probe = start
+                while probe < len(lines):
+                    nxt = lines[probe]
+                    if not nxt.strip():
+                        probe += 1
+                        continue
+                    if indent_of(nxt) <= current_indent:
+                        break
+                    end = probe + 1
+                    probe += 1
+                bindings = frozenset(
+                    name.strip().lstrip("+")
+                    for group in re.findall(r"\{([^}]*)\}", case.group(2))
+                    for name in group.split(",")
+                    if name.strip()
+                )
+                arms.append(Arm(cursor + 1, case.group(2).strip(), bindings, start, end))
+                cursor = max(end, cursor + 1)
+                continue
+            cursor += 1
+        blocks.append((index + 1, arms))
+    return blocks
+
+
+def branch_swaps(lines: Sequence[str], arms: Sequence[Arm]) -> list[tuple[int, str, list[str]]]:
+    """Exchange the bodies of two arms that bind the same names."""
+    edits: list[tuple[int, str, list[str]]] = []
+    for first in range(len(arms)):
+        for second in range(first + 1, len(arms)):
+            a, b = arms[first], arms[second]
+            if a.bindings != b.bindings:
+                continue
+            body_a = lines[a.start : a.end]
+            body_b = lines[b.start : b.end]
+            if body_a == body_b:
+                continue
+            edited = list(lines)
+            edited[b.start : b.end] = body_a
+            edited[a.start : a.end] = body_b
+            edits.append((a.line, f"swap arms {a.pattern} / {b.pattern}", edited))
+    return edits
+
+
+def constructor_choices(
+    lines: Sequence[str],
+    types: Mapping[str, str],
+    declarations: set[int],
+) -> list[tuple[int, str, list[str]]]:
+    """Replace a nullary constructor with another of its declared type."""
+    effective = dict(_BUILTIN_NULLARY)
+    effective.update(types)
+    alternatives = {
+        name: sorted(other for other, kind in effective.items() if kind == own and other != name)
+        for name, own in effective.items()
+    }
+    edits: list[tuple[int, str, list[str]]] = []
+    for number, line in enumerate(lines, start=1):
+        if line.lstrip().startswith("#") or number in declarations:
+            continue
+        if _CASE.match(line) or _MATCH.match(line):
+            continue
+        for site in _CONSTRUCT.finditer(line):
+            for alternative in alternatives.get(site.group(1), ()):
+                edited = list(lines)
+                edited[number - 1] = line[: site.start()] + f"{alternative}{{}}" + line[site.end() :]
+                edits.append((number, f"{site.group(1)}{{}} -> {alternative}{{}}", edited))
+    return edits
+
+
 def candidates(model_text: str, max_mutants: int = 48) -> list[Mutant]:
     """Semantic mutants, one edit each, in source order."""
     lines = model_text.splitlines()
-    mutants: list[Mutant] = []
-    seen: set[str] = set()
-
-    def add(description: str, line: int, edited: list[str]) -> None:
-        text = "\n".join(edited)
-        if text in seen:
-            return
-        seen.add(text)
-        mutants.append(Mutant(f"m{len(mutants) + 1:03d}", description, line, text))
+    sites: list[tuple[int, str, list[str]]] = []
 
     for number, line in enumerate(lines, start=1):
         if line.lstrip().startswith("#"):
@@ -176,18 +314,31 @@ def candidates(model_text: str, max_mutants: int = 48) -> list[Mutant]:
             for match in re.finditer(rf"\b{re.escape(old)}\b", line):
                 edited = list(lines)
                 edited[number - 1] = line[: match.start()] + new + line[match.end() :]
-                add(f"{old} -> {new}", number, edited)
-                if len(mutants) >= max_mutants:
-                    return mutants
+                sites.append((number, f"{old} -> {new}", edited))
         if _ARITHMETIC.search(line):
             match = _NUMBER.search(line)
             if match:
                 bumped = f"{int(match.group(1)) + 1}{match.group(2)}"
                 edited = list(lines)
                 edited[number - 1] = line[: match.start()] + bumped + line[match.end() :]
-                add(f"literal {match.group(1)} -> {bumped}", number, edited)
-                if len(mutants) >= max_mutants:
-                    return mutants
+                sites.append((number, f"literal {match.group(1)} -> {bumped}", edited))
+
+    types, declarations = constructor_types(lines)
+    sites.extend(constructor_choices(lines, types, declarations))
+    for _, arms in match_arms(lines):
+        sites.extend(branch_swaps(lines, arms))
+
+    sites.sort(key=lambda site: site[0])
+    mutants: list[Mutant] = []
+    seen: set[str] = set()
+    for number, description, edited in sites:
+        text = "\n".join(edited)
+        if text in seen:
+            continue
+        seen.add(text)
+        mutants.append(Mutant(f"m{len(mutants) + 1:03d}", description, number, text))
+        if len(mutants) >= max_mutants:
+            break
     return mutants
 
 
@@ -288,7 +439,11 @@ def run_mutation(
             _, output = invoke(checker.command(relative), checker.cwd, timeout)
             if PASS in output:
                 outcome.survived.append(law.name)
-            elif FAIL in output:
+            elif FAIL in output and "TODO" not in output:
+                # A law with no proof, or with `?TODO` left in it, also reports
+                # SOME PROOFS FAIL. That is an incomplete file, not a refutation,
+                # and counting it as a kill would credit the catalogue with
+                # catching a bug it never saw.
                 outcome.killed.append(law.name)
             else:
                 outcome.errors.append(f"{law.name}: {_first_line(output) or 'no verdict'}")

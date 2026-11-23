@@ -53,6 +53,25 @@ LAWS = NL.join(
     ]
 )
 
+TABLE = NL.join(
+    [
+        "type Level is Data:",
+        "  Empty{}",
+        "  Half{}",
+        "  Full{}",
+        "",
+        "def is_full(l: Level) -> Bool:",
+        "  match l:",
+        "    case Empty{}:",
+        "      False{}",
+        "    case Half{}:",
+        "      False{}",
+        "    case Full{}:",
+        "      True{}",
+        "",
+    ]
+)
+
 CHECKER = Checker(["true"], Path("."), "fake")
 
 
@@ -82,6 +101,66 @@ class TestCatalogue(unittest.TestCase):
         inlined = strip_imports(MODEL)
         self.assertNotIn("import", inlined)
         self.assertTrue(inlined.startswith("def toy_step"))
+
+
+class TestTableCatalogue(unittest.TestCase):
+    """A model with no arithmetic still has branches worth mutating."""
+
+    def test_arms_with_the_same_bindings_are_swapped(self) -> None:
+        mutants = candidates(TABLE)
+        swaps = [m for m in mutants if m.description.startswith("swap arms")]
+        self.assertEqual(
+            sorted(m.description for m in swaps),
+            ["swap arms Empty{} / Full{}", "swap arms Half{} / Full{}"],
+        )
+
+    def test_identical_arm_bodies_are_not_a_mutant(self) -> None:
+        # Empty and Half both answer False, so exchanging them changes nothing.
+        mutants = candidates(TABLE)
+        self.assertFalse(
+            any("Empty{} / Half{}" in m.description for m in mutants),
+            [m.description for m in mutants],
+        )
+
+    def test_a_nullary_constructor_becomes_its_sibling(self) -> None:
+        descriptions = [m.description for m in candidates(TABLE)]
+        self.assertIn("False{} -> True{}", descriptions)
+        self.assertIn("True{} -> False{}", descriptions)
+
+    def test_a_dropped_guard_treats_full_as_half(self) -> None:
+        # Exchanging the Half and Full arms is exactly "treat Full as Half":
+        # the Full branch now answers False and Half answers True.
+        mutants = candidates(TABLE)
+        dropped = next(m for m in mutants if m.description == "swap arms Half{} / Full{}")
+        self.assertIn("case Full{}:" + NL + "      False{}", dropped.text)
+        self.assertIn("case Half{}:" + NL + "      True{}", dropped.text)
+
+    def test_constructor_declarations_are_not_mutated(self) -> None:
+        for mutant in candidates(TABLE):
+            self.assertIn("type Level is Data:" + NL + "  Empty{}" + NL + "  Half{}", mutant.text)
+
+    def test_arms_that_bind_different_names_are_not_swapped(self) -> None:
+        model = NL.join(
+            [
+                "type Op is Data:",
+                "  Push{din: U32}",
+                "  Pop{}",
+                "",
+                "def act(o: Op) -> Op:",
+                "  match o:",
+                "    case Push{din}:",
+                "      Push{din}",
+                "    case Pop{}:",
+                "      Pop{}",
+                "",
+            ]
+        )
+        self.assertEqual([m.description for m in candidates(model)], [])
+
+    def test_the_source_order_is_kept_and_ids_are_sequential(self) -> None:
+        mutants = candidates(TABLE)
+        self.assertEqual([m.id for m in mutants], [f"m{i:03d}" for i in range(1, len(mutants) + 1)])
+        self.assertEqual([m.line for m in mutants], sorted(m.line for m in mutants))
 
 
 class TestIsolation(unittest.TestCase):
@@ -164,6 +243,23 @@ class TestScoring(unittest.TestCase):
             self.assertEqual(report.mutants, [])
             self.assertEqual(report.exit_code(), EXIT_NOTHING_MEASURED)
             self.assertTrue(report.notes)
+
+    def test_an_incomplete_proof_is_an_error_not_a_kill(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            report = run_mutation(
+                model_text=MODEL,
+                laws_file=parse(LAWS),
+                checker=CHECKER,
+                workdir=Path(tmp),
+                invoke=lambda argv, cwd, timeout: (
+                    1,
+                    "SOME PROOFS FAIL" + NL + "Error: 1 TODO found.",
+                ),
+            )
+            self.assertEqual([m.killed for m in report.mutants], [[], []])
+            self.assertTrue(all(m.errors for m in report.mutants))
+            # Nothing was measured: an unproved law cannot refute a mutant.
+            self.assertEqual(report.exit_code(min_mutants=2, min_kill=0.0), EXIT_NOTHING_MEASURED)
 
     def test_a_law_that_survives_every_mutant_fails_the_gate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

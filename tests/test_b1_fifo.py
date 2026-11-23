@@ -96,6 +96,14 @@ class TestPackageFiles(unittest.TestCase):
         findings = [f.render() for f in run([str(TASK)]).findings]
         self.assertEqual(findings, [])
 
+    def test_the_model_offers_la3_at_least_twenty_mutants(self) -> None:
+        # LA3 pre-registers 20. The model is a transition table, so this only
+        # holds because the catalogue mutates branches as well as arithmetic.
+        from bendeda.laws.mutate import candidates
+
+        model = (TASK / "model.bend").read_text(encoding="utf-8")
+        self.assertGreaterEqual(len(candidates(model)), 20)
+
 
 class TestPackageChecks(unittest.TestCase):
     def setUp(self) -> None:

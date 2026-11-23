@@ -4,6 +4,18 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-24 - The mutation catalogue mutates branches, because a table has no arithmetic
+
+**Decided:** `law mutate` also exchanges the bodies of sibling `match` arms that bind the same names and replaces a nullary constructor with another of its declared type. A run over a law file whose laws have no proofs records `SOME PROOFS FAIL` with `1 TODO found` as an *error*, never as a kill.
+
+**Why:** the first B1 run reported `0 mutant(s)` and exit 3 — the catalogue only edited arithmetic, and a finite transition table has none. That leaves LA3 inapplicable to exactly the model shape the specification work produces. The `TODO` reclassification fixes a false-positive that the split-law package exposed: a law with no proof prints the same `SOME PROOFS FAIL` as a refuted one, and counting that as a kill would credit the catalogue with catching a bug it never saw.
+
+**Cost:** branch swaps double the mutant count on table models, and each mutant still costs one checker run per law (~51 s for 19 laws locally). `--max-mutants` therefore truncates by source order, so an early cap under-tests the later arms; the run's cap has to be recorded with the result.
+
+**Evidence:** `bendeda/laws/mutate.py` (`match_arms`, `branch_swaps`, `constructor_choices`); `tests/test_law_mutate.py::TestTableCatalogue`, `test_an_incomplete_proof_is_an_error_not_a_kill`; issue #32.
+
+---
+
 ## 2026-11-24 - B1's occupancy is an ADT, because a symbolic Nat would need an induction the property does not
 
 **Decided:** the first task package models a depth-2 FIFO with `Level` (`Empty`/`Half`/`Full`) instead of a `Nat`, and states each law per level rather than quantifying over occupancy. Every law is then a closed computation or a three-way `match`, and all 19 close by evaluation.
