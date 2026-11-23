@@ -98,7 +98,26 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
-## 2026-11-21 · BendBV uses `U32` + `mask(w)`, not `Nat`
+## 2026-11-23 · The canary suite scores the refusal stage, not just the verdict
+
+**Decided:** a control counts only when it is refused at the layer it was written for; a refusal at the wrong stage fails the suite.
+
+**Why:** Bend 2.0.40 prints `SOME PROOFS FAIL` for a false theorem, a typo, a TODO and a parse error alike. Thirty-two files that all failed to parse would report zero false accepts and prove nothing — the same hollow assurance as the unmasked-add control if it had failed on a missing import. Calibration confirmed the risk: three controls were refused for the wrong reason or accepted because they were true (`300` fits in `U32`; `U32.add_comm` exists in Base).
+
+**Cost:** the catalog declares a stage per control, so writing a control correctly is slower than writing one that merely fails.
+
+---
+
+## 2026-11-23 · `verdict_available` is false at the pin, and the kernel is the reason
+
+**Decided:** the proven-kernel checker is recorded unavailable for Bend 2.0.40 as pinned; D5 uses the canary false-accept rule plus an independent evaluator.
+
+**Why:** the flag exists, but it needs Lean v4.34.0 and a built BendTT kernel. Exact output at the pin: `the kernel did not build (lean: Executable not found in $PATH)`. The image installs `ca-certificates` and `curl` only, so the released binary reports the same. The earlier note said a third-party 2.0.39 reproduction reported a parse error; the real blocker is the missing toolchain, which is a different fact and needs a different remedy.
+
+**Cost:** no result may be described as kernel-validated. Enabling it would mean adding Lean and building BendTT into the pinned image, changing its digest and the trust base — a Phase 0 decision, not a quiet pin edit.
+
+---
+
 
 **Decided:** bit-vectors are `U32` with an explicit width mask; `w > 32` is out of scope for v1.
 

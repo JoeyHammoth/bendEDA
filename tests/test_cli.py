@@ -44,7 +44,6 @@ class TestCliBasics(unittest.TestCase):
 class TestHonestStubs(unittest.TestCase):
     def test_planned_commands_exit_three(self) -> None:
         for argv in (
-            ["canary"],
             ["law", "lint", "tasks"],
             ["tf", "run", "--all"],
             ["gate", "run", "lint"],
