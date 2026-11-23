@@ -7,7 +7,8 @@ bendeda/                               the harness
   cli.py                               all 16 commands; planned ones exit 3
   metrics/core.py                      §10 definitions as pure functions
   plugins/interfaces.py                LawLanguage, Translator, Gate, Oracle, HardwareBoard
-  laws/                                law lint (L001-L015) and model mutation (LA3)
+  laws/                                law lint (L001-L015), model mutation (LA3), PEH list (peh.py)
+  oracle.py                            sealed-oracle archive, Merkle commitment, verification
   schemas/                             run, event, task, policy, provenance
 tests/                                 stdlib unittest; metric answers, BendBV gate, law-lint fixture set
 tools/                                 hygiene checkers (secrets, locked files, SPDX, whitespace, DCO, oracle absence, site)
@@ -16,9 +17,10 @@ bv/                                    BendBV: U32 + mask(w) bit-vectors, with p
 docker/                                pinned build definitions; Dockerfiles only, no prebuilt images
 experiments/                           run matrices (pilot, trackA, ablations, B, C, D)
 results/                               small aggregates only; bundles are release assets
-docs/                                  research notes, wiki source, protocol sources
+docs/                                  research notes, wiki source, proof cookbook and its examples
 site/                                  GitHub Pages developer site
 amendments/                            dated amendment records and the template
+oracle_sealed/                         ciphertext, commitment.json and the public canary GUID only
 locked/                                LOCKED.json hash manifest (empty until the first freeze)
 prereg/                                (created at Phase 3) frozen protocol, thresholds, analysis plan
 ```
@@ -47,3 +49,5 @@ prereg/                                (created at Phase 3) frozen protocol, thr
 | Why does `canary` exit 3? | no checker could run; it prints why rather than passing | wiki Running-the-CLI, decision log 2026-11-23 |
 | What stops me editing a locked law? | `tools/check_locked.py`, `CODEOWNERS` |
 | How is the oracle hidden in a public repo? | Appendix I.4, wiki Contamination-Controls |
+| How does an agent write a proof? | `docs/proof_cookbook.md`, `docs/cookbook/` |
+| How is a commitment verified without the key? | `bendeda/oracle.py`, `docs/research/2026-11-24-sealed-oracle.md` |

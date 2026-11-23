@@ -237,7 +237,7 @@ python -m unittest discover -s tests -v</code></pre>
           <tr><td><code>bendeda validate --all</code></td><td>Validate shipped schemas and every task package</td><td><span class="status working">working</span></td></tr>
           <tr><td><code>bendeda conformance compile</code></td><td>Compile a Bend model to an ES module at the pinned compiler commit</td><td><span class="status working">working</span></td></tr>
           <tr><td><code>bendeda conformance trace</code></td><td>Drive the model cycle by cycle, diff against a DUT, and name the defect (value vs one-cycle offset)</td><td><span class="status working">working</span></td></tr>
-          <tr><td><code>bendeda law lint &lt;task-dir&gt;</code></td><td>Apply rules L001-L015: witnesses, traceability, vacuity, escape hatches, provenance; says when a rule could not run</td><td><span class="status working">working</span></td></tr>
+          <tr><td><code>bendeda law lint &lt;task-dir&gt;</code></td><td>Apply rules L001-L015: witnesses, traceability, vacuity, the PEH-01..07 escape-hatch list, provenance; says when a rule could not run</td><td><span class="status working">working</span></td></tr>
           <tr><td><code>bendeda law mutate &lt;task-dir&gt;</code></td><td>Mutate the model and attribute each kill to a law; 20 mutants / 0.9 kill by default (LA3)</td><td><span class="status working">working</span></td></tr>
           <tr><td><code>bendeda law translate --to sva</code></td><td>Translate laws through templates and emit a translation-fidelity plan</td><td><span class="status planned">planned</span></td></tr>
           <tr><td><code>bendeda law provenance &lt;task&gt;</code></td><td>Verify the agent authoring chain: run ids, model digests, forbidden reads</td><td><span class="status planned">planned</span></td></tr>
@@ -247,7 +247,9 @@ python -m unittest discover -s tests -v</code></pre>
           <tr><td><code>bendeda gate calibrate</code></td><td>Gate sensitivity and specificity against the seeded-bug corpus</td><td><span class="status planned">planned</span></td></tr>
           <tr><td><code>bendeda run &lt;experiment.yaml&gt;</code></td><td>Execute an arm × task × model × seed matrix within budgets</td><td><span class="status planned">planned</span></td></tr>
           <tr><td><code>bendeda replay &lt;run_id&gt;</code></td><td>Replay a run deterministically from its event log</td><td><span class="status planned">planned</span></td></tr>
-          <tr><td><code>bendeda oracle seal | verify-commitment | score</code></td><td>Commit-reveal the sealed oracle, verify the commitment, score a run</td><td><span class="status planned">planned</span></td></tr>
+          <tr><td><code>bendeda oracle seal &lt;dir&gt; --recipient &lt;key&gt;</code></td><td>Deterministic archive and a Merkle commitment over every component; refuses rather than writing plaintext</td><td><span class="status working">working</span></td></tr>
+          <tr><td><code>bendeda oracle verify-commitment &lt;dir&gt;</code></td><td>Recompute the root from plaintext — no key, no decryption — and name the component that changed</td><td><span class="status working">working</span></td></tr>
+          <tr><td><code>bendeda oracle score &lt;run_dir&gt;</code></td><td>Score a run against the sealed pack (scoring host only)</td><td><span class="status planned">planned</span></td></tr>
           <tr><td><code>bendeda report &lt;experiment&gt;</code></td><td>Primary and secondary tables, forest plots, results bundle</td><td><span class="status planned">planned</span></td></tr>
           <tr><td><code>bendeda bundle verify &lt;dir&gt;</code></td><td>Re-check a proof-carrying design bundle in the pinned image</td><td><span class="status planned">planned</span></td></tr>
         </tbody>
@@ -338,7 +340,7 @@ python -m unittest discover -s tests -v</code></pre>
       <p class="sub">Nothing is frozen until the signed <code>prereg-v1</code> tag. Before that, every change is a reviewable diff.</p>
     </div>
     <ol class="timeline">
-      <li class="done"><span class="marker"></span><div><h3>Phase 0 · environment and feasibility</h3><p>Protocol v0.4, repository foundation, harness skeleton and metric definitions. In progress: sealed-oracle tooling and the self-hosted tools runner.</p></div></li>
+      <li class="done"><span class="marker"></span><div><h3>Phase 0 · environment and feasibility</h3><p>Protocol v0.4, repository foundation, harness skeleton and metric definitions, the proof cookbook and sealed-oracle tooling. In progress: offline image builds and the self-hosted tools runner.</p></div></li>
       <li><span class="marker"></span><div><h3>Phase 1 · tasks, laws, oracles</h3><p>12 task packages, agent-authored law sets, hidden oracles, parity audit.</p></div></li>
       <li><span class="marker"></span><div><h3>Phase 2 · harness and tool layer</h3><p>MCP servers, policy proxy, runner, replay.</p></div></li>
       <li><span class="marker"></span><div><h3>Phase 3 · pilot and freeze</h3><p>Calibration, power analysis, signed <code>prereg-v1</code>.</p></div></li>

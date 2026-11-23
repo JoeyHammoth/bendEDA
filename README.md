@@ -51,12 +51,13 @@ bendeda/                               the harness package: CLI, gates, metrics,
   cli.py                               `bendeda` entry point
   metrics/                             §10 metric definitions, with known-answer tests
   plugins/                             plugin interfaces (§14.2)
-  laws/                                law lint (L001-L015) and model mutation (LA3)
+  laws/                                law lint (L001-L015), model mutation (LA3), PEH list
+  oracle.py                            sealed-oracle archive, Merkle commitment, verification
 bendeda/schemas/                       JSON schemas for runs, events, tasks, policies
 tasks/                                 task packages: spec, model, laws, oracle, variants
 bv/                                    BendBV: bit-vector and FSM helpers with proofs
 site/                                  GitHub Pages developer site for the CLI
-docs/                                  protocol sources, research notes, proof cookbook
+docs/                                  protocol sources, research notes, proof cookbook and examples
 experiments/                           run matrices (trackA.yaml, ...)
 results/                               aggregate tables; run bundles live as release assets
 ```
@@ -93,6 +94,8 @@ Nothing here needs a GPU, a network connection, or a Bend install to run the tes
 | `bendeda gate calibrate --corpus bugs/` | Gate sensitivity and specificity |
 | `bendeda run <experiment.yaml>` | Execute a run matrix |
 | `bendeda replay <run_id>` | Replay a run from its event log |
+| `bendeda oracle seal <dir> --recipient <key>` | Deterministic archive plus a Merkle commitment; never writes plaintext |
+| `bendeda oracle verify-commitment <dir> --commitment <file>` | Recompute the root without a key; names the changed component |
 | `bendeda oracle score <run_dir>` | Hidden scoring (scoring host only) |
 | `bendeda report <experiment>` | Tables, plots, results bundle |
 | `bendeda bundle verify <dir>` | Re-check a proof-carrying design bundle |

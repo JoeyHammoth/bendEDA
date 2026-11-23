@@ -122,11 +122,53 @@ surviving every mutant; 1 below any of those; 3 no checker or no mutable site.
 because each mutant costs one checker run per law. The catalogue and its limits
 are in `docs/research/2026-11-24-law-lint.md`.
 
+## The proof cookbook
+
+`docs/proof_cookbook.md` is the guide the agent gets before it writes a proof:
+the syntax that checks at the pin, nine worked strategies (S1-S9) and the
+diagnostics table. The examples are `docs/cookbook/*.bend`, and every one is run
+by the test suite against Bend 2.0.40:
+
+```bash
+python tools/fetch_bend.py
+export BENDEDA_BUN=bun
+export BENDEDA_BEND_CLI=.bend-cache/bend-2.0.40/bend2/main.ts
+python -m unittest tests.test_cookbook -v
+```
+
+Eight files must print `ALL PROOFS CHECK`; `s9_counterexample.bend` must print
+`SOME PROOFS FAIL` with both values, because a cookbook with no false example is
+not teaching the failure mode. The proof escape hatches (PEH-01..PEH-07) are in
+`bendeda/laws/peh.py` and are what `law lint` reports.
+
+## The sealed oracle
+
+```bash
+bendeda oracle seal path/to/oracle --recipient age1... --out oracle_sealed  # dry run first:
+bendeda oracle seal path/to/oracle --dry-run
+bendeda oracle verify-commitment path/to/oracle --commitment oracle_sealed/commitment.json
+```
+
+`seal` writes a deterministic archive, a Merkle commitment over every component
+and a `SHA256SUMS` for the ciphertext; it refuses rather than writing a
+plaintext archive. `verify-commitment` needs no key and no decryption, because
+the commitment is built over the plaintext before encryption:
+
+| Code | `seal` | `verify-commitment` |
+|---|---|---|
+| 0 | sealed, or dry run printed | the root matches |
+| 1 | encryption failed | a component differs; both roots printed |
+| 3 | no recipient, no `age`, unreadable input — nothing sealed | no directory, no commitment, unreadable commitment |
+
+The canary GUID in `oracle_sealed/canary.txt` is refused in any file under
+`tasks/` by `tools/check_oracle_absence.py`. Details:
+`docs/research/2026-11-24-sealed-oracle.md`.
+
 ## What is planned, and where
 
 | Command | Issue |
 |---|---|
-| `oracle seal`, `oracle verify-commitment` | [#13](https://github.com/JoeyHammoth/bendEDA/issues/13) |
+| `oracle score` | [#13](https://github.com/JoeyHammoth/bendEDA/issues/13) — seal and verify exist; scoring needs the decryption host |
 | `tf run` | blocked by BendBV ([#8](https://github.com/JoeyHammoth/bendEDA/issues/8)) |
 | `conformance` (L2/L3 rungs) | arrives with the EDA image ([#6](https://github.com/JoeyHammoth/bendEDA/issues/6)) |
 | `gate run`, `gate calibrate`, `run`, `replay` | [#15](https://github.com/JoeyHammoth/bendEDA/issues/15) |

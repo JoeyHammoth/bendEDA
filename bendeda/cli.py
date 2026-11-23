@@ -146,6 +146,18 @@ def cmd_law_mutate(args: argparse.Namespace) -> int:
     return mutate.cmd_mutate(args)
 
 
+def cmd_oracle_seal(args: argparse.Namespace) -> int:
+    from bendeda import oracle
+
+    return oracle.cmd_seal(args)
+
+
+def cmd_oracle_verify_commitment(args: argparse.Namespace) -> int:
+    from bendeda import oracle
+
+    return oracle.cmd_verify_commitment(args)
+
+
 def cmd_canary(args: argparse.Namespace) -> int:
     """Run the checker's negative controls and score the verdicts."""
     from bendeda import canary
@@ -318,14 +330,32 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_oracle = sub.add_parser("oracle", help="sealed-oracle operations")
     oracle_sub = p_oracle.add_subparsers(dest="oracle_command", metavar="<subcommand>")
-    for name, plan, phase in [
-        ("seal", "build the deterministic archive and publish a commitment", "Phase 0.10"),
-        ("verify-commitment", "check plaintext against the committed Merkle root", "Phase 0.10"),
-        ("score", "score a run against the sealed pack (scoring host only)", "Phase 2"),
-    ]:
-        sp = oracle_sub.add_parser(name, help=plan)
-        sp.add_argument("paths", nargs="*")
-        sp.set_defaults(func=lambda _a, n=name, pl=plan, ph=phase: _todo(f"oracle {n}", pl, ph))
+
+    p_seal = oracle_sub.add_parser(
+        "seal", help="build the deterministic archive and publish a commitment"
+    )
+    p_seal.add_argument("path", help="plaintext oracle directory (never committed)")
+    p_seal.add_argument("--out", default="oracle_sealed", help="where the ciphertext and commitment go")
+    p_seal.add_argument("--recipient", default=None,
+                       help="age public key; sealing refuses without one")
+    p_seal.add_argument("--age", default="age", help="age binary (default: age on PATH)")
+    p_seal.add_argument("--dry-run", action="store_true",
+                       help="print the Merkle root and write nothing")
+    p_seal.add_argument("--json", action="store_true")
+    p_seal.set_defaults(func=cmd_oracle_seal)
+
+    p_verify = oracle_sub.add_parser(
+        "verify-commitment", help="check plaintext against the committed Merkle root"
+    )
+    p_verify.add_argument("path", help="plaintext oracle directory")
+    p_verify.add_argument("--commitment", required=True, help="commitment.json from `oracle seal`")
+    p_verify.set_defaults(func=cmd_oracle_verify_commitment)
+
+    sp = oracle_sub.add_parser("score", help="score a run against the sealed pack (scoring host only)")
+    sp.add_argument("paths", nargs="*")
+    sp.set_defaults(func=lambda _a: _todo(
+        "oracle score", "score a run against the sealed pack (scoring host only)", "Phase 2"
+    ))
 
     p_report = sub.add_parser("report", help="generate tables, plots and the results bundle")
     p_report.add_argument("experiment")
