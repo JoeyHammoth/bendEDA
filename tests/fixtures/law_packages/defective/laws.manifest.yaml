@@ -1,0 +1,112 @@
+# SPDX-License-Identifier: Apache-2.0
+# Seeded defects: L002 (toy_s03 is here but absent from the file), L003 (toy_f03
+# has no requirement), L004 (R3 is covered by nothing), L008 (TOY-S-09's name),
+# L011 (toy_f02 has no translation), L012 (toy_s11 has no priority), L014 (the
+# hash is zero), L015 (provenance.yaml has the same wrong hash).
+task: T9_toy
+bend_version: "2.0.40"
+bv_version: "bv@e9b4562"
+requirements: [R1, R2, R3]
+
+laws:
+  - id: TOY-S-01
+    name: toy_s01_count_le_depth
+    class: L-SAFE
+    priority: core
+    requirements: [R1]
+    witness: null
+    translation: {sva: p_count, template: invariant_v1}
+    status: draft
+  - id: TOY-F-01
+    name: toy_f01_guard_unsat
+    class: L-FUNC
+    priority: core
+    requirements: [R1]
+    witness: null
+    translation: {sva: p_guard, template: implication_v1}
+    status: draft
+  - id: TOY-S-03
+    name: toy_s03_absent_from_file
+    class: L-SAFE
+    priority: important
+    requirements: [R1]
+    witness: null
+    translation: {sva: p_absent, template: invariant_v1}
+    status: draft
+  - id: TOY-S-09
+    name: toy_bad_name_9x
+    class: L-SAFE
+    priority: extended
+    requirements: [R1]
+    witness: null
+    translation: {sva: p_bad, template: invariant_v1}
+    status: draft
+  - id: TOY-S-05
+    name: toy_s05_conjunction
+    class: L-SAFE
+    priority: core
+    requirements: [R1]
+    witness: null
+    translation: {sva: p_conj, template: invariant_v1}
+    status: draft
+  - id: TOY-S-06
+    name: toy_s06_left_comm
+    class: L-SAFE
+    priority: important
+    requirements: [R1]
+    witness: null
+    translation: {sva: p_left, template: invariant_v1}
+    status: draft
+  - id: TOY-S-07
+    name: toy_s07_renamed_comm
+    class: L-SAFE
+    priority: important
+    requirements: [R1]
+    witness: null
+    translation: {sva: p_right, template: invariant_v1}
+    status: draft
+  - id: TOY-S-08
+    name: toy_s08_unchecked
+    class: L-SAFE
+    priority: extended
+    requirements: [R1]
+    witness: null
+    translation: {sva: p_unchecked, template: invariant_v1}
+    status: draft
+  - id: TOY-S-10
+    name: toy_s10_unknown_symbol
+    class: L-SAFE
+    priority: extended
+    requirements: [R1]
+    witness: null
+    translation: {sva: p_unknown, template: invariant_v1}
+    status: draft
+  - id: TOY-F-02
+    name: toy_f02_no_translation
+    class: L-FUNC
+    priority: important
+    requirements: [R1]
+    witness: toy_w01_reaches
+    status: draft
+  - id: TOY-S-11
+    name: toy_s11_no_priority
+    class: L-SAFE
+    priority: null
+    requirements: [R1]
+    witness: null
+    translation: {sva: p_prio, template: invariant_v1}
+    status: draft
+  - id: TOY-F-03
+    name: toy_f03_no_requirements
+    class: L-FUNC
+    priority: core
+    requirements: []
+    witness: toy_w02_reaches
+    translation: {sva: p_req, template: implication_v1}
+    status: draft
+
+conformance_only_requirements: [R2]
+oracle_only_requirements: []
+
+hashes:
+  LAWS.bend: "0000000000000000000000000000000000000000000000000000000000000000"

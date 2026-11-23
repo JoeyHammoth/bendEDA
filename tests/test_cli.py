@@ -11,7 +11,7 @@ import unittest
 from pathlib import Path
 
 from bendeda import __version__
-from bendeda.cli import EXIT_NOT_IMPLEMENTED, EXIT_OK, EXIT_USAGE, main
+from bendeda.cli import EXIT_CHECK_FAILED, EXIT_NOT_IMPLEMENTED, EXIT_OK, EXIT_USAGE, main
 
 
 def run(*argv: str) -> tuple[int, str, str]:
@@ -44,7 +44,7 @@ class TestCliBasics(unittest.TestCase):
 class TestHonestStubs(unittest.TestCase):
     def test_planned_commands_exit_three(self) -> None:
         for argv in (
-            ["law", "lint", "tasks"],
+            ["law", "translate", "LAWS.bend"],
             ["tf", "run", "--all"],
             ["gate", "run", "lint"],
             ["run", "experiments/trackA.yaml"],
@@ -66,6 +66,28 @@ class TestWorkingCommands(unittest.TestCase):
         code, out, err = run("validate", "--all")
         self.assertEqual(code, EXIT_OK, msg=err)
         self.assertIn("schema", out)
+
+    def test_law_lint_reports_the_seeded_defects(self) -> None:
+        fixture = "tests/fixtures/law_packages/defective"
+        code, _, err = run(
+            "law", "lint", fixture, "--mutation", f"{fixture}/mutation.json", "--quiet"
+        )
+        self.assertEqual(code, EXIT_CHECK_FAILED)
+        self.assertIn("L004x1", err)
+
+    def test_law_lint_with_nothing_to_lint_exits_three(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            code, _, err = run("law", "lint", tmp)
+        self.assertEqual(code, EXIT_NOT_IMPLEMENTED)
+        self.assertIn("no task package", err)
+
+    def test_law_mutate_without_a_checker_exits_three(self) -> None:
+        code, _, err = run(
+            "law", "mutate", "tests/fixtures/law_packages/defective",
+            "--local", "--bun", "/nonexistent/bun",
+        )
+        self.assertEqual(code, EXIT_NOT_IMPLEMENTED)
+        self.assertIn("nothing was measured", err)
 
     def test_task_new_dry_run_writes_nothing(self) -> None:
         code, out, _ = run("task", "new", "A9_toy", "--tier", "A", "--dry-run")

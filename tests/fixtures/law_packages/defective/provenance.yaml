@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: Apache-2.0
+# Seeded defect: L015. Both digests are zero, so the sidecar exists but the chain
+# it claims is broken; a linter that only checked for the file's presence would
+# call this clean.
+task: T9_toy
+artifacts:
+  - path: LAWS.bend
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    authored_by: LAA
+  - path: model.bend
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    authored_by: LAA
+review:
+  gates: {LA3: pass}

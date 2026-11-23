@@ -51,6 +51,7 @@ bendeda/                               the harness package: CLI, gates, metrics,
   cli.py                               `bendeda` entry point
   metrics/                             §10 metric definitions, with known-answer tests
   plugins/                             plugin interfaces (§14.2)
+  laws/                                law lint (L001-L015) and model mutation (LA3)
 bendeda/schemas/                       JSON schemas for runs, events, tasks, policies
 tasks/                                 task packages: spec, model, laws, oracle, variants
 bv/                                    BendBV: bit-vector and FSM helpers with proofs
@@ -82,8 +83,8 @@ Nothing here needs a GPU, a network connection, or a Bend install to run the tes
 |---|---|
 | `bendeda init` | Scaffold an experiment or task repository |
 | `bendeda task new <name> --tier B` | Create a task package skeleton |
-| `bendeda law lint <LAWS.bend>` | Apply law rules L001-L015 |
-| `bendeda law mutate <model.bend>` | Model mutations that must falsify each law (LA3) |
+| `bendeda law lint <task-dir>` | Apply law rules L001-L015; exit 3 if no package was linted |
+| `bendeda law mutate <task-dir>` | Mutate the model; 20 mutants and 0.9 kill rate by default (LA3) |
 | `bendeda law translate ... --to sva` | Translate laws to SVA, emit a TF plan |
 | `bendeda law provenance <task>` | Verify the authoring chain (Appendix J.4) |
 | `bendeda tf run <task>` | Compute translation fidelity |

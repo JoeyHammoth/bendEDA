@@ -1,0 +1,6 @@
+{
+  "laws": {
+    "toy_s01_count_le_depth": {"killed_by": 0, "total": 6},
+    "toy_s05_conjunction": {"killed_by": 2, "total": 6}
+  }
+}

@@ -36,6 +36,16 @@ jobs:
           python -m bendeda --help
       - name: Schema and task-package validation
         run: python -m bendeda validate --all
+      - name: Law lint refuses the seeded defects
+        # The defective fixture seeds one defect per rule, so the expected exit is
+        # 1. A linter that silently stopped firing would exit 0 here and fail.
+        run: |
+          set +e
+          python -m bendeda law lint tests/fixtures/law_packages/defective \
+            --mutation tests/fixtures/law_packages/defective/mutation.json --quiet
+          rc=$?
+          set -e
+          test "$rc" -eq 1
 
   hygiene:
     name: repository hygiene
@@ -113,6 +123,15 @@ jobs:
           BENDEDA_BEND_CLI: .bend-cache/bend-2.0.40/bend2/main.ts
         run: python -m bendeda canary --local --out .bend-cache/canary-local.json
 
+      - name: Model mutation kills what the law claims (LA3)
+        env:
+          BENDEDA_BUN: bun
+          BENDEDA_BEND_CLI: .bend-cache/bend-2.0.40/bend2/main.ts
+        run: |
+          python -m bendeda law mutate tests/fixtures/law_packages/toy_mutation \
+            --local --min-mutants 2 --min-kill 0.5 --max-mutants 8 \
+            --out .bend-cache/mutate-toy.json
+
       - name: Compile the fixture, trace it, and detect an injected offset
         env:
           BENDEDA_BUN: bun
@@ -181,6 +200,11 @@ jobs:
         run: |
           mkdir -p .bend-cache/canary
           python -m bendeda canary --image pinned --out .bend-cache/canary-image.json
+
+      - name: Model mutation through the released binary (LA3)
+        run: |
+          python -m bendeda law mutate tests/fixtures/law_packages/toy_mutation \
+            --image pinned --min-mutants 2 --min-kill 0.5 --max-mutants 8
 
       - name: Record whether --verdict works at the pinned release
         # G-02: the proven-kernel checker is what A5 and D5 assumed. This step

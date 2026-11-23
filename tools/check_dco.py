@@ -1,32 +1,53 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 """Every commit in the pull request must carry a Developer Certificate of Origin
-sign-off. Bot merges are exempt only when the commit has no author email."""
+sign-off. Bot merges are exempt only when the commit has no author email.
+"""
 
 from __future__ import annotations
 
 import subprocess
 import sys
+from pathlib import Path
 
 
-def commits(base: str) -> list[tuple[str, str]]:
+def commits(base: str, cwd: Path | None = None) -> list[tuple[str, str]]:
+    """(sha, message) for each non-merge commit after `base`.
+
+    This reads one commit per `git show` rather than parsing one `git log`
+    stream. `%x00` separates the *fields* inside a record, but git still
+    separates records with a newline, so splitting a whole log on NUL shifts
+    every record after the first by one field: the second commit's subject was
+    read as a body and its author email as a subject. A one-commit pull request
+    never reaches the second record, which is why the bug survived until the
+    first multi-commit one.
+    """
+
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", *args],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=cwd,
+        ).stdout
+
     try:
         # --no-merges is load-bearing: the merge commit GitHub synthesises for a
         # pull request is created by the platform, not by a contributor, and it
         # cannot carry a sign-off. Checking it produced a false failure on the
         # first pull request to run this job.
-        log = subprocess.run(
-            ["git", "log", f"{base}..HEAD", "--no-merges", "--format=%H%x00%B%x00%ae"],
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout
+        shas = git("log", f"{base}..HEAD", "--no-merges", "--format=%H").split()
     except (subprocess.CalledProcessError, FileNotFoundError):
         return []
-    entries = [chunk for chunk in log.split("\0") if chunk.strip()]
-    result = []
-    for i in range(0, len(entries) - 2, 3):
-        result.append((entries[i].strip(), entries[i + 1]))
+
+    result: list[tuple[str, str]] = []
+    for sha in shas:
+        raw = git("show", "-s", "--format=%B%x00%ae", sha)
+        body, _, email = raw.partition("\x00")
+        if not email.strip():
+            continue
+        result.append((sha, body))
     return result
 
 

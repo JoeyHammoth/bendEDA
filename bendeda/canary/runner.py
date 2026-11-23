@@ -246,6 +246,11 @@ def _run(argv: Sequence[str], cwd: Path, timeout: int) -> tuple[int, str]:
         return 124, "canary: the checker did not finish within the timeout"
 
 
+#: Public alias: `law mutate` reuses the same invocation path as the canary suite,
+#: so a checker that needs a shell shim behaves the same in both gates.
+run_argv = _run
+
+
 def run_control(
     control: Control,
     checker: Checker,
