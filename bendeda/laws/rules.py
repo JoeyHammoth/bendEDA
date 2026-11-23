@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
 
+from bendeda.laws import peh
 from bendeda.laws.base_symbols import BASE_SYMBOLS
 from bendeda.laws.manifest import Manifest, read as read_yaml
 from bendeda.laws.source import BendFile, Law, parse as parse_bend
@@ -36,7 +37,7 @@ RULES: dict[str, str] = {
     "L004": "a requirement has no law and is not declared conformance- or oracle-only",
     "L005": "a law's hypothesis is unsatisfiable as written",
     "L006": "a law survived every model mutant (no mutation report: not evaluated)",
-    "L007": "an escape-hatch construct appears in a law or model file",
+    "L007": "a proof escape hatch (PEH-01..PEH-07) appears in a law or model file",
     "L008": "a law name does not follow the id convention",
     "L009": "two laws are duplicate or alpha-equivalent",
     "L010": "a law references a symbol outside the package and Base",
@@ -52,14 +53,6 @@ CONDITIONAL_CLASSES = {"L-FUNC", "L-REFN"}
 TRANSFERABLE_CLASSES = {"L-SAFE", "L-FUNC", "L-REFN"}
 PRIORITIES = {"core", "important", "extended"}
 
-#: Bend 2.0.40 constructs that bypass the checker. This is the Phase 0 subset;
-#: the full enumerated list is issue #11 and this tuple is where it lands.
-ESCAPE_HATCHES: tuple[tuple[str, str], ...] = (
-    (r"@unsafe\b", "@unsafe"),
-    (r"\bdef\s+[A-Za-z_][\w.]*\?\s*\(", "a def whose name ends in '?' (unchecked)"),
-    (r"\?TODO\b", "?TODO (a goal left open)"),
-    (r"\bTODO\b", "TODO in a checked file"),
-)
 
 KNOWN_NAMESPACES = {
     "Bool", "Cmp", "Nat", "Word", "U32", "U64", "F32", "IO", "List", "Map",
@@ -288,23 +281,25 @@ def l006_mutation(package: Package, out: list[Finding]) -> None:
 
 
 def l007_escape_hatches(package: Package, out: list[Finding]) -> None:
+    """The enumerated PEH list, from `bendeda.laws.peh` (issue #11).
+
+    One finding per hit, named by id, because "a proof contains PEH-05" is a
+    statement an analysis can count and "escape hatch" is not.
+    """
     for bend_file in (package.laws, package.model, package.bv):
         if bend_file is None:
             continue
-        for number, line in enumerate(bend_file.text.splitlines(), start=1):
-            if line.lstrip().startswith("#"):
-                continue
-            for pattern, description in ESCAPE_HATCHES:
-                if re.search(pattern, line):
-                    out.append(
-                        Finding(
-                            "L007",
-                            f"escape hatch: {description}",
-                            None,
-                            _rel(package, bend_file.path) if bend_file.path else None,
-                            number,
-                        )
-                    )
+        for hit in peh.scan(bend_file.text):
+            out.append(
+                Finding(
+                    "L007",
+                    f"escape hatch {hit.entry.id} ({hit.entry.name}): "
+                    f"{hit.entry.why}",
+                    None,
+                    _rel(package, bend_file.path) if bend_file.path else None,
+                    hit.line,
+                )
+            )
 
 
 # --- L008 -------------------------------------------------------------------

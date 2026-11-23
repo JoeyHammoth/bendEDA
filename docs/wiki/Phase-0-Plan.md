@@ -17,32 +17,40 @@
 | Issue backlog on the project board | Issues #6-#15 |
 | Bend 2.0.40 pinned by archive **and** source digest | `docker/versions.lock`, `docker/bend-sources.sha256`, `bend-image` CI job (PR #19) |
 | `model.mjs` vector path proven from Node, one-cycle offset detected | `bendeda conformance compile/trace`, `tools/model_vectors.mjs`, `vector-path` CI job (PR #19) |
+| OSS CAD Suite pinned by digest, built in CI, with a real `sby` BMC passing | `.github/workflows/oss-cad-image.yml`, PR #22 |
 | BendBV mask layer proved, and the unmasked control refused | `bv/bv.bend`, `bv/negative/unmasked_add.bend`, `tests/test_bv.py` |
 | Checker canary suite: 32 negative and 4 positive controls, staged refusals | `bendeda canary`, `docs/research/2026-11-23-checker-canary.md`, CI `vector-path` and `bend-image` |
 | `verdict_available` measured at the pin (false: no Lean toolchain) | exact command and output in `docs/research/2026-11-23-checker-canary.md` |
 | `law lint` catches each seeded defect, and `law mutate` attributes a kill | `bendeda law lint`, `bendeda law mutate`, `docs/research/2026-11-24-law-lint.md`, `tests/fixtures/law_packages/` |
 | BendBV proves the mask extremes, `Word.and` absorption, additive identity and in-range closure | `bv/bv.bend`, `bv/OPEN.md`, `tests/test_bv.py` |
+| Proof cookbook: 23 examples across S1-S9, all checking except the one that must be refused | `docs/proof_cookbook.md`, `docs/cookbook/`, `docs/research/2026-11-24-proof-cookbook.md` |
+| PEH list enumerated from the pin's grammar, consumed by L007 | `bendeda/laws/peh.py`, `tests/test_cookbook.py` |
+| Sealed-oracle commit-reveal: deterministic archive, Merkle commitment, verification without decryption | `bendeda/oracle.py`, `tests/test_oracle.py`, `docs/research/2026-11-24-sealed-oracle.md` |
+| Oracle canary GUID minted and refused in task files | `oracle_sealed/canary.txt`, `tools/check_oracle_absence.py` |
+| Harness image built in CI and its CLI answers | `.github/workflows/ci.yml` job `harness-image` |
 
 ## Open work
 
 | # | Item | Why it blocks everything after it |
 |---|---|---|
-| [#6](https://github.com/JoeyHammoth/bendEDA/issues/6) | Pin the OSS CAD Suite image (Bend is done) | A result that cannot name its image digest cannot be reproduced |
-| [#11](https://github.com/JoeyHammoth/bendEDA/issues/11) | Proof cookbook and PEH list | Distinguishes "law is hard" from "agent cannot prove" |
-| [#12](https://github.com/JoeyHammoth/bendEDA/issues/12) | Self-hosted tools runner | Otherwise the EDA gates are skipped, and skipped is not green |
-| [#13](https://github.com/JoeyHammoth/bendEDA/issues/13) | Sealed-oracle tooling | The oracle commitment is what makes pre-registration verifiable |
+| [#6](https://github.com/JoeyHammoth/bendEDA/issues/6) (reopened) | Images build **offline**, and every run records the image digest plus `bend version` | A result that cannot name its image digest cannot be reproduced; the current jobs build with the network up |
+| [#12](https://github.com/JoeyHammoth/bendEDA/issues/12) | Self-hosted tools runner and required checks | Otherwise the EDA gates are skipped, and skipped is not green |
+
+The repo-side parts of #12 (workflow, skip semantics, required-check list, branch
+protection) are in `docs/self-hosted-runner.md`; registration needs a host the
+repository owner controls.
 
 ## Exit criteria
 
 Phase 0 is done when all of these are true, not when the tickets are closed:
 
-1. Three images build offline and record their digests. **Bend: built in CI from the pinned digest.** **OSS CAD Suite: built in CI from the verified digest, tools answer, and an `sby` BMC proof passes.** Harness: not yet built, and no image has been shown to build offline.
+1. Three images build offline and record their digests. **Bend: built in CI from the pinned digest.** **OSS CAD Suite: built in CI from the verified digest, tools answer, and an `sby` BMC proof passes.** **Harness: built in CI.** No image has been shown to build **offline**, and no run records an image digest — that is the reopened remainder of [#6](https://github.com/JoeyHammoth/bendEDA/issues/6).
 2. `bend model.bend -o model.mjs` drives a model from Node and a one-cycle injected offset is detected. **Done** — `bendeda conformance trace --inject-offset 1` reports `offset detected`.
 3. BendBV's lemmas all check with no escape hatch. **Partly done** — every lemma in `bv.bend` checks (`ALL PROOFS CHECK`), including the mask extremes, `Word.and` absorption, the additive identity and in-range closure. Three claims are still open, each beside the base lemma it needs: a numeric closure bound, symbolic associativity and symbolic wrap; the FSM helpers are deferred to Phase 1. Listed in `bv/OPEN.md`.
 4. **Done** — 32 negative controls and 4 positive controls; zero false accepts and zero mis-staged refusals under the default checker in both `vector-path` and `bend-image`; `verdict_available` is **false** and recorded with its exact command and output.
 5. **Done** — `law lint` reports exactly L001-L015 on the seeded fixture, and zero findings on a clean package; `law mutate` returns exit 3 when no checker or no mutable site exists, so nothing is reported as measured. Evidence in `docs/research/2026-11-24-law-lint.md`.
 6. The EDA gate job actually runs on the tools runner.
-7. A dummy commit-reveal round-trips, and a one-byte change breaks verification.
+7. **Done** — a dummy commit-reveal round-trips (`oracle seal` then `oracle verify-commitment`), and a one-byte change breaks verification with both roots printed. Evidence in `docs/research/2026-11-24-sealed-oracle.md`.
 
 ## Deliberate non-goals
 
@@ -58,3 +66,4 @@ Phase 0 is done when all of these are true, not when the tickets are closed:
 | `--verdict` remains broken upstream | Canary suite can only run in default mode; D5 fallback becomes permanent (G-02) |
 | Proof effort swamps the token budget | BendBV proof times trending above the cap in [#8](https://github.com/JoeyHammoth/bendEDA/issues/8) |
 | Self-hosted runner never provisioned | `bend-and-eda` permanently skipped → no law gates in CI |
+| Offline builds need a mirrored base image and apt cache | A `docker build --network=none` fails at `apt-get`, not at the archive digest |

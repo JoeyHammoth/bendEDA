@@ -36,6 +36,15 @@ jobs:
           python -m bendeda --help
       - name: Schema and task-package validation
         run: python -m bendeda validate --all
+      - name: Sealed-oracle dry run writes nothing
+        # The commitment has to be recomputable without a key, so the dry run is
+        # the cheapest evidence that the archive is deterministic and the root
+        # is printed rather than stored.
+        run: |
+          mkdir -p .bend-cache/oracle-demo
+          printf 'example component\n' > .bend-cache/oracle-demo/a.txt
+          python -m bendeda oracle seal .bend-cache/oracle-demo --dry-run --out .bend-cache/sealed
+          test ! -e .bend-cache/sealed
       - name: Law lint refuses the seeded defects
         # The defective fixture seeds one defect per rule, so the expected exit is
         # 1. A linter that silently stopped firing would exit 0 here and fail.
@@ -116,6 +125,14 @@ jobs:
           BENDEDA_BUN: bun
           BENDEDA_BEND_CLI: .bend-cache/bend-2.0.40/bend2/main.ts
         run: python -m unittest tests.test_bv -v
+
+      - name: Proof cookbook examples check under the pin
+        # The `tests` job has no compiler, so this is where the cookbook's nine
+        # files and its one deliberate counterexample are actually run.
+        env:
+          BENDEDA_BUN: bun
+          BENDEDA_BEND_CLI: .bend-cache/bend-2.0.40/bend2/main.ts
+        run: python -m unittest tests.test_cookbook -v
 
       - name: Checker canary suite (pinned sources under Bun)
         env:
@@ -216,6 +233,21 @@ jobs:
             --out .bend-cache/canary-verdict.json
           echo "verdict probe exit: $?"
           set -e
+
+  harness-image:
+    name: harness image (pinned Dockerfile)
+    # Phase 0 exit criterion 1 says three images build. Bend and OSS CAD Suite
+    # each have a job; this is the harness, which had never been built anywhere.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the harness image
+        run: docker build -f docker/Dockerfile.harness -t bendeda/harness:0.0.1 .
+      - name: The CLI answers inside the image
+        run: |
+          docker run --rm bendeda/harness:0.0.1 --version
+          docker run --rm bendeda/harness:0.0.1 validate --all
 
   bend-and-eda:
     name: bend and EDA gates

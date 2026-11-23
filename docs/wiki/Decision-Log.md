@@ -4,6 +4,54 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-24 - The PEH list is code, because L007 and the harness both read it
+
+**Decided:** the seven proof escape hatches live in `bendeda/laws/peh.py` as `EscapeHatch` records with an id, a regex, why the construct bypasses the checker, and what to do instead. L007 reports the id (`PEH-05`), and the prose table in `docs/proof_cookbook.md` is kept in step by a test.
+
+**Why:** a list in prose cannot be consumed, and a list in the linter drifts from the guide. The old four-pattern tuple called itself a Phase 0 subset; it is gone. Two entries are not syntax the checker rejects but promises it cannot see through — a Base definition that is itself `@unsafe` (`Array.fork`, `Array.join`, `Array.get_unchecked`), and a `TODO` marker.
+
+**Cost:** a construct the pin accepts but the list omits is invisible to L007, so adding one is a code change with a test rather than a doc edit.
+
+**Evidence:** `tests/test_cookbook.py` asserts every entry matches its own sample, that `?TODO` is not double-counted, and that comments are skipped; `docs/research/2026-11-24-proof-cookbook.md` shows the 23 examples that check.
+
+---
+
+## 2026-11-24 - The commitment is over the plaintext, so verification needs no key
+
+**Decided:** `oracle seal` hashes every component and folds the hashes into a Merkle root before encrypting; `oracle verify-commitment` recomputes them from a plaintext directory and compares. Odd Merkle levels are promoted, not duplicated, and leaves are domain-separated.
+
+**Why:** if the commitment were over the ciphertext, only the key-holder could check it, and "verifiable pre-registration" would depend on trusting the holder. Over the plaintext, a reader who was given the oracle can check it, and a reader who was not can still check that the published root did not change. Promotion avoids the Bitcoin collision where a list and the same list with its last item doubled share a root.
+
+**Cost:** the commitment publishes the component *names* as well as their hashes. That is intended disclosure (the task list, not the checks), and it is stated in the research note.
+
+**Evidence:** `tests/test_oracle.py` — byte-identical archives from different mtimes and write orders, one-byte change exits 1 with both roots, `--dry-run` writes nothing.
+
+---
+
+## 2026-11-24 - The oracle canary GUID is public on purpose
+
+**Decided:** `oracle_sealed/canary.txt` mints a GUID, and `tools/check_oracle_absence.py` refuses any file under `tasks/` that contains it.
+
+**Why:** a leak is only detectable if the oracle carries a marker that must never appear in an agent's context. A secret marker cannot be checked for; a public one turns its appearance anywhere it does not belong into a finding rather than an anecdote.
+
+**Cost:** the marker is known to every reader, so it cannot authenticate anything. It detects accidental leakage, not deliberate copying — which is the failure mode the mounts are for.
+
+**Evidence:** the guard passes on the repository and fails on a temporary tree with the GUID in `tasks/`; `tests/test_oracle.py::TestCanaryGuard`.
+
+---
+
+## 2026-11-24 - The harness image is built in CI, and "offline" is not claimed
+
+**Decided:** a `harness-image` job builds `docker/Dockerfile.harness` and runs `--version` and `validate --all` inside it. Issue #6 is reopened for the two acceptance criteria that were never met: an actual offline build, and recording the image digest plus `bend version` in each run.
+
+**Why:** the harness image had never been built anywhere, so criterion 1's third image was an assumption. The offline criterion is different in kind: `docker build --network=none` fails at `apt-get`, not at the archive digest, so satisfying it needs a mirrored base image and a package cache — a decision about the build infrastructure, not a Dockerfile tweak. Marking the ticket done while that was unproven is the false assurance this programme studies.
+
+**Cost:** #6 returns to the board, and criterion 1 stays partly open. The `harness-image` job adds a container build to every CI run (it is small).
+
+**Evidence:** `.github/workflows/ci.yml` job `harness-image`; `docker/README.md`; the reopened issue's checklist.
+
+---
+
 ## 2026-11-24 - Law lint reports what it could not evaluate
 
 **Decided:** L004, L006 and L014 append a note when the package lacks the metadata they need, and `law lint` exits 3 when it found no task package at all.

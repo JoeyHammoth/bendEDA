@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+# The canary GUID for the sealed oracle (issue #13, Phase 0.10).
+#
+# A leaked oracle is only detectable if the oracle carries something that must
+# never appear in an agent's context or in a task file. This GUID is that marker:
+# the plaintext pack contains it, `tools/check_oracle_absence.py` refuses to let
+# it appear under tasks/, and any task output containing it is evidence of a leak.
+#
+# It is deliberately public. A canary that has to stay secret cannot be checked
+# for; its value is that its presence anywhere it does not belong is a finding.
+guid: 9f6e2c1a-73b5-4d08-a1e4-5c2b8f0d7a36

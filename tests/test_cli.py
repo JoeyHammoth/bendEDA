@@ -48,7 +48,7 @@ class TestHonestStubs(unittest.TestCase):
             ["tf", "run", "--all"],
             ["gate", "run", "lint"],
             ["run", "experiments/trackA.yaml"],
-            ["oracle", "seal"],
+            ["oracle", "score"],
             ["bundle", "verify", "x"],
         ):
             code, out, err = run(*argv)

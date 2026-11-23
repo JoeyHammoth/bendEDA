@@ -1,16 +1,23 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 """The sealed oracle may exist in this repository only as ciphertext plus a
-commitment. This check blocks the two ways that rule is usually broken: an
-archive committed in the clear, and an `oracle/` directory with content."""
+commitment. This check blocks the three ways that rule is usually broken: an
+archive committed in the clear, an `oracle/` directory with content, and the
+canary GUID leaking into a task file."""
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
-SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__"}
+# `.bend-cache` holds the pinned compiler archives downloaded by
+# tools/fetch_bend.py. Those are local build inputs, not repository artifacts, and
+# a fresh CI checkout never has them; flagging them here made the check fail on
+# every developer machine for a reason that had nothing to do with the oracle.
+SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", ".bend-cache"}
 ALLOWED_ORACLE_FILES = {"README.md", "commitment.json", "canary.txt", "SHA256SUMS"}
+GUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 
 
 def main(argv: list[str]) -> int:
@@ -41,6 +48,27 @@ def main(argv: list[str]) -> int:
             file=sys.stderr,
         )
         return 1
+
+    canary = root / "oracle_sealed" / "canary.txt"
+    if canary.exists():
+        match = GUID.search(canary.read_text(encoding="utf-8"))
+        if match is None:
+            print(f"{canary.as_posix()}: no canary GUID", file=sys.stderr)
+            return 1
+        leaks = []
+        tasks = root / "tasks"
+        if tasks.exists():
+            for path in tasks.rglob("*"):
+                if not path.is_file() or any(part in SKIP_DIRS for part in path.parts):
+                    continue
+                if match.group(0) in path.read_text(encoding="utf-8", errors="ignore"):
+                    leaks.append(path.as_posix())
+        if leaks:
+            for path in leaks:
+                print(f"{path}: contains the sealed-oracle canary GUID", file=sys.stderr)
+            print("The oracle has leaked into a task file; fix the source, not the check.", file=sys.stderr)
+            return 1
+
     print("oracle absence: clean")
     return 0
 
