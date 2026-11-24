@@ -4,6 +4,36 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-24 - The budget stops the run, and every cell records what produced it
+
+**Decided:** the allowance is enforced in the proxy (`proxy serve --max-calls N`), which
+refuses the call after it with `429` and `rule: budget` because it is the only place every
+call passes synchronously. `runner exec --events <log> --max-calls N` polls the log and
+kills the sandbox as a backstop for work the proxy never sees, and `--wall-min` covers a
+command that makes no calls. A matrix cell hands its `budgets` to both and records
+`budget_exhausted`. Every cell also writes `environment.json`: the `bendeda` version, the
+Bend release from `docker/versions.lock`, and the agent and simulator image **digests**
+asked of the daemon.
+
+**Why:** a budget checked after the fact is a classification, not a budget — the arm
+already spent what it was not allowed to spend, so `S=0` was arithmetic rather than a
+demonstrated result. And every run that names a tag instead of a digest cannot be
+reproduced, which is the whole of criterion 2.
+
+**Cost:** the kill stops the whole container, because that is the only stop that also
+stops whatever the command spawned; the artifacts survive in the bind-mounted workspace.
+Two mechanisms now exist for one rule, and they are not redundant: the proxy sees every
+call, the poll sees the container.
+
+**Evidence:** a cell whose command tries three calls under a one-call allowance reaches
+the proxy twice — one `200`, one `429` with `rule: budget` — and scores `S=V=O=0`; the
+first version, which only polled the log, let all three calls through before the kill
+landed, which is why the `429` exists. The `smoke` cell's `environment.json` carries
+`sha256:41aa2359…` for the simulator image, the digest the daemon reports rather than the
+tag in the matrix.
+
+---
+
 ## 2026-11-24 - Gates execute, the arm runs inside the sandbox, and a matrix scores it
 
 **Decided:** `gate run` fills the `Gate` protocol with two real gates — `trace` (model and

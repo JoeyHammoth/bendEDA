@@ -41,6 +41,7 @@ class AgentSpec:
     policy: Path | None = None
     events: Path | None = None
     command: tuple[str, ...] = ("--version",)
+    max_calls: int | None = None
 
 
 class Unrunnable(ValueError):
@@ -96,6 +97,10 @@ def plan(spec: AgentSpec) -> list[list[str]]:
         "--policy", "/policy.json", "--events", f"/events/{spec.events.name}",
         "--host", "0.0.0.0", "--port", str(PROXY_PORT),
     ]
+    if spec.max_calls is not None:
+        # The proxy refuses the call after the allowance; `up`'s kill is only the
+        # backstop for work the proxy never sees.
+        proxy += ["--max-calls", str(spec.max_calls)]
     return [network, proxy, agent_command(spec)]
 
 
@@ -256,6 +261,100 @@ def check(
     if not net.get("Internal"):
         problems.append(f"network {network} is not internal, so it has a route off the machine")
     return problems
+
+
+@dataclass(frozen=True)
+class Enforcement:
+    """What happened when the allowance was watched rather than reported afterwards."""
+
+    code: int
+    output: str
+    calls: int
+    exhausted: bool
+    stopped: str | None = None
+
+
+def enforce(
+    process,
+    events: Path,
+    max_calls: int,
+    wall_min: float | None = None,
+    *,
+    stop=None,
+    clock=time.monotonic,
+    sleep=time.sleep,
+    poll_s: float = 0.5,
+) -> Enforcement:
+    """Watch a running command and stop the sandbox when it overruns its allowance.
+
+    A budget checked after the fact is a classification, not a budget: the arm already
+    spent what it was not allowed to spend. This polls the proxy's log while the arm
+    runs, and calls `stop` the moment the count passes the limit — which is what makes
+    `S=0` a demonstrated result rather than an arithmetic one.
+    """
+    from bendeda.budget import count_calls
+
+    started = clock()
+    stopped = None
+    while process.poll() is None:
+        if count_calls(events) > max_calls:
+            stopped = "calls"
+            break
+        if wall_min is not None and (clock() - started) >= wall_min * 60:
+            stopped = "wall clock"
+            break
+        sleep(poll_s)
+    if stopped is not None and stop is not None:
+        stop()
+    output = process.communicate()[0] or ""
+    code = process.poll()
+    return Enforcement(
+        code=int(code) if code is not None else 1,
+        output=output,
+        calls=count_calls(events),
+        exhausted=stopped is not None,
+        stopped=stopped,
+    )
+
+
+def _spawn(argv: Sequence[str]):
+    argv = list(argv)
+    try:
+        return subprocess.Popen(
+            argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+        )
+    except OSError:
+        shell = " ".join(shlex.quote(part) for part in argv)
+        return subprocess.Popen(
+            ["bash", "-c", shell],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            env={**os.environ, "MSYS2_ARG_CONV_EXCL": "*"},
+        )
+
+
+def exec_enforced(
+    container: str,
+    argv: Sequence[str],
+    events: Path,
+    max_calls: int,
+    wall_min: float | None = None,
+    *,
+    spawn=None,
+    run=None,
+    **kwargs,
+) -> Enforcement:
+    """Run the command in the container, with the sandbox stopped if it overruns."""
+    run = run or _run
+    process = (spawn or _spawn)(["docker", "exec", container, *argv])
+
+    def stop() -> None:
+        # Killing the container is the only stop that also stops whatever the command
+        # spawned; the workspace is a bind mount, so the artifacts survive it.
+        run(["docker", "kill", container])
+
+    return enforce(process, Path(events), max_calls, wall_min, stop=stop, **kwargs)
 
 
 def exec_in(container: str, argv: Sequence[str], run=None) -> tuple[int, str]:

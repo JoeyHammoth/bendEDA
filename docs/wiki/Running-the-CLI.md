@@ -268,6 +268,14 @@ and requires a PASS marker.
 records a submission through the proxy afterwards; the policy has to permit `submit`, or
 the run cannot score `S=1`.
 
+`--max-calls` turns the budget into an enforcement rather than a report. The proxy
+(`proxy serve --max-calls N`) refuses the call after the allowance with `429` and
+`rule: budget`, and `runner exec --events <log> --max-calls N` polls the log and kills
+the sandbox as the backstop for work the proxy never sees (`--wall-min` covers a command
+that makes no calls at all). A matrix cell hands its own `budgets` to both, so
+`budget_exhausted: true` in `cell.json` means the sandbox was actually stopped. Exit 0 is
+deliberate — a spent allowance is a result, and the log then scores `S=V=O=0`.
+
 `run --matrix` expands a matrix, runs each cell in the sandbox, re-executes the declared
 gates and leaves `events.jsonl`, `gates.json`, `expected.json`, `score.json` and
 `cell.json` per cell. It exits 3 while `O` is absent: the oracle pack is scored on the

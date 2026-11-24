@@ -28,6 +28,38 @@ def matrix_file(root: Path, overrides: dict | None = None) -> Path:
     return path
 
 
+class TestEnvironment(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+
+    def test_the_lock_file_supplies_the_bend_release(self) -> None:
+        from bendeda.matrix import environment
+
+        lock = self.root / "versions.lock"
+        lock.write_text('bend:\n  release: "2.0.40"\n\nnode:\n  required: ">=20"\n', encoding="utf-8")
+        record = environment(
+            "bendeda/harness:0.0.1",
+            "bendeda/oss-cad:2026-11-20",
+            versions=lock,
+            inspect=lambda argv: (0, "sha256:abc123\n"),
+            package_version="0.0.1",
+        )
+        self.assertEqual(record["bend_release"], "2.0.40")
+        self.assertEqual(record["agent_image"]["digest"], "sha256:abc123")
+        self.assertEqual(record["bendeda"], "0.0.1")
+
+    def test_a_missing_image_is_recorded_as_absent(self) -> None:
+        from bendeda.matrix import environment
+
+        record = environment(
+            "x", "y", versions=self.root / "nope.lock", inspect=lambda argv: (1, "no such image")
+        )
+        self.assertIsNone(record["agent_image"]["digest"])
+        self.assertIsNone(record["bend_release"])
+
+
 class TestLoadAndExpand(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -71,7 +103,14 @@ class TestExecuteCell(unittest.TestCase):
         self.cell = Cell(task=Task("toy_counter", self.artifacts), arm="C0", seed=1)
         self.calls: list[str] = []
 
-    def deps(self, *, exec_code: int = 0, gates: dict | None = None, down_raises: bool = False) -> dict:
+    def deps(
+        self,
+        *,
+        exec_code: int = 0,
+        exhausted: bool = False,
+        gates: dict | None = None,
+        down_raises: bool = False,
+    ) -> dict:
         bundle_events = {"path": None}
 
         def up(spec):
@@ -80,9 +119,9 @@ class TestExecuteCell(unittest.TestCase):
             spec.events.parent.mkdir(parents=True, exist_ok=True)
             spec.events.write_text("", encoding="utf-8")
 
-        def run(agent, command):
-            self.calls.append(("exec", agent, tuple(command)))
-            return exec_code, "ok" if exec_code == 0 else "boom"
+        def run(agent, command, events, budget):
+            self.calls.append(("exec", agent, tuple(command), dict(budget)))
+            return exec_code, "ok" if exec_code == 0 else "boom", exhausted
 
         def submit(agent, resource):
             self.calls.append(("submit", resource))
@@ -108,6 +147,12 @@ class TestExecuteCell(unittest.TestCase):
             "down": down,
             "gates": gate_results,
             "score": lambda bundle, policy: report(load_bundle(bundle)),
+            "environment": lambda matrix: {
+                "bendeda": "test",
+                "bend_release": "2.0.40",
+                "agent_image": {"name": matrix.image, "digest": "sha256:agent"},
+                "sim_image": {"name": matrix.sim_image, "digest": "sha256:sim"},
+            },
         }
 
     def test_a_passing_cell_leaves_a_scored_bundle(self) -> None:
@@ -118,10 +163,29 @@ class TestExecuteCell(unittest.TestCase):
         self.assertTrue((bundle / "gates.json").is_file())
         self.assertTrue((bundle / "expected.json").is_file())
         self.assertTrue((bundle / "cell.json").is_file())
+        self.assertTrue((bundle / "environment.json").is_file())
         self.assertEqual((record["S"], record["V"]), (1, 1))
         self.assertIsNone(record["O"], "the oracle is scored elsewhere, so O stays absent")
         self.assertFalse(record["complete"])
         self.assertIsNone(record["error"])
+
+    def test_the_bundle_records_what_produced_it(self) -> None:
+        record = execute_cell(self.matrix, self.cell, self.root / "runs", self.deps())
+
+        environment = json.loads(
+            (Path(record["bundle"]) / "environment.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(environment["agent_image"]["digest"], "sha256:agent")
+        self.assertEqual(environment["sim_image"]["digest"], "sha256:sim")
+        self.assertEqual(environment["bend_release"], "2.0.40")
+
+    def test_an_exhausted_budget_is_recorded_as_a_result(self) -> None:
+        record = execute_cell(
+            self.matrix, self.cell, self.root / "runs", self.deps(exhausted=True)
+        )
+
+        self.assertTrue(record["budget_exhausted"])
+        self.assertIn("budget was exhausted", record["error"])
 
     def test_the_submission_is_recorded_through_the_agent(self) -> None:
         execute_cell(self.matrix, self.cell, self.root / "runs", self.deps())
@@ -144,11 +208,29 @@ class TestExecuteCell(unittest.TestCase):
         self.assertIn("refused", record["error"])
         self.assertEqual(record["S"], 0)
 
-    def test_teardown_runs_when_a_step_raises(self) -> None:
-        deps = self.deps(down_raises=True)
-        with self.assertRaises(RuntimeError):
-            execute_cell(self.matrix, self.cell, self.root / "runs", deps)
+    def test_a_sandbox_that_never_starts_is_excluded_not_zero(self) -> None:
+        deps = self.deps()
+
+        def up(spec):
+            raise RuntimeError("the proxy never answered")
+
+        deps["up"] = up
+
+        record = execute_cell(self.matrix, self.cell, self.root / "runs", deps)
+
+        self.assertTrue(record["excluded"])
+        self.assertFalse(record["scored"])
+        self.assertIsNone(record["S"], "a void run has no score at all")
+        self.assertIn("proxy never answered", record["error"])
+
+    def test_a_failed_teardown_is_infrastructure_not_a_score(self) -> None:
+        record = execute_cell(
+            self.matrix, self.cell, self.root / "runs", self.deps(down_raises=True)
+        )
+
         self.assertIn("down", self.calls)
+        self.assertTrue(record["excluded"])
+        self.assertIn("teardown failed", record["error"])
 
     def test_a_skipped_gate_is_absent_from_gates_json(self) -> None:
         record = execute_cell(

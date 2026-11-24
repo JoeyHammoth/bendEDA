@@ -28,6 +28,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Iterable
 
+from bendeda.budget import EXCLUDED_EVENT
+
 ALLOW = "allow"
 DENY = "deny"
 ACTIONS = (ALLOW, DENY)
@@ -136,9 +138,21 @@ class AuditLog:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._seq = 0
+        self._calls = 0
+
+    def calls(self) -> int:
+        """Calls recorded so far, in the units a budget is measured in.
+
+        Infrastructure events are not calls, which is the same rule `budget.classify`
+        applies; the two must agree or the proxy would refuse work the log then calls
+        within budget.
+        """
+        return self._calls
 
     def record(self, tool: str, resource: str, decision: Decision) -> dict[str, Any]:
         self._seq += 1
+        if tool != EXCLUDED_EVENT:
+            self._calls += 1
         event: dict[str, Any] = {"seq": self._seq, "tool": tool, "resource": resource}
         event.update(decision.as_json())
         with self.path.open("a", encoding="utf-8", newline="\n") as handle:
@@ -146,14 +160,28 @@ class AuditLog:
         return event
 
 
-def handle_call(policy: Policy, log: AuditLog, payload: Any) -> tuple[int, dict[str, Any]]:
-    """The decision path, separated from HTTP so a test needs no socket."""
+def handle_call(
+    policy: Policy,
+    log: AuditLog,
+    payload: Any,
+    max_calls: int | None = None,
+) -> tuple[int, dict[str, Any]]:
+    """The decision path, separated from HTTP so a test needs no socket.
+
+    `max_calls` is enforced here and not in the caller: a budget checked between calls
+    is a report, and a command can make several calls in the time a poll takes. This is
+    the only place every call passes synchronously.
+    """
     if not isinstance(payload, dict):
         return 400, {"error": "body must be a JSON object with tool and resource"}
     tool = payload.get("tool")
     resource = payload.get("resource")
     if not isinstance(tool, str) or not isinstance(resource, str) or not tool or not resource:
         return 400, {"error": "tool and resource are required strings"}
+    if max_calls is not None and log.calls() >= max_calls:
+        decision = Decision(DENY, "budget", f"budget exhausted after {max_calls} call(s)")
+        event = log.record(tool, resource, decision)
+        return 429, {"decision": decision.as_json(), "event": event}
     decision = policy.decide(tool, resource)
     event = log.record(tool, resource, decision)
     return (200 if decision.allowed else 403), {"decision": decision.as_json(), "event": event}
@@ -164,6 +192,7 @@ def serve(
     log: AuditLog,
     host: str = "127.0.0.1",
     port: int = 8765,
+    max_calls: int | None = None,
 ) -> ThreadingHTTPServer:
     """Bind the proxy. `port=0` chooses a free port, which is how tests use it."""
 
@@ -187,7 +216,7 @@ def serve(
             except json.JSONDecodeError as exc:
                 self._send(400, {"error": f"invalid JSON: {exc}"})
                 return
-            status, body = handle_call(policy, log, payload)
+            status, body = handle_call(policy, log, payload, max_calls)
             self._send(status, body)
 
         def _send(self, status: int, body: dict[str, Any]) -> None:

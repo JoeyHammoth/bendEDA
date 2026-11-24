@@ -268,7 +268,7 @@ def cmd_proxy_serve(args: argparse.Namespace) -> int:
         print(f"bendeda proxy serve: {exc}", file=sys.stderr)
         return EXIT_USAGE
     log = AuditLog(args.events)
-    server = serve(policy, log, host=args.host, port=args.port)
+    server = serve(policy, log, host=args.host, port=args.port, max_calls=args.max_calls)
     host, port = server.server_address[:2]
     print(
         f"proxy: listening on http://{host}:{port}, default {policy.default}, "
@@ -365,7 +365,7 @@ def cmd_runner_up(args: argparse.Namespace) -> int:
 
 def cmd_runner_exec(args: argparse.Namespace) -> int:
     """Run the arm's command inside the sandbox, then record the submission."""
-    from bendeda.runner import exec_in, submit
+    from bendeda.runner import exec_enforced, exec_in, submit
 
     command = list(args.command)
     if command and command[0] == "--":
@@ -373,9 +373,26 @@ def cmd_runner_exec(args: argparse.Namespace) -> int:
     if not command:
         print("bendeda runner exec: no command given", file=sys.stderr)
         return EXIT_USAGE
-    code, output = exec_in(args.container, command)
+    exhausted = False
+    if args.events and args.max_calls:
+        result = exec_enforced(
+            args.container, command, Path(args.events), args.max_calls, args.wall_min
+        )
+        code, output, exhausted = result.code, result.output, result.exhausted
+        if exhausted:
+            print(
+                f"runner exec: budget exhausted after {result.calls} call(s) "
+                f"({result.stopped}); the sandbox was stopped",
+                file=sys.stderr,
+            )
+    else:
+        code, output = exec_in(args.container, command)
     if output.strip():
         print(output.rstrip())
+    if exhausted:
+        # A spent allowance is a result, not a harness failure: `score` records it as
+        # S=0 from the log, and this command does what it says either way.
+        return EXIT_OK
     if code != 0:
         return code
     if args.submit:
@@ -656,6 +673,11 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--container", default="bendeda-agent")
     sp.add_argument("--submit", default=None,
                    help="record a submission for this resource when the command succeeds")
+    sp.add_argument("--events", default=None, help="audit log to police a tool-call budget")
+    sp.add_argument("--max-calls", type=int, default=0,
+                   help="stop the sandbox when the log passes this many calls")
+    sp.add_argument("--wall-min", type=float, default=None,
+                   help="stop the sandbox after this many minutes")
     sp.add_argument("command", nargs=argparse.REMAINDER, help="the command; prefix with -- if it takes flags")
     sp.set_defaults(func=cmd_runner_exec)
     sp = runner_sub.add_parser("down", help="remove the sandbox's containers and network")
@@ -670,6 +692,8 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--events", required=True, help="append-only JSONL audit log")
     sp.add_argument("--host", default="127.0.0.1")
     sp.add_argument("--port", type=int, default=8765)
+    sp.add_argument("--max-calls", type=int, default=None,
+                   help="refuse calls past this allowance with 429 (rule: budget)")
     sp.set_defaults(func=cmd_proxy_serve)
     sp = proxy_sub.add_parser("decide", help="decide one call without a server")
     sp.add_argument("--policy", required=True)
