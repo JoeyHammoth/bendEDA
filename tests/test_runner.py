@@ -75,6 +75,15 @@ class TestPlan(unittest.TestCase):
         self.assertIn("proxy", proxy)
         self.assertIn("--events", proxy)
 
+    def test_the_proxy_runs_as_the_invoking_user(self) -> None:
+        """The events directory is the caller's, so a fixed image uid cannot write it."""
+        from unittest import mock
+
+        with mock.patch("bendeda.runner.os.getuid", return_value=1001, create=True), \
+                mock.patch("bendeda.runner.os.getgid", return_value=1001, create=True):
+            proxy = plan(self.spec)[1]
+        self.assertEqual(proxy[proxy.index("-u") + 1], "1001:1001")
+
     def test_a_plan_without_a_policy_is_refused(self) -> None:
         self.assertRaises(Unrunnable, plan, AgentSpec(workspace=self.root))
 
