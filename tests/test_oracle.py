@@ -16,6 +16,7 @@ import contextlib
 import hashlib
 import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -390,6 +391,22 @@ class TestScorePack(unittest.TestCase):
         self.write_scorer("print('{\"c1\": \"true\"}')")
         self.assertEqual(self.score(), oracle.EXIT_NOTHING)
         self.assertFalse((self.bundle / oracle.RESULT_NAME).exists())
+
+    def test_relative_paths_score_like_absolute_ones(self) -> None:
+        """The scorer runs inside the pack, so a relative path must not resolve twice."""
+        self.write_scorer("print('{\"c1\": true}')")
+        previous = Path.cwd()
+        os.chdir(self.tmp.name)
+        self.addCleanup(os.chdir, previous)
+        code = main([
+            "oracle", "score",
+            "--pack", "pack",
+            "--commitment", "commitment.json",
+            "--bundle", "bundle",
+            "--host", "scoring-1",
+        ])
+        self.assertEqual(code, 0)
+        self.assertTrue((self.bundle / oracle.RESULT_NAME).is_file())
 
     def test_the_second_score_is_a_disagreement_not_an_update(self) -> None:
         self.assertEqual(self.score(), 0)
