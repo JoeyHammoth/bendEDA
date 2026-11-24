@@ -4,6 +4,42 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-24 - Offline archives are staged in the context, because BuildKit cannot join a mirror network
+
+**Decided:** an image that needs a release archive gets it from `docker/archives/`,
+staged before the build and verified against the pinned sha256 inside it. The
+internal-network mirror is dropped. With a staged archive the `bend` image builds
+under `--network=none`: no `curl`, no CA bundle, and no `apt-get` at all.
+
+**Why:** the mirror recipe could not be run. BuildKit accepts only `default`, `none`
+and `host` as build networks:
+
+```
+docker build --network=bendeda-offline …
+ERROR: network mode "bendeda-offline" not supported by buildkit — you can define a
+custom network for your builder using the network driver-opt in buildx create
+```
+
+The documented `docker-container` builder would then have to pull its own base
+images over that internal network, which moves the problem instead of solving it.
+Staging is strictly stronger: the build has no HTTP client at all, and the digest
+check still decides what is accepted.
+
+**Cost:** the build context has to be prepared before an offline build (one `curl`
+plus a digest check), and `docker/archives/*.tar.gz` must stay out of git. The
+oracle-absence scanner was scanning the working tree and flagged a staged `.tar.gz`
+as a plaintext oracle, so it now enumerates tracked files — the convention the other
+hygiene scanners already follow, and the one that matches what a commit can publish.
+
+**Evidence:** `docker build --network=none -f docker/Dockerfile.bend` exits 0 and the
+image prints `bend 2.0.40`; the archive's sha256 is `c9ff8d67…`, matching
+`docker/versions.lock`; CI's `bend-image` job stages the archive and builds with
+`--network=none`. harness and bend are offline; `oss-cad` is not, because it needs
+apt packages and an archive mirror cannot supply those (criterion 3 forbids the
+prebuilt-base shortcut until the licence review).
+
+---
+
 ## 2026-11-24 - LA3 passes only after the laws say what a cycle leaves behind
 
 **Decided:** B1 gains three post-state laws — `fifo_f14_idle_preserves_count`,

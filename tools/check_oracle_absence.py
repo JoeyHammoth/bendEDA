@@ -8,6 +8,7 @@ canary GUID leaking into a task file."""
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -18,6 +19,30 @@ from pathlib import Path
 SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", ".bend-cache"}
 ALLOWED_ORACLE_FILES = {"README.md", "commitment.json", "canary.txt", "SHA256SUMS"}
 GUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+
+
+def repository_files(root: Path) -> list[Path]:
+    """Tracked files, because the contract is about what is committed.
+
+    A staged build archive (`docker/archives/*.tar.gz`, gitignored) is a local build
+    input like the compiler archives in `.bend-cache/`, and flagging it made the
+    check fail for a reason unrelated to the oracle. A bare copy with no git falls
+    back to walking the tree, so the check still bites where it can.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return [
+            path
+            for path in root.rglob("*")
+            if path.is_file() and not any(part in SKIP_DIRS for part in path.parts)
+        ]
+    return [root / name for name in out.split("\0") if name]
 
 
 def main(argv: list[str]) -> int:
@@ -33,8 +58,8 @@ def main(argv: list[str]) -> int:
                 continue
             problems.append(f"{item.as_posix()}: sealed-oracle artifact must be ciphertext (.age)")
 
-    for path in root.rglob("*"):
-        if any(part in SKIP_DIRS for part in path.parts) or not path.is_file():
+    for path in repository_files(root):
+        if not path.is_file() or any(part in SKIP_DIRS for part in path.parts):
             continue
         if path.name in {"oracle.tar", "oracle.zip"} or path.name.endswith(".tar.gz"):
             problems.append(f"{path.as_posix()}: plaintext oracle archive")
