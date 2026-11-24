@@ -9,12 +9,12 @@ implying it.
 
 What is implemented: a deny-by-default policy over (tool, resource), an
 append-only audit log of every decision, an HTTP endpoint that answers allow or
-deny, and a replay that re-decides a log so a recorded run can be checked without
-being trusted.
+deny, a per-arm call budget that is refused here rather than noticed by a
+supervisor afterwards, and a replay that re-decides a log so a recorded run can be
+checked without being trusted.
 
-What is not implemented: budget accounting, scoring (S=0 for exhaustion versus
-excluded for infrastructure failure), and the container plumbing that makes this
-the only route out.
+What is not implemented: the container plumbing that makes this the only route
+out, and the scoring of what a refusal means (that is `score.py`, not a decision).
 """
 
 from __future__ import annotations

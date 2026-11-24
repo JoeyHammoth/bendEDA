@@ -7,8 +7,9 @@ is the property a recorded run needs before anyone reads its result — either t
 log and the policy agree, or the difference is printed with the sequence number
 that diverged.
 
-Replaying a scored outcome end to end (gate results, budgets, `S=0` versus
-excluded) is the rest of #15 and is not implemented here.
+Scoring is not here: gates, budgets and the `S=0`-versus-excluded call belong to
+`score.py`. Re-deriving a score re-runs the gates, which needs the artifacts and
+not just the decisions — so a scored outcome cannot be checked from the log alone.
 """
 
 from __future__ import annotations
