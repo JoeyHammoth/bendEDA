@@ -47,7 +47,6 @@ class TestHonestStubs(unittest.TestCase):
             ["law", "translate", "LAWS.bend"],
             ["tf", "run", "--all"],
             ["gate", "run", "lint"],
-            ["run", "experiments/trackA.yaml"],
             ["oracle", "score"],
             ["bundle", "verify", "x"],
         ):
@@ -59,6 +58,18 @@ class TestHonestStubs(unittest.TestCase):
     def test_law_subcommand_without_action_is_usage_error(self) -> None:
         code, _, _ = run("law")
         self.assertEqual(code, EXIT_USAGE)
+
+
+class TestRunMatrix(unittest.TestCase):
+    def test_a_missing_matrix_is_a_usage_error(self) -> None:
+        code, _, err = run("run", "--matrix", "experiments/nope.json")
+        self.assertEqual(code, EXIT_USAGE, msg=err)
+
+    def test_dry_run_expands_and_executes_nothing(self) -> None:
+        code, out, err = run("run", "--matrix", "experiments/matrices/smoke.json", "--dry-run")
+        self.assertEqual(code, EXIT_OK, msg=err)
+        self.assertIn("C0-toy_counter-s1", out)
+        self.assertIn("nothing was executed", out)
 
 
 class TestWorkingCommands(unittest.TestCase):

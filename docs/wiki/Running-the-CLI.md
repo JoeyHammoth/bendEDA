@@ -248,6 +248,37 @@ letting `all([])` report a pass. The directory holds `events.jsonl` (required),
 `run.json` (budgets and `visible_gates`), `gates.json`, `oracle.json` and optionally
 an `outcome.json` to reproduce.
 
+## Gates, the arm's command, and the matrix
+
+```bash
+bendeda gate run trace --artifacts experiments/fixtures/toy_counter --out gates.json
+bendeda gate run formal --artifacts docker/smoke
+bendeda runner exec --submit tasks/seq/B1_fifo/submission -- python -m bendeda --version
+bendeda run --matrix experiments/matrices/smoke.json --dry-run
+bendeda run --matrix experiments/matrices/smoke.json --limit 1
+```
+
+`gate run` re-executes a gate on what the arm submitted and exits 0 pass, 1 fail, 3 a
+gate could not run (a missing compiler or image is a skip, never a pass). `trace`
+compiles the submitted model, simulates the submitted RTL and requires every cycle to
+agree; the same task with wrapping RTL fails at cycle 7. `formal` runs every `*.sby` job
+and requires a PASS marker.
+
+`runner exec` runs the arm's command inside the sandbox started by `up`. `--submit`
+records a submission through the proxy afterwards; the policy has to permit `submit`, or
+the run cannot score `S=1`.
+
+`run --matrix` expands a matrix, runs each cell in the sandbox, re-executes the declared
+gates and leaves `events.jsonl`, `gates.json`, `expected.json`, `score.json` and
+`cell.json` per cell. It exits 3 while `O` is absent: the oracle pack is scored on the
+scoring host, so the cell is incomplete rather than green.
+
+| Code | `gate run` | `run --matrix` |
+|---|---|---|
+| 0 | every gate passed | every cell complete |
+| 1 | a gate failed | a cell failed to execute |
+| 3 | a gate could not run | cells incomplete (no oracle verdict yet) |
+
 ## What is planned, and where
 
 | Command | Issue |
@@ -255,7 +286,7 @@ an `outcome.json` to reproduce.
 | `oracle score` | [#13](https://github.com/JoeyHammoth/bendEDA/issues/13) — seal and verify exist; scoring needs the decryption host |
 | `tf run` | blocked by BendBV ([#8](https://github.com/JoeyHammoth/bendEDA/issues/8)) |
 | `conformance` (L2/L3 rungs) | arrives with the EDA image ([#6](https://github.com/JoeyHammoth/bendEDA/issues/6)) |
-| `gate run`, `gate calibrate`, `run` | [#15](https://github.com/JoeyHammoth/bendEDA/issues/15) — proxy, replay, sandbox lifecycle, budgets and scoring exist; gate re-execution and the run matrix do not |
+| `gate calibrate` | Phase 1.7 — GS/GSp over the bug corpus; `gate run` and `run` exist |
 | `report`, `bundle verify`, `serve` | Phase 6 / Phase 2 |
 
 ## Common friction

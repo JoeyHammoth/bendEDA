@@ -151,15 +151,89 @@ Passing `--policy` also re-decides the log, so a bundle whose decisions diverge 
 (the ingredient for the design's Replay Fidelity metric): a recorded outcome that does
 not follow from the log is reported, while the score still comes from the log.
 
+## Gates that execute (`V`)
+
+`bendeda gate run` fills the `Gate` protocol in `bendeda/plugins/interfaces.py`: a gate
+reads the artifact directory an arm submitted, runs the pinned toolchain on it, and
+returns pass or fail with the evidence that decided it. A missing capability is `skip`,
+and a skip is never written to `gates.json`.
+
+| Gate | Passes iff | Fails iff |
+|---|---|---|
+| `trace` | the model compiles, the submitted RTL simulates, and every cycle agrees | a required file is missing, the model does not compile, the DUT errors, or any cycle disagrees |
+| `formal` | every `*.sby` job writes a PASS marker | there is no `.sby` job, a job exits non-zero, or it finishes without PASS |
+
+```console
+$ bendeda gate run trace --artifacts experiments/fixtures/toy_counter --out gates.json
+gate trace: pass
+gate run: wrote gates.json
+
+$ bendeda gate run trace --artifacts .bend-cache/wrap      # the same task, wrapping RTL
+gate trace: fail — model and DUT disagree at cycle 7
+$ echo $?
+1
+
+$ bendeda gate run formal --artifacts docker/smoke
+gate formal: pass
+```
+
+Two translations are needed, and both are in the code with the reason: a plan written
+against the model names `incs`, while the generated testbench wants one sequence per
+input port (for a single-input design they are the same sequence); and `load_plan`
+normalises a missing `stimulus` section to `{}`, so "absent" has to be tested as empty.
+
+## `runner exec`: the arm runs inside the sandbox
+
+`up` leaves a keepalive container; `runner exec` runs the arm's command in it and can
+record the submission through the proxy:
+
+```console
+$ bendeda runner exec --submit tasks/seq/B1_fifo/submission -- python -m bendeda --version
+bendeda 0.0.1
+```
+
+The submission is posted from inside the container, because the host reaches neither the
+internal network nor the proxy. `submit` must be permitted by the policy: a run policy
+without that rule cannot produce `S=1`, and a refusal is recorded rather than counted as
+a submission — the first matrix run scored `S=1` off a *denied* submit, which is exactly
+the kind of green that has to be caught by running the thing.
+
+Where the CLI lives is not cosmetic either. The harness image used to keep the package at
+`/work`, which the runner mounts the workspace over, so `python -m bendeda` answered `No
+module named bendeda` inside a sandbox whose purpose is to run it. The image now carries
+the package at `/opt/bendeda` and leaves `/work` to the agent.
+
+## The run matrix
+
+```console
+$ bendeda run --matrix experiments/matrices/smoke.json --dry-run
+{"n": 1, "cell": "C0-toy_counter-s1", "task": "toy_counter", "arm": "C0", "seed": 1}
+run: 1 cell(s) in smoke; nothing was executed
+
+$ bendeda run --matrix experiments/matrices/smoke.json --limit 1
+{"O": null, "S": 1, "V": 1, "cell": "C0-toy_counter-s1", "complete": false, "error": null}
+run: 1 cell(s), 0 complete, 1 incomplete
+$ echo $?
+3
+```
+
+Each cell starts a sandbox, runs `command` inside it, records the submission, tears the
+sandbox down, re-executes the declared gates on the artifacts, and writes `events.jsonl`,
+`gates.json`, `expected.json`, `score.json` and `cell.json` under `--out/<matrix>/<cell>`.
+Exit 3 is the honest verdict: `S` and `V` are complete and `O` is not, because the oracle
+pack is scored on the scoring host.
+
 ## What does not exist yet
 
-- **Gate re-execution.** `V` is read from the results the harness recorded; `gate run`
-  is still a planned command, so nothing here re-runs a gate on submitted artifacts.
 - **Model calls and tool results in the replay.** `replay` covers proxy decisions; the
   design's full RF needs the tool results replayed too.
+- **The oracle pack at run time.** `O` stays absent, so a cell is incomplete rather than
+  scored on a verdict nobody computed.
 - **The mount allowlist as an independent guarantee.** `up` builds the single mount
   into the argv and `check` refutes a live container, but neither can stop a different
   container being started outside this CLI.
+- **Budget accounting across the matrix.** A cell's budget is recorded, not enforced:
+  nothing stops a command that exceeds it part-way through.
 
 ## Why replay at all
 
