@@ -21,6 +21,9 @@ ARG OSS_CAD_SHA256_LINUX_ARM64=d58ee2faa0b0b1e43aa8783f66df9fbed5f23fe9d179a638f
 # Local mirror for the offline build; the digest above is still what is checked
 # (docs/offline-builds.md).
 ARG OSS_CAD_BASE_URL=https://github.com/YosysHQ/oss-cad-suite-build/releases/download
+# TLS only by default; a local mirror opts in with
+# `--build-arg OSS_CAD_PROTO=https,http`, and the digest below is unchanged.
+ARG OSS_CAD_PROTO=https
 
 ENV DEBIAN_FRONTEND=noninteractive \
     OSS_CAD_SUITE=/opt/oss-cad-suite \
@@ -43,7 +46,7 @@ RUN set -eu; \
       *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
     esac; \
     name="oss-cad-suite-linux-${asset_arch}-$(echo "$OSS_CAD_TAG" | tr -d '-').tgz"; \
-    curl --proto '=https' --tlsv1.2 -fsSL -o /tmp/oss.tgz \
+    curl --proto "=$OSS_CAD_PROTO" --tlsv1.2 -fsSL -o /tmp/oss.tgz \
       "${OSS_CAD_BASE_URL}/${OSS_CAD_TAG}/${name}"; \
     echo "${sum}  /tmp/oss.tgz" | sha256sum -c - ; \
     tar -xzf /tmp/oss.tgz -C /opt --no-same-owner; \

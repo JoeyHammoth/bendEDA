@@ -32,3 +32,6 @@ results/runs/
 
 # SymbiYosys work directories (smoke runs)
 docker/smoke/*_prove/
+
+# Staged build archives (see docker/archives/README.md); never committed.
+docker/archives/*.tar.gz

@@ -28,17 +28,21 @@ not:
   from the network. Two people are traded for that: the image no longer proves
   `pip install` works (the `tests` job does that instead), and Node is the upstream
   build rather than the distribution's.
-- **The other two images still fetch one archive each.** `BEND_BASE_URL` and
-  `OSS_CAD_BASE_URL` point them at a local mirror on an internal Docker network,
-  and the digest check is unchanged. `docs/offline-builds.md` records what was
-  measured and what is still a recipe.
+- **The `bend` image also builds offline**, by staging the release archive in
+  `docker/archives/` (gitignored) and building with `--network=none`; the pinned
+  sha256 is checked on both the staged and the downloaded path. The mirror route was
+  abandoned because BuildKit cannot be attached to a custom network — the error and
+  the reasoning are in `docs/offline-builds.md`.
+- **`oss-cad` is not offline and cannot be**, by staging alone: it needs `g++`,
+  `make`, `zlib` and `readline` from apt, so it needs an apt mirror or a published
+  base image, and the latter waits on the GPL/LGPL notice review (criterion 3).
 
 ## Pinned versions (2026-11-21)
 
 | Image | Pin | Digest verified | Built |
 |---|---|---|---|
-| `bend` | release 2.0.40, tag commit `624dd9f` | **yes** — linux-x64 archive `c9ff8d67…` matches both the GitHub asset digest and the installer's embedded hash | **yes**, by the `bend-image` CI job |
-| `osscad` | release 2026-11-20 | **yes** - the release publishes a sha256 per asset and `6e200a57...` matches it; re-checked at build | **yes**, by the `oss-cad-image` workflow |
+| `bend` | release 2.0.40, tag commit `624dd9f` | **yes** — linux-x64 archive `c9ff8d67…` matches both the GitHub asset digest and the installer's embedded hash | **yes**, by the `bend-image` CI job; also **offline** (`--network=none`) with the archive staged in `docker/archives/` |
+| `osscad` | release 2026-11-20 | **yes** - the release publishes a sha256 per asset and `6e200a57...` matches it; re-checked at build | **yes**, by the `oss-cad-image` workflow; **not offline** (apt packages, see `docs/offline-builds.md`) |
 | `harness` | python 3.12 + node 20 | n/a | **yes**, offline (`--network=none`) and in CI |
 
 A local build on 2026-11-24 resolved to `sha256:eaf0a9d7…` and reported
