@@ -21,10 +21,17 @@ not:
   A local source run says `image: none (local source pin)` rather than borrowing a
   digest it never used. The module is `bendeda/provenance.py`; the record is
   asserted in `tests/test_provenance.py`.
-- **Offline builds are still unproven.** `docker build --network=none` fails at
-  `apt-get`, not at the archive digest, so offline means a mirrored base image and
-  a package cache — a decision about build infrastructure, and the reopened part
-  of issue #6.
+- **The harness image now builds offline.** `docker build --network=none -f
+  docker/Dockerfile.harness` succeeds: Node is copied from
+  `node:20-bookworm-slim` instead of installed with `apt-get`, and the package is
+  put on `PYTHONPATH` because installing it would need a build backend fetched
+  from the network. Two people are traded for that: the image no longer proves
+  `pip install` works (the `tests` job does that instead), and Node is the upstream
+  build rather than the distribution's.
+- **The other two images still fetch one archive each.** `BEND_BASE_URL` and
+  `OSS_CAD_BASE_URL` point them at a local mirror on an internal Docker network,
+  and the digest check is unchanged. `docs/offline-builds.md` records what was
+  measured and what is still a recipe.
 
 ## Pinned versions (2026-11-21)
 
@@ -32,7 +39,7 @@ not:
 |---|---|---|---|
 | `bend` | release 2.0.40, tag commit `624dd9f` | **yes** — linux-x64 archive `c9ff8d67…` matches both the GitHub asset digest and the installer's embedded hash | **yes**, by the `bend-image` CI job |
 | `osscad` | release 2026-11-20 | **yes** - the release publishes a sha256 per asset and `6e200a57...` matches it; re-checked at build | **yes**, by the `oss-cad-image` workflow |
-| `harness` | python 3.12 + node 20 | n/a | **yes**, by the `harness-image` CI job |
+| `harness` | python 3.12 + node 20 | n/a | **yes**, offline (`--network=none`) and in CI |
 
 A local build on 2026-11-24 resolved to `sha256:eaf0a9d7…` and reported
 `bend 2.0.40`; a canary report from that image records both in its `environment`
