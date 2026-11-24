@@ -4,6 +4,38 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-24 - The sandbox gets a lifecycle, and a score is three verdicts
+
+**Decided:** `runner up` creates the internal network, starts the proxy on it, waits for
+`/health`, and only then creates the agent; any failure tears down what started and
+raises. `runner down` removes both containers and the network, treating something
+already gone as clean. `bendeda score` computes `S`, `V` and `O` from a run directory:
+`S` from the event log and budget, `V` from the gate results checked against the arm's
+declared gate set, `O` from the oracle results. A missing result leaves its verdict
+`null` and the command exits 3.
+
+**Why:** an agent container that exists without its proxy is worse than no sandbox, and
+it is reachable by any step failing after the agent started — so teardown is part of the
+start path, not a separate courtesy. On the scoring side, `all([])` is true: without
+comparing against the declared gate set, a partial record would read as a pass, which is
+the exact failure the programme studies.
+
+**Cost:** `up` starts a keepalive agent rather than the task, so running the arm is
+still a separate `docker exec`. `V` is read from recorded results; `gate run` remains
+planned, so nothing re-executes a gate on submitted artifacts yet.
+
+**Evidence:** a live sandbox answered `runner up` (three steps), passed `runner check`
+with only `tasks/` mounted, refused `github.com` at name resolution, allowed a
+workspace read (200) and refused `../oracle_sealed/x` (403), then `runner down` left no
+container or network. `bendeda score` returned `S=V=O=1` with a fully reproduced log,
+and an infrastructure bundle returned `scored: false` with null verdicts and exit 2.
+Three defects surfaced only by running it: the keepalive command lacked `-d` (so `up`
+blocked until the 120 s timeout), `down` imported a name that lived in the CLI, and the
+harness image predated `proxy serve` — the health gate refused that sandbox and removed
+it, which is the behaviour the ordering was chosen for.
+
+---
+
 ## 2026-11-24 - The runner is a spec plus a check, and exhaustion is a scored zero
 
 **Decided:** `bendeda runner plan` prints the sandbox (internal network, proxy

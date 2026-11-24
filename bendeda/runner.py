@@ -1,14 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 """The agent runner: one mount, one network, one proxy (issue #15).
 
-The runner is a specification plus two checks. It does *not* start containers yet —
-that is the next step and it is obvious when it happens, because `plan` writes to
-stdout only.
+`plan` prints the commands, `up` runs them in the order that makes the proxy the only
+egress (network, then proxy, then agent, each step gated on the previous answering),
+`down` removes them, and `check` refutes a live container afterwards. Every failure
+path in `up` tears down what it started, because a half-built sandbox is worse than
+none: the agent would exist without the proxy that governs it.
 
-What the checks buy today is the property the issue asks for, stated as something a
-machine can refute: the agent container is attached to exactly one network, that
-network has no gateway, the only bind mount is the workspace, and the oracle is not
-reachable through any mount.
+What the checks buy is the property the issue asks for, stated as something a machine
+can refute: the agent container is attached to exactly one network, that network has
+no gateway, the only bind mount is the workspace, and the oracle is not reachable
+through any mount.
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ import posixpath
 import re
 import shlex
 import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
@@ -26,6 +29,7 @@ from typing import Sequence
 DEFAULT_IMAGE = "bendeda/harness:0.0.1"
 DEFAULT_NETWORK = "bendeda-offline"
 PROXY_NAME = "bendeda-policy-proxy"
+AGENT_NAME = "bendeda-agent"
 PROXY_PORT = 8765
 
 
@@ -92,16 +96,93 @@ def plan(spec: AgentSpec) -> list[list[str]]:
         "--policy", "/policy.json", "--events", f"/events/{spec.events.name}",
         "--host", "0.0.0.0", "--port", str(PROXY_PORT),
     ]
-    agent = [
-        "docker", "run", "--rm", "--name", "bendeda-agent", "--network", spec.network,
+    return [network, proxy, agent_command(spec)]
+
+
+def agent_command(spec: AgentSpec, keepalive: bool = False) -> list[str]:
+    """The agent's argv. `keepalive` starts a container to be driven later."""
+    workspace = Path(_docker_path(spec.workspace))
+    argv = [
+        "docker", "run", "--rm", "--name", AGENT_NAME, "--network", spec.network,
         # Exactly one mount: the workspace. The oracle is not among them, which is the
         # whole point, so it is nowhere in this argv.
         "--mount", f"type=bind,source={_docker_path(workspace)},target=/work",
         "--env", f"BENDEDA_PROXY=http://{PROXY_NAME}:{PROXY_PORT}",
         "--workdir", "/work",
-        "--entrypoint", "python", spec.image, "-m", "bendeda", *spec.command,
     ]
-    return [network, proxy, agent]
+    if keepalive:
+        # `up` returns once the sandbox exists; the task arrives through `docker
+        # exec`, so the container must not exit the moment it starts. Detached, or
+        # the CLI blocks for the life of the container — which is how the first run
+        # of `up` sat in `subprocess.run` until its timeout fired.
+        return argv + ["-d", "--entrypoint", "sleep", spec.image, "infinity"]
+    return argv + ["--entrypoint", "python", spec.image, "-m", "bendeda", *spec.command]
+
+
+class SandboxError(RuntimeError):
+    """Starting the sandbox failed; whatever started has already been removed."""
+
+
+def _last(output: str) -> str:
+    lines = [line.strip() for line in output.strip().splitlines() if line.strip()]
+    return lines[-1] if lines else "(no output)"
+
+
+def _wait_for_proxy(spec: AgentSpec, run=None, attempts: int = 20, pause: float = 0.5) -> bool:
+    """The proxy answers before the agent is allowed to exist."""
+    run = run or _run
+    probe = [
+        "docker", "exec", PROXY_NAME, "python", "-c",
+        f"import urllib.request as u; u.urlopen('http://127.0.0.1:{PROXY_PORT}/health', timeout=2)",
+    ]
+    for _ in range(attempts):
+        code, _output = run(probe)
+        if code == 0:
+            return True
+        time.sleep(pause)
+    return False
+
+
+def up(spec: AgentSpec, run=None, wait=None) -> list[str]:
+    """Start network, proxy and agent — or leave nothing behind trying.
+
+    Order carries the guarantee: the network exists before the proxy is attached to
+    it, and the proxy answers before the agent exists at all. Every failure runs the
+    teardown first, because an agent without its proxy is the one outcome worse than
+    no sandbox.
+    """
+    run = run or _run
+    network, proxy, _agent = plan(spec)
+    wait = wait or _wait_for_proxy
+    started: list[str] = []
+    for name, argv in (
+        ("network", network),
+        ("proxy", proxy),
+        ("agent", agent_command(spec, keepalive=True)),
+    ):
+        code, output = run(argv)
+        if code != 0:
+            down(spec, run)
+            raise SandboxError(f"{name} did not start: {_last(output)}")
+        started.append(name)
+    if not wait(spec, run):
+        down(spec, run)
+        raise SandboxError(f"the proxy never answered on port {PROXY_PORT}; the sandbox was removed")
+    return started
+
+
+def down(spec: AgentSpec, run=None) -> list[str]:
+    """Remove the containers and the network. Something already gone is not a problem."""
+    run = run or _run
+    problems: list[str] = []
+    for name in (AGENT_NAME, PROXY_NAME):
+        code, output = run(["docker", "rm", "-f", name])
+        if code != 0 and "no such" not in output.lower():
+            problems.append(f"could not remove {name}: {_last(output)}")
+    code, output = run(["docker", "network", "rm", spec.network])
+    if code != 0 and "not found" not in output.lower():
+        problems.append(f"could not remove network {spec.network}: {_last(output)}")
+    return problems
 
 
 def _run(argv: Sequence[str]) -> tuple[int, str]:
@@ -109,6 +190,10 @@ def _run(argv: Sequence[str]) -> tuple[int, str]:
     try:
         completed = subprocess.run(argv, capture_output=True, text=True, timeout=120)
         return completed.returncode, completed.stdout + completed.stderr
+    except subprocess.TimeoutExpired:
+        # A command that never returns is a failed step, not an exception the caller
+        # has to know about: `up` needs a return code so it can tear the sandbox down.
+        return 1, f"{argv[0]} {argv[1] if len(argv) > 1 else ''} timed out after 120s"
     except OSError:
         shell = " ".join(shlex.quote(part) for part in argv)
         completed = subprocess.run(

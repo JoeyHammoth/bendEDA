@@ -284,19 +284,26 @@ def cmd_proxy_serve(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _runner_spec(args: argparse.Namespace):
+    """One spec shape for every runner subcommand, so they cannot drift apart."""
+    from bendeda.runner import AgentSpec
+
+    return AgentSpec(
+        workspace=Path(args.workspace),
+        image=getattr(args, "image", "bendeda/harness:0.0.1"),
+        network=args.network,
+        policy=Path(args.policy) if getattr(args, "policy", None) else None,
+        events=Path(args.events) if getattr(args, "events", None) else None,
+    )
+
+
 def cmd_runner_plan(args: argparse.Namespace) -> int:
     """Print the sandbox commands. Nothing is started: a plan is not a run."""
     import shlex
 
-    from bendeda.runner import AgentSpec, Unrunnable, plan
+    from bendeda.runner import Unrunnable, plan
 
-    spec = AgentSpec(
-        workspace=Path(args.workspace),
-        image=args.image,
-        network=args.network,
-        policy=Path(args.policy) if args.policy else None,
-        events=Path(args.events) if args.events else None,
-    )
+    spec = _runner_spec(args)
     try:
         commands = plan(spec)
     except Unrunnable as exc:
@@ -339,6 +346,57 @@ def cmd_runner_classify(args: argparse.Namespace) -> int:
     outcome = classify(events, Limits(calls=args.max_calls))
     print(json.dumps(outcome.as_json(), indent=2))
     return EXIT_OK
+
+
+def cmd_runner_up(args: argparse.Namespace) -> int:
+    """Start the sandbox, or leave nothing behind trying."""
+    from bendeda.runner import SandboxError, up
+
+    spec = _runner_spec(args)
+    try:
+        started = up(spec)
+    except (SandboxError, OSError) as exc:
+        print(f"bendeda runner up: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    print(f"runner up: started {', '.join(started)} on {spec.network}")
+    print(f"runner up: the agent mounts only {spec.workspace} and reaches only {spec.events and 'the proxy'}")
+    return EXIT_OK
+
+
+def cmd_runner_down(args: argparse.Namespace) -> int:
+    """Remove the sandbox. Something already gone is not a failure."""
+    from bendeda.runner import down
+
+    spec = _runner_spec(args)
+    try:
+        problems = down(spec)
+    except OSError as exc:
+        print(f"bendeda runner down: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    for problem in problems:
+        print(f"runner down: {problem}", file=sys.stderr)
+    if problems:
+        return EXIT_CHECK_FAILED
+    print(f"runner down: removed the agent, the proxy and the network {spec.network}")
+    return EXIT_OK
+
+
+def cmd_score(args: argparse.Namespace) -> int:
+    """S, V and O from a run bundle. A missing result is not a pass."""
+    from bendeda.proxy import Policy
+    from bendeda.score import load, report
+
+    try:
+        bundle = load(Path(args.bundle))
+        policy = Policy.load(args.policy) if args.policy else None
+    except (OSError, ValueError) as exc:
+        print(f"bendeda score: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    result = report(bundle, policy)
+    print(json.dumps(result.as_json(), indent=2))
+    for note in result.notes:
+        print(f"score: {note}", file=sys.stderr)
+    return result.exit_code()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -473,6 +531,17 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--events", required=True)
     sp.add_argument("--max-calls", type=int, default=400)
     sp.set_defaults(func=cmd_runner_classify)
+    sp = runner_sub.add_parser("up", help="start the sandbox: network, proxy, then agent")
+    sp.add_argument("--workspace", default=".")
+    sp.add_argument("--image", default="bendeda/harness:0.0.1")
+    sp.add_argument("--network", default="bendeda-offline")
+    sp.add_argument("--policy", required=True, help="proxy policy JSON")
+    sp.add_argument("--events", required=True, help="audit log the proxy writes")
+    sp.set_defaults(func=cmd_runner_up)
+    sp = runner_sub.add_parser("down", help="remove the sandbox's containers and network")
+    sp.add_argument("--workspace", default=".")
+    sp.add_argument("--network", default="bendeda-offline")
+    sp.set_defaults(func=cmd_runner_down)
 
     p_proxy = sub.add_parser("proxy", help="policy proxy for agent egress")
     proxy_sub = p_proxy.add_subparsers(dest="proxy_command", metavar="<subcommand>")
@@ -492,6 +561,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_replay.add_argument("--events", required=True, help="events.jsonl written by the proxy")
     p_replay.add_argument("--policy", required=True, help="the policy the run was governed by")
     p_replay.set_defaults(func=cmd_replay)
+
+    p_score = sub.add_parser("score", help="compute S, V and O for a recorded run")
+    p_score.add_argument("--bundle", required=True,
+                         help="directory with events.jsonl and optional run/gates/oracle/outcome JSON")
+    p_score.add_argument("--policy", default=None,
+                         help="also re-decide the tool log against this policy first")
+    p_score.set_defaults(func=cmd_score)
 
     p_oracle = sub.add_parser("oracle", help="sealed-oracle operations")
     oracle_sub = p_oracle.add_subparsers(dest="oracle_command", metavar="<subcommand>")
