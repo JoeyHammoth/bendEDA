@@ -61,7 +61,7 @@ class TestPackageFiles(unittest.TestCase):
             {law.name for law in self.laws.laws},
             set(self.manifest.by_name),
         )
-        self.assertEqual(len(self.manifest.laws), 19)
+        self.assertEqual(len(self.manifest.laws), 22)
 
     def test_every_manifest_id_matches_its_law_name_prefix(self) -> None:
         for entry in self.manifest.laws:

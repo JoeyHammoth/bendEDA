@@ -21,7 +21,7 @@ artifacts:
     tools_allowed: ["fs-write:model.bend", bend_check]
     forbidden_reads_attested: ["oracle/**", "PROOF_ref.bend", "PROOF.bend", "bugs/**"]
   - path: LAWS.bend
-    sha256: a58feef1b9d4c0f16134591afa8a3c0652c77a773fac2b2fb5e7314375eced7c
+    sha256: d7e09ae4524858028e3e9cfbe337a124d050e54fb7d64500e636878dc231a0bc
     authored_by: LAA
     run_id: freebuff-2026-11-24T14-00Z-b1fifo
     model: {id: deepseek-v4.1-flash, digest: unpublished, family: deepseek}
@@ -32,11 +32,11 @@ artifacts:
     authored_by: LAA
     run_id: freebuff-2026-11-24T14-00Z-b1fifo
   - path: props_locked.sv
-    sha256: 2f7d3dd80ff144eba31457f96418d34a04bcd1e52193baaf6a624cad6fe4ccb2
+    sha256: 9a3eff1c912af033f7868708adc2ed69dc988803fbc0113b14c531bf138e81fe
     authored_by: LAA
     run_id: freebuff-2026-11-24T14-00Z-b1fifo
   - path: PROOF_ref.bend
-    sha256: 160ebb972c31ebbd2afc4eb4596e1a2898c6becaabac865f114936e82a10736c
+    sha256: 917a38c6e2ae29b9a5e307bc06bc9ff04ca5ef4f1dfb7259473a1c74c5e1ec06
     authored_by: RPA
     run_id: freebuff-2026-11-24T14-00Z-b1fifo
     model: {id: deepseek-v4.1-flash, digest: unpublished, family: deepseek}
@@ -55,7 +55,7 @@ review:
   gates:
     LA1: pass
     LA2: pass
-    LA3: fail
+    LA3: pass
     LA4: skip
     LA5: skip
     LA6: skip

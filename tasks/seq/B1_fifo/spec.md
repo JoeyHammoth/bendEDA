@@ -66,3 +66,4 @@ pins the reduced instance **`W = 32`, `D = 2`** (see `ambiguities.yaml` A2).
 | R10 | Push and pop together when full: the pop succeeds and the push is ignored. |
 | R11 | Push and pop together when empty: the push succeeds and the pop is ignored. |
 | R12 | Pointer wrap-around does not corrupt data (conformance-only). |
+| R13 | With neither push nor pop, occupancy is unchanged. |

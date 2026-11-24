@@ -4,12 +4,12 @@
 laws, manifest, abstraction map, reference proofs, SVA, provenance — whose laws
 are all closed by the pinned checker, and what does that exercise expose?
 
-**Answer.** Yes for LA1, LA2 and LA8: 19 laws are closed by the composed book and
-`law lint` reports zero findings. LA3 is now *measured* over the whole catalogue and
-**fails**: 51 mutants, 41 killed, kill rate 0.804 against a 0.9 bar. The failure is
-informative — the laws pin the data (`head`, and `count` as a state predicate) but
-never the occupancy a cycle produces, and ten constructor-choice mutants on
-`step`'s transition table survive every law for that one reason. Everything that
+**Answer.** Yes for LA1, LA2 and LA8: 22 laws are closed by the composed book and
+`law lint` reports zero findings. LA3 is *measured* over the whole catalogue and now
+**passes**: 51 mutants, 51 killed, kill rate 1.00 against a 0.9 bar. Getting there
+was the finding — the same catalogue failed at 0.804 against the first law set,
+because the laws pinned the data (`head`, and `count` as a state predicate) and never
+the occupancy a cycle produces; three post-state laws close that gap. Everything that
 needs a second role (RPA proofs, PA's C2, OAA's oracle) or an EDA toolchain is still
 open and is named in the package README.
 
@@ -25,8 +25,8 @@ ALL PROOFS CHECK
 Use --verdict for mathematical validity.
 
 $ python -m bendeda law lint tasks/seq/B1_fifo
-tasks\seq\B1_fifo: 19 law(s), 0 finding(s)
-law lint: 1 package(s), 19 law(s), 0 finding(s)
+tasks\seq\B1_fifo: 22 law(s), 0 finding(s)
+law lint: 1 package(s), 22 law(s), 0 finding(s)
 
 $ python -m unittest tests.test_b1_fifo -v
 Ran 10 tests
@@ -35,17 +35,18 @@ OK
 $ cat tasks/seq/B1_fifo/LAWS.bend tasks/seq/B1_fifo/PROOF_ref.bend > /tmp/laws.bend
 $ python -m bendeda law mutate tasks/seq/B1_fifo/model.bend --laws /tmp/laws.bend \
       --local --max-mutants 60 --out .bend-cache/b1/mutation_full.json
-law mutate: 51 mutant(s), 41 killed by at least one law, kill rate 0.80
+law mutate: 51 mutant(s), 51 killed by at least one law, kill rate 1.00
 $ echo $?
-1
+0
 
-$ python -m bendeda law lint tasks/seq/B1_fifo --mutation .bend-cache/b1/mutation_full.json
-tasks\seq\B1_fifo: 19 law(s), 0 finding(s)
-law lint: 1 package(s), 19 law(s), 0 finding(s)
+$ python -m bendeda law lint tasks/seq/B1_fifo --mutation .bend-cache/b1/mutation_la3.json
+tasks\seq\B1_fifo: 22 law(s), 0 finding(s)
+law lint: 1 package(s), 22 law(s), 0 finding(s)
 ```
 
-Every law is killed by at least one mutant, so L006 is silent. The failure is the
-opposite direction: ten mutants no law kills.
+Every mutant is killed and every law is killed by at least one mutant, so neither
+direction of L006 is silent. Finding 2 records the run that failed, and the three
+laws that closed it.
 
 The negative control is refused as required:
 
@@ -76,23 +77,33 @@ no proof also prints `SOME PROOFS FAIL` (`1 TODO found`). Counting that as a kil
 would credit the catalogue with catching a bug it never saw, so the tool now
 records it as an error. The gate has to be given the composed law+proof file.
 
-**2. LA3 fails at 0.804, and the ten survivors are one law gap seen ten ways.**
-The survivors are all constructor choices in `step`, and none of them is an
-equivalent mutant: at line 107, `Idle` on a full FIFO returns `Empty{}` instead of
-`Full{}`; at line 85, `PushPop` on an empty FIFO stops returning `Half{}`. The
-composed book accepts both, which I checked by running the mutated model against all
+**2. LA3 failed at 0.804, the ten survivors were one law gap, and three laws closed it.**
+The survivors were all constructor choices in `step`, and none of them was an
+equivalent mutant: at line 107, `Idle` on a full FIFO returned `Empty{}` instead of
+`Full{}`; at line 85, `PushPop` on an empty FIFO stopped returning `Half{}`. The
+composed book accepted both, which I checked by running the mutated model against all
 19 laws directly rather than trusting the scorer:
 
 ```console
-$ bun main.ts .bend-cache/b1/m046_book.bend    # Idle on Full -> Empty
+$ bun main.ts .bend-cache/b1/m046_book.bend    # Idle on Full -> Empty, 19 laws
 ALL PROOFS CHECK
 ```
 
-Why: `f12_idle_preserves_head` asserts the head survives, and it does — the mutant
-only changes the level. `f13_pushpop_empty_head` asserts the head is `din`, and it
-is. `count` laws are stated over *states* (`s02`, `s03`), not over a transition's
-result. So the laws constrain the data and never the occupancy a cycle produces,
-and ten mutants that only change the occupancy all pass.
+Why: `f12_idle_preserves_head` asserted the head survived, and it did — the mutant
+only changed the level. `f13_pushpop_empty_head` asserted the head was `din`, and it
+was. `count` laws were stated over *states* (`s02`, `s03`), not over a transition's
+result. So the laws constrained the data and never the occupancy a cycle produced.
+
+Three laws close that, and the re-run is the measurement above:
+
+| Law | Requirement | Kills |
+|---|---|---|
+| `fifo_f14_idle_preserves_count` | R13 (added: idle leaves occupancy alone) | `Idle` on empty, half and full (lines 87, 97, 107) |
+| `fifo_f15_pushpop_empty_count` | R11 | `PushPop` on empty (line 85) |
+| `fifo_f16_pushpop_full_count` | R10 | `PushPop` on full (line 105) |
+
+R13 had to go into the specification too: behaviour item 5 stated idle without an id,
+and citing R9 for a law about occupancy would have been false.
 
 This supersedes the first report's reading of the same gate. It said
 `fifo_s01_count_within_depth` was *type-enforced*; that was a statement about the
@@ -160,8 +171,8 @@ the reduced ADT stays the only shape whose laws close by evaluation.
   locally and the OSS CAD image was not asked to run one.
 - No oracle pack exists, so no sealed commitment is recorded and no seeded bug
   corpus exists for LA4/LA5.
-- LA3 has no passing result: 0.804 against a 0.9 bar. All ten survivors are
-  occupancy-transition mutants, so the package needs post-state laws (with proofs)
-  before the gate can pass, and that is new law authoring rather than a re-run.
+- LA3's 1.00 is not an independent result: the laws and proofs came from one
+  session, so it shows the law set constrains the model, not that a second author
+  would write the same laws.
 - The package is `draft`. `locked/LOCKED.json` remains empty and
   `provenance.yaml` says `locked.by: unlocked` rather than naming a Conductor.

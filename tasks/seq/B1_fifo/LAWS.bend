@@ -116,6 +116,30 @@ law fifo_f12_idle_preserves_head:
   for b: U32
   {dout(step(MkFifo{a, b, Full{}}, Idle{})) == a : U32}
 
+# --- post-state occupancy --------------------------------------------------
+# The laws above constrain the data: the head, and `count` as a predicate over a
+# state. They never say what occupancy a cycle produces, so a `step` that returns
+# the wrong level for `Idle` and `PushPop` passed all of them (ten survivors in
+# the first full LA3 run). These three state the level a cycle leaves behind.
+
+law fifo_f14_idle_preserves_count:
+  for a: U32
+  for b: U32
+  for level: Level
+  {count(step(MkFifo{a, b, level}, Idle{})) == count(MkFifo{a, b, level}) : Nat}
+
+law fifo_f15_pushpop_empty_count:
+  for a: U32
+  for b: U32
+  for d: U32
+  {count(step(MkFifo{a, b, Empty{}}, PushPop{d})) == 1n : Nat}
+
+law fifo_f16_pushpop_full_count:
+  for a: U32
+  for b: U32
+  for d: U32
+  {count(step(MkFifo{a, b, Full{}}, PushPop{d})) == 1n : Nat}
+
 # --- witnesses -------------------------------------------------------------
 # A witness is a concrete input sequence whose result a closed law states, so
 # the checker proves the distinguished state is reachable. Witnesses are not
