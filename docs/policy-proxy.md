@@ -59,9 +59,32 @@ two fixes found by running it — Docker Desktop reports a bind source as `/c/Us
 on some calls and `C:/Users/...` on others, and Git Bash's `/c/...` had to be
 converted before `Path.resolve()` turned it into `C:\c\...`.
 
-What `plan` does **not** do is start the pair. The commands it prints are the ones
-run by hand above; wiring them into a subcommand with lifecycle handling is the next
-step, and until it exists `plan` writing to stdout is the only claim it makes.
+`plan` starts nothing; `up` runs exactly those commands, in the order that makes the
+proxy the only egress, and `down` removes them:
+
+```console
+$ bendeda runner up --workspace tasks --policy .bend-cache/demo/policy.json \
+    --events .bend-cache/demo/events.jsonl
+runner up: started network, proxy, agent on bendeda-offline
+runner up: the agent mounts only tasks and reaches only the proxy
+$ echo $?
+0
+
+$ docker exec bendeda-agent python -c "urllib.request.urlopen('http://github.com')"
+urllib.error.URLError: <urlopen error [Errno -3] Temporary failure in name resolution>
+$ <proxy call: fs-read seq/B1_fifo/spec.md>      → 200
+$ <proxy call: fs-read ../oracle_sealed/x>       → HTTPError 403: Forbidden
+
+$ bendeda runner down
+runner down: removed the agent, the proxy and the network bendeda-offline
+```
+
+Every failure path in `up` tears down before it raises. That is not tidiness: an
+agent container that exists without its proxy is the one state worse than no sandbox,
+and it is reachable by any step failing after the agent started. The proxy must also
+answer `/health` before the agent is created at all, which caught a real problem on
+the first run — the harness image predated `proxy serve`, so it exited 2, and the
+readiness gate refused to hand an agent a sandbox whose only egress was dead.
 
 ## Budgets: exhaustion is a result, failure is not
 
@@ -81,16 +104,62 @@ $ bendeda runner classify --events .bend-cache/events/run.jsonl --max-calls 1
 Exclusion beats exhaustion: an event with `tool: "infra"` invalidates the budget
 reading too, so a crashed daemon cannot be recorded as a zero-scoring arm.
 
+## Scoring: `S`, `V` and `O`
+
+`bendeda score --bundle <dir>` computes the three verdicts the design document
+defines (§5.4), from a run directory holding `events.jsonl` and, when they exist,
+`run.json`, `gates.json`, `oracle.json` and an `outcome.json` to compare against.
+
+| Symbol | 1 iff | Source |
+|---|---|---|
+| `S` | the agent submitted before exhaustion or a crash | the event log, via `budget.classify` |
+| `V` | `S=1` and every gate in the arm's visible set passed | `gates.json`, checked against `run.json.visible_gates` |
+| `O` | `S=1` and every oracle component passed | `oracle.json` |
+
+```console
+$ bendeda score --bundle .bend-cache/demo/bundle --policy .bend-cache/demo/policy.json
+{
+  "scored": true, "S": 1, "V": 1, "O": 1, "complete": true,
+  "reason": "submitted; all 2 visible gates passed; all 2 oracle components passed",
+  "replay": {"events": 2, "matched": 2, "malformed": [], "diverged": [], "ok": true},
+  "outcome_reproduced": null
+}
+$ echo $?
+0
+
+$ bendeda score --bundle .bend-cache/demo/excluded      # an infra event, not a zero
+{"scored": false, "S": null, "V": null, "O": null, "complete": false,
+ "reason": "infrastructure failure: daemon: docker"}
+$ echo $?
+2
+```
+
+| Exit | Meaning |
+|---|---|
+| 0 | scored and complete |
+| 1 | the tool log does not follow from its policy, so the outcome is not evidence |
+| 2 | excluded: infrastructure failed, re-run; this is not a zero |
+| 3 | incomplete: a gate or oracle result is missing, which is not a pass |
+
+`all([])` is true, and that is what makes this module worth writing: a gate with no
+recorded result is compared against the arm's declared set first, so a partial record
+is incomplete (exit 3) rather than silently green. `V` and `O` stay `null` instead of
+borrowing a zero.
+
+Passing `--policy` also re-decides the log, so a bundle whose decisions diverge exits
+1 before anyone reads its score. Passing `outcome.json` adds `outcome_reproduced`
+(the ingredient for the design's Replay Fidelity metric): a recorded outcome that does
+not follow from the log is reported, while the score still comes from the log.
+
 ## What does not exist yet
 
-- **Starting the sandbox from the CLI.** `plan` prints; the containers above were run
-  by hand. Lifecycle, teardown and the proxy's readiness are not implemented.
-- **Whole-run replay and scoring.** `replay` checks the proxy's decisions, not gate
-  results, model calls or the scored outcome, and `classify` returns an unscored
-  outcome when the budget held.
-- **The mount list as a guarantee rather than a check.** `check` reads a running
-  container; it cannot stop a different one from being started without the mount
-  allowlist. That belongs with the CLI lifecycle above.
+- **Gate re-execution.** `V` is read from the results the harness recorded; `gate run`
+  is still a planned command, so nothing here re-runs a gate on submitted artifacts.
+- **Model calls and tool results in the replay.** `replay` covers proxy decisions; the
+  design's full RF needs the tool results replayed too.
+- **The mount allowlist as an independent guarantee.** `up` builds the single mount
+  into the argv and `check` refutes a live container, but neither can stop a different
+  container being started outside this CLI.
 
 ## Why replay at all
 

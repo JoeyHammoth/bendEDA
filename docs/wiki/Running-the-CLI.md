@@ -201,24 +201,52 @@ there was nothing to replay. It replays the proxy's decisions, not a scored run 
 budgets and outcome replay are the rest of [#15](https://github.com/JoeyHammoth/bendEDA/issues/15);
 `docs/policy-proxy.md` states what is missing.
 
-## The runner and budget classification
+## The sandbox: plan, up, check, down
 
 ```bash
 bendeda runner plan --workspace tasks --policy tests/fixtures/proxy/policy.json \
   --events .bend-cache/events/run.jsonl     # prints docker commands, starts nothing
-bendeda runner check <container> --workspace tasks --oracle oracle_sealed
-bendeda runner classify --events .bend-cache/events/run.jsonl --max-calls 400
+bendeda runner up   --workspace tasks --policy tests/fixtures/proxy/policy.json \
+  --events .bend-cache/events/run.jsonl     # network, then proxy, then agent
+bendeda runner check bendeda-agent --workspace tasks --oracle oracle_sealed
+bendeda runner down
 ```
 
-`runner plan` prints the commands for an internal network, a proxy container and an
-agent container whose only bind mount is the workspace; it refuses a spec without a
-policy and an event log, because then the proxy is not the only egress. `runner check`
-inspects a live container and exits 1 naming each problem: another network, host
-networking, a mount that is not the workspace, or a mount that contains the oracle.
+`runner up` creates an internal network, starts the proxy on it, waits for the proxy's
+`/health`, and only then creates the agent container, whose single bind mount is the
+workspace. Any failure tears down what started, so a failed `up` leaves no agent
+without its proxy. `runner check` inspects a live container and exits 1 naming each
+problem: another network, host networking, a mount that is not the workspace, or a
+mount that contains the oracle. `runner down` removes both containers and the network;
+something already gone is not a failure.
+
+## Budgets and the score
+
+```bash
+bendeda runner classify --events .bend-cache/events/run.jsonl --max-calls 400
+bendeda score --bundle .bend-cache/run/b1-c0-s1 --policy policy.json
+```
 
 `runner classify` exits 0 always — it reports, it does not judge. The verdicts are
 `within budget` (`scored`, no score yet), `exhausted` (`scored`, score 0.0) and
 `excluded` (not scored, re-run), and an infrastructure failure outranks exhaustion.
+
+`score` turns a run directory into the design's three verdicts: `S` (submitted before
+exhaustion or crash), `V` (every visible gate passed, checked against
+`run.json.visible_gates`) and `O` (every oracle component passed). Exit codes are part
+of the contract:
+
+| Code | Meaning |
+|---|---|
+| 0 | scored and complete |
+| 1 | the tool log does not follow from its policy |
+| 2 | excluded — infrastructure failed, re-run; **not** a zero |
+| 3 | incomplete — a gate or oracle result is missing, which is not a pass |
+
+A gate with no recorded result leaves `V` null and the run incomplete rather than
+letting `all([])` report a pass. The directory holds `events.jsonl` (required),
+`run.json` (budgets and `visible_gates`), `gates.json`, `oracle.json` and optionally
+an `outcome.json` to reproduce.
 
 ## What is planned, and where
 
@@ -227,7 +255,7 @@ networking, a mount that is not the workspace, or a mount that contains the orac
 | `oracle score` | [#13](https://github.com/JoeyHammoth/bendEDA/issues/13) — seal and verify exist; scoring needs the decryption host |
 | `tf run` | blocked by BendBV ([#8](https://github.com/JoeyHammoth/bendEDA/issues/8)) |
 | `conformance` (L2/L3 rungs) | arrives with the EDA image ([#6](https://github.com/JoeyHammoth/bendEDA/issues/6)) |
-| `gate run`, `gate calibrate`, `run` | [#15](https://github.com/JoeyHammoth/bendEDA/issues/15) — the proxy and `replay` exist; budgets and outcome replay do not |
+| `gate run`, `gate calibrate`, `run` | [#15](https://github.com/JoeyHammoth/bendEDA/issues/15) — proxy, replay, sandbox lifecycle, budgets and scoring exist; gate re-execution and the run matrix do not |
 | `report`, `bundle verify`, `serve` | Phase 6 / Phase 2 |
 
 ## Common friction
