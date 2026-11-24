@@ -201,6 +201,25 @@ there was nothing to replay. It replays the proxy's decisions, not a scored run 
 budgets and outcome replay are the rest of [#15](https://github.com/JoeyHammoth/bendEDA/issues/15);
 `docs/policy-proxy.md` states what is missing.
 
+## The runner and budget classification
+
+```bash
+bendeda runner plan --workspace tasks --policy tests/fixtures/proxy/policy.json \
+  --events .bend-cache/events/run.jsonl     # prints docker commands, starts nothing
+bendeda runner check <container> --workspace tasks --oracle oracle_sealed
+bendeda runner classify --events .bend-cache/events/run.jsonl --max-calls 400
+```
+
+`runner plan` prints the commands for an internal network, a proxy container and an
+agent container whose only bind mount is the workspace; it refuses a spec without a
+policy and an event log, because then the proxy is not the only egress. `runner check`
+inspects a live container and exits 1 naming each problem: another network, host
+networking, a mount that is not the workspace, or a mount that contains the oracle.
+
+`runner classify` exits 0 always — it reports, it does not judge. The verdicts are
+`within budget` (`scored`, no score yet), `exhausted` (`scored`, score 0.0) and
+`excluded` (not scored, re-run), and an infrastructure failure outranks exhaustion.
+
 ## What is planned, and where
 
 | Command | Issue |

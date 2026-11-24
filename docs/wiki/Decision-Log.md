@@ -4,6 +4,34 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-24 - The runner is a spec plus a check, and exhaustion is a scored zero
+
+**Decided:** `bendeda runner plan` prints the sandbox (internal network, proxy
+container, agent container whose only mount is the workspace) and starts nothing;
+`bendeda runner check` inspects a live container and fails it for another network,
+host networking, an unexpected mount, or a mount that contains the oracle.
+`bendeda runner classify` turns an event log into `within budget`, `exhausted`
+(scored, 0.0) or `excluded` (not scored), with exclusion outranking exhaustion.
+
+**Why:** the issue's acceptance criteria are about what can be *checked*, not what can
+be claimed. A plan that cannot be compared with a running container is documentation;
+a check that reads the daemon can refute it. The budget split is the same principle
+in one line: an arm that spent its allowance is a result, a harness that fell over is
+not, and collapsing them is how infrastructure failure becomes a finding.
+
+**Cost:** `plan` prints rather than runs, so starting the pair and tearing it down is
+still by hand; `check` sees one container and cannot stop a different one being
+started outside the allowlist. Both are stated in `docs/policy-proxy.md`.
+
+**Evidence:** a live agent container on `bendeda-offline` could not resolve
+`github.com`, reached the proxy (`200 read-workspace`, `403 escape`), and passed
+`runner check --workspace tasks`; the same check against the repository root failed,
+because the oracle is inside that mount. Two path bugs were found by running it:
+Docker Desktop reports a bind source as `/c/...` or `C:/...`, and Git Bash's `/c/...`
+became `C:\\c\\...` before `Path.resolve()` was applied.
+
+---
+
 ## 2026-11-24 - Offline archives are staged in the context, because BuildKit cannot join a mirror network
 
 **Decided:** an image that needs a release archive gets it from `docker/archives/`,
