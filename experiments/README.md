@@ -20,7 +20,19 @@ bendeda run --matrix experiments/matrices/smoke.json --limit 1
 
 A cell is reported `complete` only when `score` says every verdict exists. `O` has no
 source here — the oracle pack is scored on the scoring host — so a smoke cell exits 3
-with `S` and `V` present and `O` absent.
+with `S` and `V` present and `O` absent. The result comes back through:
+
+```bash
+bendeda oracle record --bundle .bend-cache/runs/smoke/C0-toy_counter-s1 \
+  --components components.json --host scoring-1 \
+  --commitment oracle_sealed/commitment.json
+```
+
+`components.json` maps each pack component to a boolean. `oracle record` writes
+`oracle.json` with the host and the pack's Merkle root, which is what lets `score`
+compute `O` without trusting a number someone typed in prose. It refuses a void bundle, a
+bundle that already scored `S=0` (zero is already the answer), and a bundle that already
+carries a result: a second score is a disagreement, not an update.
 
 `matrices/budget.json` is the same cell with a one-call allowance and a command that
 tries three calls. It exists to show the enforcement, not the classification: the cell
@@ -57,10 +69,30 @@ for both made the trace gate report a fail, because the harness image has no Ver
 | `trackC.yaml` | 5 | 4 PCB tasks x 4 arms (exploratory) |
 | `trackD.yaml` | 5 | 40 lemmas x 3 languages |
 
+## Order, and the prereg hash
+
+A matrix may declare how its cells are ordered:
+
+```json
+"order": { "method": "hash-v1", "seed": 7 }
+```
+
+`declared` (the default) is task-major, then arm, then seed. `hash-v1` sorts each cell
+label by `sha256("<seed>:<label>")`: reproducible on any machine and Python version
+because there is no RNG state to reproduce, and it interleaves arms so a slow service
+does not become an arm effect. `bendeda run` prints the prereg hash and writes
+`prereg.json` beside the bundles with the order that was actually executed and the
+labels in it.
+
+The hash covers every declared field with the defaults folded in, so editing a default
+in `matrix.py` changes every prereg. That is the point: a run whose meaning moved under
+it is not the run that was frozen.
+
 ## Rules
 
-- Run order is randomised with a logged seed and arms are interleaved, so a slow
-  service does not become an arm effect.
+- Cells are ordered by an explicit seed (`order`) rather than by declaration order once
+  a matrix is frozen, and arms are interleaved, so a slow service does not become an
+  arm effect.
 - Budgets are recorded per run, and the L0/RTL split from Appendix K (G-04) is
   explicit rather than implied.
 - An experiment file is frozen at `prereg-v1`; changes after that are amendments.

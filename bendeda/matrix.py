@@ -13,6 +13,7 @@ incomplete on `O` — the matrix says that rather than inventing a verdict.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass
@@ -36,6 +37,7 @@ from bendeda.score import load as load_bundle, report
 
 NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{1,60}$")
 AGENT = AGENT_NAME
+ORDER_METHODS = ("declared", "hash-v1")
 
 
 @dataclass(frozen=True)
@@ -69,6 +71,8 @@ class Matrix:
     tasks: tuple[Task, ...]
     arms: tuple[str, ...]
     seeds: tuple[int, ...]
+    order: Mapping[str, Any] | None = None
+    prereg: str = ""
 
 
 def load(path: str | Path) -> Matrix:
@@ -109,32 +113,94 @@ def load(path: str | Path) -> Matrix:
         raise ValueError(f"{path.name}: visible_gates must be a non-empty list")
 
     policy = data.get("policy")
+    image = str(data.get("image", "bendeda/harness:0.0.1"))
+    # The agent's image and the simulator's are different things; using one for
+    # both made the trace gate report a fail because the harness has no Verilator.
+    sim_image = str(data.get("sim_image", "bendeda/oss-cad:2026-11-20"))
+    network = str(data.get("network", "bendeda-offline"))
+    declared_budgets = dict(data.get("budgets", {"tool_calls": 400}))
+    budgets = {str(key): int(value) for key, value in declared_budgets.items()}
+    visible_gates = tuple(str(g) for g in gates)
+    arm_names = tuple(str(a) for a in arms)
+    seed_values = tuple(int(s) for s in seeds)
+    order = _order(path, data.get("order"))
+    prereg = _prereg(
+        name=name,
+        image=image,
+        sim_image=sim_image,
+        network=network,
+        policy=str(policy) if policy else None,
+        command=[str(c) for c in command],
+        budgets=budgets,
+        visible_gates=list(visible_gates),
+        tasks=[{"name": task.name, "artifacts": task.artifacts.as_posix()} for task in tasks],
+        arms=list(arm_names),
+        seeds=list(seed_values),
+        order=order,
+    )
     return Matrix(
         name=name,
         path=path,
-        image=str(data.get("image", "bendeda/harness:0.0.1")),
-        # The agent's image and the simulator's are different things; using one for
-        # both made the trace gate report a fail because the harness has no Verilator.
-        sim_image=str(data.get("sim_image", "bendeda/oss-cad:2026-11-20")),
-        network=str(data.get("network", "bendeda-offline")),
+        image=image,
+        sim_image=sim_image,
+        network=network,
         policy=Path(str(policy)) if policy else None,
         command=tuple(str(c) for c in command),
-        budgets=dict(data.get("budgets", {"tool_calls": 400})),
-        visible_gates=tuple(str(g) for g in gates),
+        budgets=budgets,
+        visible_gates=visible_gates,
         tasks=tuple(tasks),
-        arms=tuple(str(a) for a in arms),
-        seeds=tuple(int(s) for s in seeds),
+        arms=arm_names,
+        seeds=seed_values,
+        order=order,
+        prereg=prereg,
     )
 
 
+def _order(path: Path, raw: Any) -> dict[str, Any] | None:
+    """The ordering declaration, or None for the declared task/arm/seed order."""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ValueError(f"{path.name}: order must be an object with method and seed")
+    method = str(raw.get("method", "hash-v1"))
+    if method not in ORDER_METHODS:
+        raise ValueError(f"{path.name}: order.method must be one of {', '.join(ORDER_METHODS)}")
+    seed = raw.get("seed", 1)
+    if not isinstance(seed, int) or seed < 1:
+        raise ValueError(f"{path.name}: order.seed must be a positive integer")
+    return {"method": method, "seed": seed}
+
+
+def _prereg(**declaration: Any) -> str:
+    """One hash over everything a run declares, so an edit after freezing shows.
+
+    The hash covers the folded defaults as well as the file's values: changing a
+    default in this module changes every prereg, which is the point — a run whose
+    meaning moved under it is not the run that was frozen.
+    """
+    canonical = json.dumps(declaration, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def expand(matrix: Matrix) -> list[Cell]:
-    """Task-major, then arm, then seed: the same order every time for the same file."""
-    return [
+    """The declared order, or a seeded hash order that ignores declaration order.
+
+    `hash-v1` sorts each label by `sha256("<seed>:<label>")`. That is stable across
+    machines and Python versions — there is no RNG state to reproduce — and it spreads
+    arms across the run, so a slow service cannot quietly become an arm effect.
+    """
+    cells = [
         Cell(task=task, arm=arm, seed=seed)
         for task in matrix.tasks
         for arm in matrix.arms
         for seed in matrix.seeds
     ]
+    if matrix.order and matrix.order["method"] == "hash-v1":
+        seed = int(matrix.order["seed"])
+        cells.sort(
+            key=lambda cell: hashlib.sha256(f"{seed}:{cell.label}".encode()).hexdigest()
+        )
+    return cells
 
 
 def _tail(text: str, limit: int = 400) -> str:
@@ -244,6 +310,7 @@ def execute_cell(
         "bundle": str(bundle),
         "error": None,
         "budget_exhausted": False,
+        "prereg": matrix.prereg,
     }
     record["excluded"] = False
     infra: str | None = None

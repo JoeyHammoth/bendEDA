@@ -484,6 +484,10 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"bendeda run: {exc}", file=sys.stderr)
         return EXIT_USAGE
     cells = expand(matrix)
+    declared_order = (
+        f"{matrix.order['method']} seed {matrix.order['seed']}" if matrix.order else "declared"
+    )
+    print(f"run: prereg {matrix.prereg[:16]} (order: {declared_order})", file=sys.stderr)
     if args.dry_run:
         for number, cell in enumerate(cells, start=1):
             print(json.dumps({
@@ -494,6 +498,23 @@ def cmd_run(args: argparse.Namespace) -> int:
         return EXIT_OK
 
     limit = args.limit or len(cells)
+    order_root = Path(args.out) / matrix.name
+    order_root.mkdir(parents=True, exist_ok=True)
+    # Written before the first cell, so a run that dies halfway still says what order
+    # it was executing and which declaration it belonged to.
+    (order_root / "prereg.json").write_text(
+        json.dumps(
+            {
+                "prereg_sha256": matrix.prereg,
+                "order": matrix.order or {"method": "declared"},
+                "cells": [cell.label for cell in cells],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     records = [execute_cell(matrix, cell, args.out) for cell in cells[:limit]]
     for record in records:
         print(json.dumps(
@@ -522,6 +543,12 @@ def cmd_score(args: argparse.Namespace) -> int:
     for note in result.notes:
         print(f"score: {note}", file=sys.stderr)
     return result.exit_code()
+
+
+def cmd_oracle_record(args: argparse.Namespace) -> int:
+    from bendeda.oracle import cmd_record
+
+    return cmd_record(args)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -736,10 +763,23 @@ def build_parser() -> argparse.ArgumentParser:
     p_verify.add_argument("--commitment", required=True, help="commitment.json from `oracle seal`")
     p_verify.set_defaults(func=cmd_oracle_verify_commitment)
 
+    sp = oracle_sub.add_parser(
+        "record", help="record the scoring host's per-component result into a run bundle"
+    )
+    sp.add_argument("--bundle", required=True, help="the run bundle (needs events.jsonl)")
+    sp.add_argument("--components", required=True,
+                   help="JSON object of component name to boolean, or {\"components\": {...}}")
+    sp.add_argument("--host", required=True, help="the scoring host that produced the result")
+    sp.add_argument("--commitment", default=None,
+                   help="commitment.json of the pack, recorded as provenance")
+    sp.set_defaults(func=cmd_oracle_record)
+
     sp = oracle_sub.add_parser("score", help="score a run against the sealed pack (scoring host only)")
     sp.add_argument("paths", nargs="*")
     sp.set_defaults(func=lambda _a: _todo(
-        "oracle score", "score a run against the sealed pack (scoring host only)", "Phase 2"
+        "oracle score",
+        "run the sealed pack on the scoring host and feed its result to `oracle record`",
+        "Phase 2",
     ))
 
     p_report = sub.add_parser("report", help="generate tables, plots and the results bundle")

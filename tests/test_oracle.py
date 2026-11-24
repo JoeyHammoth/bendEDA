@@ -238,5 +238,72 @@ class TestCanaryGuard(unittest.TestCase):
             self.assertIn("no canary GUID", result.stderr)
 
 
+class TestRecordResult(unittest.TestCase):
+    """The receiving end of the O contract: the scoring host's answer, checked."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.bundle = Path(self.tmp.name) / "bundle"
+        self.bundle.mkdir()
+        (self.bundle / "events.jsonl").write_text(
+            json.dumps(
+                {"seq": 1, "tool": "submit", "resource": "t/submission", "action": "allow"}
+            )
+            + NL,
+            encoding="utf-8",
+        )
+
+    def test_a_result_is_recorded_and_becomes_o(self) -> None:
+        from bendeda.score import load as load_bundle, report
+
+        target = oracle.record_result(self.bundle, {"c1": True}, host="scoring-1")
+        stored = json.loads(target.read_text(encoding="utf-8"))
+        self.assertEqual(stored["host"], "scoring-1")
+        self.assertEqual(stored["scheme"], oracle.RESULT_SCHEME)
+
+        scored = report(load_bundle(self.bundle))
+        self.assertEqual(scored.score.O, 1, scored.score.reason)
+        self.assertIn("all 1 oracle components passed", scored.score.reason)
+        self.assertIsNone(scored.score.V, "V is still absent: no gate result was recorded")
+
+    def test_a_second_result_is_refused(self) -> None:
+        oracle.record_result(self.bundle, {"c1": True}, host="scoring-1")
+        with self.assertRaises(oracle.OracleError):
+            oracle.record_result(self.bundle, {"c1": False}, host="scoring-2")
+
+    def test_a_run_that_did_not_submit_has_no_oracle_result(self) -> None:
+        (self.bundle / "events.jsonl").write_text("", encoding="utf-8")
+        with self.assertRaises(oracle.OracleError):
+            oracle.record_result(self.bundle, {"c1": True}, host="scoring-1")
+        self.assertFalse((self.bundle / oracle.RESULT_NAME).exists())
+
+    def test_a_void_run_is_refused(self) -> None:
+        with (self.bundle / "events.jsonl").open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"seq": 0, "tool": "infra", "resource": "daemon died"}) + NL)
+        with self.assertRaises(oracle.OracleError):
+            oracle.record_result(self.bundle, {"c1": True}, host="scoring-1")
+
+    def test_components_must_be_booleans(self) -> None:
+        with self.assertRaises(oracle.OracleError):
+            oracle.record_result(self.bundle, {"c1": "true"}, host="scoring-1")
+
+    def test_an_empty_or_unnamed_result_is_refused(self) -> None:
+        with self.assertRaises(oracle.OracleError):
+            oracle.record_result(self.bundle, {}, host="scoring-1")
+        with self.assertRaises(oracle.OracleError):
+            oracle.record_result(self.bundle, {"c1": True}, host="  ")
+
+    def test_the_cli_path_records_and_refuses_a_second_time(self) -> None:
+        components = Path(self.tmp.name) / "components.json"
+        components.write_text(json.dumps({"c1": True}), encoding="utf-8")
+        argv = [
+            "oracle", "record", "--bundle", str(self.bundle),
+            "--components", str(components), "--host", "scoring-1",
+        ]
+        self.assertEqual(main(argv), 0)
+        self.assertEqual(main(argv), oracle.EXIT_NOTHING)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -37,6 +37,8 @@ SCHEME = "bendeda-merkle-v1"
 COMMITMENT_NAME = "commitment.json"
 SUMS_NAME = "SHA256SUMS"
 CANARY_NAME = "canary.txt"
+RESULT_NAME = "oracle.json"
+RESULT_SCHEME = "bendeda-oracle-result-v1"
 EXIT_OK = 0
 EXIT_FAILED = 1
 EXIT_NOTHING = 3
@@ -283,6 +285,87 @@ def cmd_seal(args) -> int:
     else:
         print(f"  ciphertext     {target}")
         print(f"  commitment     {out / COMMITMENT_NAME}")
+    return EXIT_OK
+
+
+def record_result(
+    bundle: Path,
+    components: Mapping[str, bool],
+    *,
+    host: str,
+    commitment: Path | None = None,
+) -> Path:
+    """Write `oracle.json` into a run bundle: the receiving end of the contract.
+
+    `O` is the one verdict this repository cannot compute — the pack is scored on the
+    scoring host (§5.4) — so the host has to hand back a result this code can check.
+    It refuses a bundle that is void (an infrastructure failure has no oracle
+    question), a bundle that scored `S=0` (zero is already the answer), and a bundle
+    that already carries a result: a second score is a disagreement, not an update,
+    and overwriting it would hide exactly the thing worth reading.
+    """
+    bundle = Path(bundle)
+    target = bundle / RESULT_NAME
+    if not (bundle / "events.jsonl").is_file():
+        raise OracleError(f"{bundle}: not a run bundle (no events.jsonl)")
+    if target.exists():
+        raise OracleError(
+            f"{target}: already carries an oracle result; a second one would hide the "
+            "disagreement (move it aside to replace it)"
+        )
+    if not str(host).strip():
+        raise OracleError("the scoring host must be named: an unattributed O is not evidence")
+    if not components:
+        raise OracleError("no components: an empty pack would make O vacuous")
+    not_bool = sorted(str(name) for name, ok in components.items() if not isinstance(ok, bool))
+    if not_bool:
+        raise OracleError(f"components must be booleans; not: {', '.join(not_bool)}")
+
+    from bendeda.score import load as load_bundle, score as score_events
+
+    record = load_bundle(bundle)
+    verdict = score_events(record.events, record.limits)
+    if not verdict.scored:
+        raise OracleError(f"{bundle}: {verdict.reason}; a void run has no O")
+    if verdict.S == 0:
+        raise OracleError(f"{bundle}: {verdict.reason}; S=0 already fixes O=0")
+
+    payload: dict[str, object] = {
+        "scheme": RESULT_SCHEME,
+        "host": str(host).strip(),
+        "components": {str(name): bool(ok) for name, ok in sorted(components.items())},
+    }
+    if commitment is not None:
+        payload["commitment_root"] = load_commitment(Path(commitment)).root
+    target.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="",
+    )
+    return target
+
+
+def cmd_record(args) -> int:
+    bundle = Path(args.bundle)
+    try:
+        raw = json.loads(Path(args.components).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"oracle record: {exc}", file=sys.stderr)
+        return EXIT_NOTHING
+    components = raw.get("components") if isinstance(raw, dict) and "components" in raw else raw
+    try:
+        target = record_result(
+            bundle,
+            components if isinstance(components, dict) else {},
+            host=args.host,
+            commitment=Path(args.commitment) if args.commitment else None,
+        )
+    except (OracleError, ValueError) as exc:
+        print(f"oracle record: {exc}", file=sys.stderr)
+        print("oracle record: nothing was written (exit 3)", file=sys.stderr)
+        return EXIT_NOTHING
+    print(f"oracle record: {len(components)} component(s) from {args.host}")
+    print(f"  {target}")
     return EXIT_OK
 
 

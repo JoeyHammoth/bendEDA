@@ -289,5 +289,48 @@ class TestEnforcement(unittest.TestCase):
         self.assertIn(["docker", "kill", "bendeda-agent"], calls)
 
 
+class TestStaleImage(unittest.TestCase):
+    """A harness image that carries a different package than this checkout."""
+
+    def test_the_checkout_matches_itself(self) -> None:
+        from bendeda.runner import package_fingerprint, stale_image
+
+        fingerprint = package_fingerprint()
+        problem = stale_image(
+            "bendeda/harness:test-same", lambda argv: (0, fingerprint + NL)
+        )
+        self.assertIsNone(problem)
+
+    def test_a_different_package_names_the_rebuild(self) -> None:
+        from bendeda.runner import stale_image
+
+        problem = stale_image("bendeda/harness:test-old", lambda argv: (0, "0" * 64 + NL))
+        self.assertIsNotNone(problem)
+        assert problem is not None
+        self.assertIn("rebuild", problem)
+
+    def test_an_image_without_the_package_is_a_problem_not_a_pass(self) -> None:
+        from bendeda.runner import stale_image
+
+        problem = stale_image("bendeda/harness:test-bare", lambda argv: (1, "no module" + NL))
+        self.assertIsNotNone(problem)
+        assert problem is not None
+        self.assertIn("could not read", problem)
+
+    def test_the_probe_is_one_command_and_runs_offline(self) -> None:
+        from bendeda.runner import stale_image
+
+        seen: list[list[str]] = []
+
+        def run(argv):
+            seen.append(list(argv))
+            return 1, "no"
+
+        stale_image("bendeda/harness:test-argv", run)
+        self.assertEqual(seen[0][:3], ["docker", "run", "--rm"])
+        self.assertIn("--network", seen[0])
+        self.assertIn("none", seen[0])
+
+
 if __name__ == "__main__":
     unittest.main()
