@@ -387,12 +387,14 @@ the pack root, called as `score.py <bundle>` with the pack as working directory,
     silence, output that is not JSON, or a result that is not an object is a
     refusal — never an empty set that `O` would read as vacuous.
     """
-    script = Path(pack) / SCORER_NAME
+    # Absolute paths, because the scorer runs with the pack as its working directory:
+    # a relative `score.py` would resolve against the pack and become pack/pack/score.py.
+    script = (Path(pack) / SCORER_NAME).resolve()
     if not script.is_file():
         raise OracleError(f"{pack}: no {SCORER_NAME}; the pack has to score itself")
     try:
         completed = subprocess.run(
-            [python or sys.executable, str(script), str(bundle)],
+            [python or sys.executable, str(script), str(Path(bundle).resolve())],
             cwd=str(pack),
             capture_output=True,
             text=True,
