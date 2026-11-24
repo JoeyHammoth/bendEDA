@@ -52,9 +52,13 @@ matrix cell writes those facts to `environment.json` beside its score:
 | `oss-cad-base` | debian bookworm + the apt packages | n/a | **yes**, once, with a network; `sha256:5fbcdb42…`; a prerequisite, not published (criterion 3) |
 | `harness` | python 3.12 + node 20 | n/a | **yes**, offline (`--network=none`) and in CI |
 
-A local build on 2026-11-24 resolved to `sha256:eaf0a9d7…` and reported
-`bend 2.0.40`; a canary report from that image records both in its `environment`
-block, and the digest matches `docker image inspect` byte for byte.
+A local build on 2026-11-25 resolved to `sha256:f14015d3…` (346,012,847 bytes) and a
+smoke cell's `environment.json` names it; the digest matches `docker image inspect` byte
+for byte. The harness image is rebuilt from the working tree, so two builds of one commit
+can differ: its digest identifies the image a run used rather than pinning one. `oss-cad`
+(`sha256:41aa2359…`) came back identical across rebuilds because it is built from the
+staged release archive — that is the difference between a record and a pin, and the
+`up` check compares package contents rather than digests for exactly this reason.
 
 `docker/versions.lock` is the human record; `docker/bend-sources.sha256` is the
 machine-checked one, consumed by `python tools/fetch_bend.py`. The Bend *source*
