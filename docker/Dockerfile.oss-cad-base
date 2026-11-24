@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+# The C toolchain and runtime libraries the OSS CAD Suite needs, kept in an image of
+# its own so that the suite's own build can run with no network.
+#
+# Built once, with a network:
+#   docker build -f docker/Dockerfile.oss-cad-base -t bendeda/oss-cad-base:2026-11-20 .
+#
+# This is a prerequisite, not a release artifact. Criterion 3's licence review decides
+# whether any image leaves this machine (docs/offline-builds.md).
+FROM debian:bookworm-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      ca-certificates curl tar xz-utils python3 \
+      libstdc++6 zlib1g libreadline8 \
+      g++ make \
+ && rm -rf /var/lib/apt/lists/*
+# g++ and make are for `verilator --binary`: it compiles the testbench harness before
+# it simulates anything. Without them Verilator exits before running RTL.
+# curl is here for the networked path in docker/Dockerfile.oss-cad; an offline build
+# never reaches it, because a staged archive short-circuits before the download.

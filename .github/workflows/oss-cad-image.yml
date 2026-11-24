@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - docker/Dockerfile.oss-cad
+      - docker/Dockerfile.oss-cad-base
       - docker/versions.lock
       - .github/workflows/oss-cad-image.yml
       - bendeda/**
@@ -18,6 +19,7 @@ on:
     branches: [main]
     paths:
       - docker/Dockerfile.oss-cad
+      - docker/Dockerfile.oss-cad-base
       - docker/versions.lock
 
 permissions:
@@ -37,8 +39,22 @@ jobs:
       BENDEDA_BEND_CLI: .bend-cache/bend-2.0.40/bend2/main.ts
     steps:
       - uses: actions/checkout@v7
-      - name: Build from the pinned archive digest
-        run: docker build -f docker/Dockerfile.oss-cad -t bendeda/oss-cad:2026-11-20 .
+      - name: Stage the release archive so the suite builds with no network
+        run: |
+          # The download is the same one the networked path would do; the point is
+          # that the image build itself then needs no network at all.
+          name=oss-cad-suite-linux-x64-20261120.tgz
+          curl -fsSL -o "docker/archives/$name" \
+            "https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2026-11-20/$name"
+          echo "6e200a57cb7cc47a8a1a4772e3feda3777917edcb3fa5e8ee5743d962d265a7e  docker/archives/$name" \
+            | sha256sum -c -
+      - name: Build the toolchain base, then the suite with no network
+        run: |
+          # Debian's archive is the only thing the suite needs a network for, and it
+          # arrives in a separate prerequisite image so the suite's own build can run
+          # with --network=none (docs/offline-builds.md).
+          docker build -f docker/Dockerfile.oss-cad-base -t bendeda/oss-cad-base:2026-11-20 .
+          docker build --network=none -f docker/Dockerfile.oss-cad -t bendeda/oss-cad:2026-11-20 .
       - name: The tools answer with their versions
         run: |
           docker run --rm bendeda/oss-cad:2026-11-20 yosys -V

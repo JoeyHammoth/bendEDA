@@ -1,42 +1,43 @@
 # SPDX-License-Identifier: Apache-2.0
 # OSS CAD Suite (Yosys, SymbiYosys, MCY, Verilator, Icarus, nextpnr).
 #
-# Pinned by release tag and archive digest. The GitHub release metadata now
-# publishes a sha256 per asset, and both digests below match it exactly:
+# Two images, because the suite needs a C toolchain from Debian's archive and an
+# offline build cannot reach it:
+#   docker/Dockerfile.oss-cad-base   apt packages, built once with a network
+#   this file                        the suite itself, from a staged archive
+#
+# Pinned by release tag and archive digest. The GitHub release metadata publishes a
+# sha256 per asset, and both digests below match it exactly:
 #   linux-x64   6e200a57...  (754,324,403 bytes)
 #   linux-arm64 d58ee2fa...  (691,664,066 bytes)
-# The build re-checks the downloaded archive, so a tampered or swapped asset
-# fails before anything is extracted.
+# The digest is checked before extraction on both paths, so a staged archive is
+# verified rather than trusted and a tampered download fails before anything runs.
 #
-# Verified by `.github/workflows/oss-cad-image.yml`: the image builds, the tools
-# answer with their versions, and a real SymbiYosys BMC run passes.
+# Offline build (the one CI runs):
+#   docker build -f docker/Dockerfile.oss-cad-base -t bendeda/oss-cad-base:2026-11-20 .
+#   # stage docker/archives/oss-cad-suite-linux-x64-20261120.tgz (see its README)
+#   docker build --network=none -f docker/Dockerfile.oss-cad -t bendeda/oss-cad:2026-11-20 .
 #
 # The suite is ~2.5 GB unpacked; the digest check is what makes a cached layer
 # trustworthy.
-FROM debian:bookworm-slim
+ARG OSS_CAD_BASE=bendeda/oss-cad-base:2026-11-20
+FROM ${OSS_CAD_BASE}
 
 ARG OSS_CAD_TAG=2026-11-20
 ARG OSS_CAD_SHA256_LINUX_X64=6e200a57cb7cc47a8a1a4772e3feda3777917edcb3fa5e8ee5743d962d265a7e
 ARG OSS_CAD_SHA256_LINUX_ARM64=d58ee2faa0b0b1e43aa8783f66df9fbed5f23fe9d179a638f3d26d75301a6c93
-# Local mirror for the offline build; the digest above is still what is checked
-# (docs/offline-builds.md).
 ARG OSS_CAD_BASE_URL=https://github.com/YosysHQ/oss-cad-suite-build/releases/download
-# TLS only by default; a local mirror opts in with
-# `--build-arg OSS_CAD_PROTO=https,http`, and the digest below is unchanged.
+# TLS only by default; a mirror opts in with `--build-arg OSS_CAD_PROTO=https,http`.
 ARG OSS_CAD_PROTO=https
 
 ENV DEBIAN_FRONTEND=noninteractive \
     OSS_CAD_SUITE=/opt/oss-cad-suite \
     PATH=/opt/oss-cad-suite/bin:$PATH
 
-RUN apt-get update \
- && apt-get install -y --no-install-recommends \
-      ca-certificates curl tar xz-utils python3 \
-      libstdc++6 zlib1g libreadline8 \
-      g++ make \
- && rm -rf /var/lib/apt/lists/*
-# g++ and make are for `verilator --binary`: it compiles the testbench harness
-# before it simulates anything. Without them Verilator exits before running RTL.
+# A staged archive wins over the network, and the build then has no HTTP client at
+# all: no apt, no curl, no CA bundle. `docker/archives/` is populated by whoever
+# prepared the offline build and never committed.
+COPY docker/archives/ /opt/archives/
 
 RUN set -eu; \
     arch="$(dpkg --print-architecture)"; \
@@ -46,11 +47,17 @@ RUN set -eu; \
       *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
     esac; \
     name="oss-cad-suite-linux-${asset_arch}-$(echo "$OSS_CAD_TAG" | tr -d '-').tgz"; \
-    curl --proto "=$OSS_CAD_PROTO" --tlsv1.2 -fsSL -o /tmp/oss.tgz \
-      "${OSS_CAD_BASE_URL}/${OSS_CAD_TAG}/${name}"; \
+    if [ -f "/opt/archives/${name}" ]; then \
+      echo "using the staged archive ${name}"; \
+      cp "/opt/archives/${name}" /tmp/oss.tgz; \
+    else \
+      curl --proto "=$OSS_CAD_PROTO" --tlsv1.2 -fsSL -o /tmp/oss.tgz \
+        "${OSS_CAD_BASE_URL}/${OSS_CAD_TAG}/${name}"; \
+    fi; \
     echo "${sum}  /tmp/oss.tgz" | sha256sum -c - ; \
     tar -xzf /tmp/oss.tgz -C /opt --no-same-owner; \
-    rm /tmp/oss.tgz; \
+    rm -f /tmp/oss.tgz; \
+    rm -rf /opt/archives; \
     test -x "${OSS_CAD_SUITE}/bin/yosys"
 
 # Fail the build, not the run, if a tool the gates need is missing. `sby --help`
