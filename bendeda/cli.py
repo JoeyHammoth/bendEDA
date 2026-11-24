@@ -217,6 +217,73 @@ def cmd_canary(args: argparse.Namespace) -> int:
     return result.exit_code()
 
 
+def cmd_replay(args: argparse.Namespace) -> int:
+    """Re-decide a proxy audit log against its policy.
+
+    This replays the proxy's decisions, not a whole scored run: a log whose
+    decisions no longer follow from its policy is reported at the sequence that
+    diverged. Outcome replay and budgets are the rest of #15.
+    """
+    from bendeda import replay as replay_module
+    from bendeda.proxy import Policy
+
+    try:
+        policy = Policy.load(args.policy)
+        report = replay_module.replay(args.events, policy)
+    except (OSError, ValueError) as exc:
+        print(f"bendeda replay: {exc}", file=sys.stderr)
+        print("  nothing was replayed, so this is not a pass (exit 3).", file=sys.stderr)
+        return EXIT_NOT_IMPLEMENTED
+
+    for divergence in report.diverged:
+        print(f"replay: diverged {divergence.render()}", file=sys.stderr)
+    for problem in report.malformed:
+        print(f"replay: malformed {problem}", file=sys.stderr)
+    print(
+        f"replay: {report.events} event(s), {report.matched} reproduced, "
+        f"{len(report.diverged)} diverged, {len(report.malformed)} malformed"
+    )
+    return report.exit_code()
+
+
+def cmd_proxy_decide(args: argparse.Namespace) -> int:
+    from bendeda.proxy import Policy
+
+    try:
+        policy = Policy.load(args.policy)
+    except (OSError, ValueError) as exc:
+        print(f"bendeda proxy decide: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    decision = policy.decide(args.tool, args.resource)
+    print(json.dumps(decision.as_json(), indent=2))
+    return EXIT_OK if decision.allowed else 1
+
+
+def cmd_proxy_serve(args: argparse.Namespace) -> int:
+    from bendeda.proxy import AuditLog, Policy, serve
+
+    try:
+        policy = Policy.load(args.policy)
+    except (OSError, ValueError) as exc:
+        print(f"bendeda proxy serve: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    log = AuditLog(args.events)
+    server = serve(policy, log, host=args.host, port=args.port)
+    host, port = server.server_address[:2]
+    print(
+        f"proxy: listening on http://{host}:{port}, default {policy.default}, "
+        f"{len(policy.rules)} rule(s), events -> {args.events}",
+        flush=True,
+    )
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+    return EXIT_OK
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="bendeda",
@@ -330,9 +397,24 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--dry-run", action="store_true")
     p_run.set_defaults(func=lambda _a: _todo("run", "arm x task x model x seed matrix with budgets", "Phase 2"))
 
-    p_replay = sub.add_parser("replay", help="replay a run from its event log")
-    p_replay.add_argument("run_id")
-    p_replay.set_defaults(func=lambda _a: _todo("replay", "deterministic replay from events.jsonl", "Phase 2"))
+    p_proxy = sub.add_parser("proxy", help="policy proxy for agent egress")
+    proxy_sub = p_proxy.add_subparsers(dest="proxy_command", metavar="<subcommand>")
+    sp = proxy_sub.add_parser("serve", help="answer allow/deny for tool calls, and log them")
+    sp.add_argument("--policy", required=True, help="policy JSON (deny by default)")
+    sp.add_argument("--events", required=True, help="append-only JSONL audit log")
+    sp.add_argument("--host", default="127.0.0.1")
+    sp.add_argument("--port", type=int, default=8765)
+    sp.set_defaults(func=cmd_proxy_serve)
+    sp = proxy_sub.add_parser("decide", help="decide one call without a server")
+    sp.add_argument("--policy", required=True)
+    sp.add_argument("--tool", required=True)
+    sp.add_argument("--resource", required=True)
+    sp.set_defaults(func=cmd_proxy_decide)
+
+    p_replay = sub.add_parser("replay", help="re-decide a run's tool log")
+    p_replay.add_argument("--events", required=True, help="events.jsonl written by the proxy")
+    p_replay.add_argument("--policy", required=True, help="the policy the run was governed by")
+    p_replay.set_defaults(func=cmd_replay)
 
     p_oracle = sub.add_parser("oracle", help="sealed-oracle operations")
     oracle_sub = p_oracle.add_subparsers(dest="oracle_command", metavar="<subcommand>")
