@@ -1,0 +1,31 @@
+{
+  "default": "deny",
+  "rules": [
+    {
+      "id": "deny-oracle",
+      "action": "deny",
+      "tool": "fs-*",
+      "resource": "oracle/**",
+      "reason": "the oracle is a different mount and the agent container never reaches it"
+    },
+    {
+      "id": "read-workspace",
+      "action": "allow",
+      "tool": "fs-read",
+      "resource": "**",
+      "reason": "reading the workspace is what the agent is for"
+    },
+    {
+      "id": "write-model",
+      "action": "allow",
+      "tool": "fs-write",
+      "resource": "tasks/*/model.bend"
+    },
+    {
+      "id": "net-github",
+      "action": "allow",
+      "tool": "net",
+      "resource": "github.com/**"
+    }
+  ]
+}

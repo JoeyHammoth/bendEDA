@@ -181,6 +181,26 @@ The canary GUID in `oracle_sealed/canary.txt` is refused in any file under
 `tasks/` by `tools/check_oracle_absence.py`. Details:
 `docs/research/2026-11-24-sealed-oracle.md`.
 
+## The policy proxy and decision replay
+
+```bash
+bendeda proxy serve --policy policy.json --events .bend-cache/run/events.jsonl --port 8765
+bendeda proxy decide --policy policy.json --tool fs-read --resource oracle/b1/checks.md
+bendeda replay --events .bend-cache/run/events.jsonl --policy policy.json
+```
+
+The proxy answers allow/deny for every tool call and writes one JSONL line per
+decision, including the rule that fired. It is deny-by-default, every deny rule is
+tried before any allow rule, and resources are normalised so `tasks/../oracle/x`
+cannot match `tasks/**`. `proxy decide` exits 0 when the call is allowed and 1 when
+it is refused, which makes it usable in a script.
+
+`replay` re-decides the log against the policy: 0 every recorded decision follows
+from it, 1 a decision does not (the sequence number and both rules are printed), 3
+there was nothing to replay. It replays the proxy's decisions, not a scored run —
+budgets and outcome replay are the rest of [#15](https://github.com/JoeyHammoth/bendEDA/issues/15);
+`docs/policy-proxy.md` states what is missing.
+
 ## What is planned, and where
 
 | Command | Issue |
@@ -188,7 +208,7 @@ The canary GUID in `oracle_sealed/canary.txt` is refused in any file under
 | `oracle score` | [#13](https://github.com/JoeyHammoth/bendEDA/issues/13) — seal and verify exist; scoring needs the decryption host |
 | `tf run` | blocked by BendBV ([#8](https://github.com/JoeyHammoth/bendEDA/issues/8)) |
 | `conformance` (L2/L3 rungs) | arrives with the EDA image ([#6](https://github.com/JoeyHammoth/bendEDA/issues/6)) |
-| `gate run`, `gate calibrate`, `run`, `replay` | [#15](https://github.com/JoeyHammoth/bendEDA/issues/15) |
+| `gate run`, `gate calibrate`, `run` | [#15](https://github.com/JoeyHammoth/bendEDA/issues/15) — the proxy and `replay` exist; budgets and outcome replay do not |
 | `report`, `bundle verify`, `serve` | Phase 6 / Phase 2 |
 
 ## Common friction
