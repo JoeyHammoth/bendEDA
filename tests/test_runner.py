@@ -14,7 +14,14 @@ import unittest
 from pathlib import Path
 
 from bendeda.budget import Limits, Outcome, classify, read_log
-from bendeda.runner import AgentSpec, Unrunnable, check, plan
+from bendeda.runner import (
+    AgentSpec,
+    Unrunnable,
+    check,
+    enforce,
+    exec_enforced,
+    plan,
+)
 
 NL = chr(10)
 
@@ -154,6 +161,132 @@ class TestBudget(unittest.TestCase):
             path = Path(tmp) / "events.jsonl"
             path.write_text('{"tool": "fs-read"}' + NL + "nope" + NL, encoding="utf-8")
             self.assertRaises(ValueError, read_log, path)
+
+
+class TestProxyBudget(unittest.TestCase):
+    def test_the_call_after_the_allowance_is_refused_and_logged(self) -> None:
+        from bendeda.proxy import AuditLog, Policy, Rule, handle_call
+
+        with tempfile.TemporaryDirectory() as raw:
+            log = AuditLog(Path(raw) / "events.jsonl")
+            policy = Policy([Rule("read", "allow", "fs-*", "**")])
+            first = handle_call(policy, log, {"tool": "fs-read", "resource": "a"}, max_calls=1)
+            second = handle_call(policy, log, {"tool": "fs-read", "resource": "b"}, max_calls=1)
+
+            self.assertEqual(first[0], 200)
+            self.assertEqual(second[0], 429)
+            self.assertEqual(second[1]["decision"]["rule"], "budget")
+            self.assertEqual(log.calls(), 2, "a refused call is still a call in the log")
+            self.assertEqual(classify(read_log(log.path), Limits(calls=1)).score, 0.0)
+
+
+class FakeProcess:
+    """A process that only exits when `stopped` is set, like a container being killed."""
+
+    def __init__(self, code: int = 0, output: str = "ok", stopped: bool = False) -> None:
+        self.code = code
+        self.output = output
+        self.stopped = stopped
+
+    def poll(self):
+        return self.code if self.stopped else None
+
+    def communicate(self):
+        return self.output, ""
+
+
+class TestEnforcement(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.events = Path(self.tmp.name) / "events.jsonl"
+
+    def write(self, count: int) -> None:
+        lines = [
+            json.dumps({"seq": i, "tool": "fs-read", "resource": f"f{i}"})
+            for i in range(1, count + 1)
+        ]
+        self.events.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+
+    def test_the_allowance_is_enforced_while_the_command_runs(self) -> None:
+        self.write(2)
+        process = FakeProcess()
+        killed: list[bool] = []
+
+        result = enforce(
+            process,
+            self.events,
+            max_calls=1,
+            stop=lambda: killed.append(True),
+            sleep=lambda seconds: None,
+        )
+
+        self.assertTrue(result.exhausted)
+        self.assertEqual(result.stopped, "calls")
+        self.assertEqual(result.calls, 2)
+        self.assertEqual(killed, [True])
+
+    def test_a_command_within_budget_is_not_stopped(self) -> None:
+        self.write(1)
+        result = enforce(
+            FakeProcess(code=3, stopped=True), self.events, max_calls=1, sleep=lambda s: None
+        )
+        self.assertFalse(result.exhausted)
+        self.assertEqual(result.code, 3, "the command's own exit status survives")
+
+    def test_infrastructure_events_are_not_calls(self) -> None:
+        self.events.write_text(
+            json.dumps({"seq": 1, "tool": "infra", "resource": "daemon"}) + "\n",
+            encoding="utf-8",
+        )
+        result = enforce(
+            FakeProcess(stopped=True), self.events, max_calls=0, sleep=lambda s: None
+        )
+        self.assertFalse(result.exhausted)
+        self.assertEqual(result.calls, 0)
+
+    def test_the_wall_clock_stops_a_silent_command(self) -> None:
+        self.write(0)
+        ticks = iter([0, 0, 3600])
+        result = enforce(
+            FakeProcess(),
+            self.events,
+            max_calls=10,
+            wall_min=1,
+            clock=lambda: next(ticks),
+            sleep=lambda seconds: None,
+        )
+        self.assertTrue(result.exhausted)
+        self.assertEqual(result.stopped, "wall clock")
+
+    def test_a_partial_line_is_not_counted_as_a_call(self) -> None:
+        self.events.write_text('{"seq": 1, "tool": "fs-rea', encoding="utf-8")
+        result = enforce(
+            FakeProcess(stopped=True), self.events, max_calls=0, sleep=lambda s: None
+        )
+        self.assertEqual(result.calls, 0)
+
+    def test_exec_enforced_kills_the_container(self) -> None:
+        self.write(2)
+        process = FakeProcess()
+        calls: list[list[str]] = []
+
+        def run(argv):
+            calls.append(list(argv))
+            return 0, ""
+
+        result = exec_enforced(
+            "bendeda-agent",
+            ["python", "-m", "bendeda", "--version"],
+            self.events,
+            max_calls=1,
+            spawn=lambda argv: process,
+            run=run,
+            sleep=lambda seconds: None,
+        )
+
+        self.assertTrue(result.exhausted)
+        self.assertIn(["docker", "kill", "bendeda-agent"], calls)
 
 
 if __name__ == "__main__":

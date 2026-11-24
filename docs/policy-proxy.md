@@ -104,6 +104,29 @@ $ bendeda runner classify --events .bend-cache/events/run.jsonl --max-calls 1
 Exclusion beats exhaustion: an event with `tool: "infra"` invalidates the budget
 reading too, so a crashed daemon cannot be recorded as a zero-scoring arm.
 
+### Enforcing it, not only reporting it
+
+The allowance is enforced where every call passes: `proxy serve --max-calls N` refuses
+the call after the allowance with `429` and logs it with `rule: budget`, so an arm cannot
+spend past its budget at all.
+
+```console
+$ <first call, one-call allowance>    → 200, rule read-workspace
+$ <second call>                       → HTTP 429
+{"action": "deny", "rule": "budget", "reason": "budget exhausted after 1 call(s)", ...}
+```
+
+`runner exec --events <log> --max-calls N [--wall-min M]` adds the backstop: it polls the
+log and kills the sandbox when the count passes, which covers a command that spawns work
+the proxy never sees. `--wall-min` covers one that makes no calls at all.
+
+Polling alone is not enough, and the first live run showed it: three calls went through a
+one-call allowance before a 0.5 s poll noticed. The `429` closes that window; the kill
+closes the one the `429` cannot see. A matrix cell hands its `budgets` to both.
+
+Exit 0 from `runner exec` is deliberate: a spent allowance is a result, not a harness
+failure, and the log then classifies as `exhausted`, so `score` records `S=V=O=0`.
+
 ## Scoring: `S`, `V` and `O`
 
 `bendeda score --bundle <dir>` computes the three verdicts the design document

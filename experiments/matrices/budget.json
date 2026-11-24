@@ -1,0 +1,19 @@
+{
+  "name": "budget",
+  "image": "bendeda/harness:0.0.1",
+  "sim_image": "bendeda/oss-cad:2026-11-20",
+  "network": "bendeda-offline",
+  "policy": "experiments/matrices/smoke.policy.json",
+  "command": [
+    "python",
+    "-c",
+    "import json,urllib.request as u\nfor i in range(3):\n    u.urlopen(u.Request('http://bendeda-policy-proxy:8765/call', data=json.dumps({'tool': 'fs-read', 'resource': 'f%d' % i}).encode(), headers={'Content-Type': 'application/json'}))"
+  ],
+  "budgets": { "tool_calls": 1 },
+  "visible_gates": ["trace"],
+  "tasks": [
+    { "name": "toy_counter", "artifacts": "experiments/fixtures/toy_counter" }
+  ],
+  "arms": ["C0"],
+  "seeds": [1]
+}

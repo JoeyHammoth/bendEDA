@@ -22,6 +22,11 @@ A cell is reported `complete` only when `score` says every verdict exists. `O` h
 source here — the oracle pack is scored on the scoring host — so a smoke cell exits 3
 with `S` and `V` present and `O` absent.
 
+`matrices/budget.json` is the same cell with a one-call allowance and a command that
+tries three calls. It exists to show the enforcement, not the classification: the cell
+records `budget_exhausted: true`, the sandbox is stopped, and the log scores `S=V=O=0`.
+That cell exits 0, because a spent allowance is a result rather than an incomplete run.
+
 ```json
 {
   "name": "smoke",

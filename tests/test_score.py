@@ -145,6 +145,16 @@ class TestBundle(unittest.TestCase):
         self.assertEqual(result.exit_code(), 1)
         self.assertEqual(result.replay.diverged[0].seq, 1)
 
+    def test_expected_budgets_drive_the_classification(self) -> None:
+        self.write_log("fs-read", "fs-read")
+        self.write("expected.json", {"visible_gates": [], "budgets": {"tool_calls": 1}})
+
+        result = report(load(self.root))
+
+        self.assertTrue(result.score.scored)
+        self.assertEqual(result.score.S, 0)
+        self.assertIn("exhausted", result.score.reason)
+
     def test_an_excluded_run_exits_two_and_is_not_a_zero(self) -> None:
         self.write("run.json", {"visible_gates": [], "budgets": {"tool_calls": 10}})
         self.write_log("infra")

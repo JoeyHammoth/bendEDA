@@ -19,9 +19,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
+from bendeda import __version__
 from bendeda.gates import run_gates, skipped, verdicts
 from bendeda.proxy import Policy
-from bendeda.runner import AGENT_NAME, AgentSpec, down, exec_in, submit, up
+from bendeda.runner import (
+    AGENT_NAME,
+    AgentSpec,
+    _run as docker_run,
+    down,
+    exec_enforced,
+    exec_in,
+    submit,
+    up,
+)
 from bendeda.score import load as load_bundle, report
 
 NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{1,60}$")
@@ -132,8 +142,62 @@ def _tail(text: str, limit: int = 400) -> str:
     return lines[-1][:limit] if lines else "(no output)"
 
 
+def _bend_release(text: str) -> str | None:
+    """The Bend release from versions.lock, without taking a YAML dependency."""
+    section = None
+    for line in text.splitlines():
+        if line and not line[0].isspace() and line.rstrip().endswith(":"):
+            section = line.rstrip()[:-1]
+            continue
+        if section == "bend":
+            match = re.match(r'\s+release:\s*"([^"]+)"', line)
+            if match:
+                return match.group(1)
+    return None
+
+
+def environment(
+    agent_image: str,
+    sim_image: str,
+    *,
+    versions: Path = Path("docker/versions.lock"),
+    inspect=None,
+    package_version: str | None = None,
+) -> dict[str, Any]:
+    """What produced this run, named by digest rather than by tag.
+
+    Issue #6's criterion 2 asks for the compiler version and the image digests in the
+    run record. A tag can be rebuilt to point at other bytes; a digest cannot, which is
+    why `docker image inspect` is asked rather than the name being copied.
+    """
+    inspect = inspect or docker_run
+
+    def digest(image: str) -> str | None:
+        code, output = inspect(["docker", "image", "inspect", image, "--format", "{{.Id}}"])
+        return output.strip() if code == 0 and output.strip() else None
+
+    try:
+        lock = Path(versions).read_text(encoding="utf-8")
+    except OSError:
+        lock = ""
+    return {
+        "bendeda": package_version or __version__,
+        "bend_release": _bend_release(lock),
+        "agent_image": {"name": agent_image, "digest": digest(agent_image)},
+        "sim_image": {"name": sim_image, "digest": digest(sim_image)},
+    }
+
+
 def default_deps() -> dict[str, Callable[..., Any]]:
     """The real collaborators, named once so tests can substitute them."""
+
+    def run_arm(container: str, argv: Sequence[str], events: Path, budget: Mapping[str, int]):
+        calls = int(budget.get("tool_calls") or 0)
+        if calls:
+            result = exec_enforced(container, argv, events, calls, budget.get("wall_min"))
+            return result.code, result.output, result.exhausted
+        code, output = exec_in(container, argv)
+        return code, output, False
 
     def gate_results(artifacts: Path, names: Sequence[str], image: str) -> dict[str, Any]:
         return run_gates(artifacts, names, {"image": image})
@@ -143,11 +207,12 @@ def default_deps() -> dict[str, Callable[..., Any]]:
 
     return {
         "up": up,
-        "exec": exec_in,
+        "exec": run_arm,
         "submit": submit,
         "down": down,
         "gates": gate_results,
         "score": score_bundle,
+        "environment": lambda matrix: environment(matrix.image, matrix.sim_image),
     }
 
 
@@ -168,6 +233,7 @@ def execute_cell(
         network=matrix.network,
         policy=matrix.policy,
         events=events,
+        max_calls=int(matrix.budgets.get("tool_calls") or 0) or None,
     )
     record: dict[str, Any] = {
         "cell": cell.label,
@@ -177,33 +243,80 @@ def execute_cell(
         "artifacts": str(cell.task.artifacts),
         "bundle": str(bundle),
         "error": None,
+        "budget_exhausted": False,
     }
+    record["excluded"] = False
+    infra: str | None = None
     try:
         deps["up"](spec)
-        code, output = deps["exec"](AGENT, list(matrix.command))
-        if code != 0:
-            # A crashed arm is a scored zero, not an exclusion: the log simply never
-            # records a submission, and `score` turns that into S=0.
-            record["error"] = f"the arm's command exited {code}: {_tail(output)}"
+        try:
+            code, output, exhausted = deps["exec"](
+                AGENT, list(matrix.command), events, dict(matrix.budgets)
+            )
+        except Exception as exc:
+            infra = f"the sandbox failed while the arm ran: {type(exc).__name__}: {exc}"
         else:
-            code, output = deps["submit"](AGENT, f"{cell.task.name}/submission")
-            if code != 0:
-                # A policy that forbids `submit` cannot produce a submitted run; saying
-                # so here is better than letting the log look like a silent zero.
-                record["error"] = f"the submission was refused: {_tail(output)}"
-    except Exception as exc:  # teardown must happen even when a step blew up
-        record["error"] = f"{type(exc).__name__}: {exc}"
+            record["budget_exhausted"] = exhausted
+            if exhausted:
+                # The sandbox was stopped because the allowance ran out: a result, and a
+                # scored zero, not an infrastructure failure.
+                record["error"] = "the budget was exhausted; the sandbox was stopped"
+            elif code != 0:
+                # A crashed arm is a scored zero, not an exclusion: the log never records
+                # a submission, and `score` turns that into S=0.
+                record["error"] = f"the arm's command exited {code}: {_tail(output)}"
+            else:
+                try:
+                    code, output = deps["submit"](AGENT, f"{cell.task.name}/submission")
+                except Exception as exc:
+                    infra = f"the submission could not be recorded: {type(exc).__name__}: {exc}"
+                else:
+                    if code != 0:
+                        # A policy that forbids `submit` cannot produce a submitted run;
+                        # saying so beats letting the log look like a silent zero.
+                        record["error"] = f"the submission was refused: {_tail(output)}"
+    except Exception as exc:  # `up` failed, so nothing could run at all
+        infra = f"{type(exc).__name__}: {exc}"
     finally:
-        deps["down"](spec)
+        try:
+            deps["down"](spec)
+        except Exception as exc:  # teardown failing is infrastructure, not a score
+            infra = infra or f"teardown failed: {type(exc).__name__}: {exc}"
 
-    results = deps["gates"](cell.task.artifacts, list(matrix.visible_gates), matrix.sim_image)
-    (bundle / "gates.json").write_text(json.dumps(verdicts(results), indent=2, sort_keys=True), encoding="utf-8")
+    if infra:
+        # §11.3: an infrastructure failure voids the run and is re-run, so it is written
+        # as such. The first live budget run scored a sandbox that never started as S=0,
+        # which is the exact confusion this event exists to prevent.
+        events.parent.mkdir(parents=True, exist_ok=True)
+        with events.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"seq": 0, "tool": "infra", "resource": infra}) + "\n")
+        record["error"] = infra
+        record["excluded"] = True
+
+    if not record["excluded"]:
+        # Gates judge what the arm submitted; after a void run there is nothing to judge.
+        results = deps["gates"](
+            cell.task.artifacts, list(matrix.visible_gates), matrix.sim_image
+        )
+        (bundle / "gates.json").write_text(
+            json.dumps(verdicts(results), indent=2, sort_keys=True), encoding="utf-8"
+        )
+        skipped_gates = skipped(results)
+        if skipped_gates:
+            record["skipped"] = skipped_gates
     (bundle / "expected.json").write_text(
-        json.dumps({"visible_gates": list(matrix.visible_gates)}, indent=2), encoding="utf-8"
+        json.dumps(
+            {"visible_gates": list(matrix.visible_gates), "budgets": dict(matrix.budgets)},
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
     )
-    skipped_gates = skipped(results)
-    if skipped_gates:
-        record["skipped"] = skipped_gates
+    produced_by = deps["environment"](matrix)
+    (bundle / "environment.json").write_text(
+        json.dumps(produced_by, indent=2, sort_keys=True), encoding="utf-8"
+    )
+    record["environment"] = produced_by
     # A proxy that made no decision left no file; an empty log is a fact about the run
     # (nothing was submitted), not a reason to refuse to score it.
     events.touch(exist_ok=True)

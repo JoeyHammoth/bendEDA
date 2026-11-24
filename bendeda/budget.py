@@ -60,6 +60,30 @@ def classify(events: Iterable[dict[str, Any]], limits: Limits) -> Outcome:
     return Outcome.within_budget(calls)
 
 
+def count_calls(path: str | Path) -> int:
+    """Calls seen so far, tolerating a line the proxy is still writing.
+
+    The enforcement loop polls this file while the proxy appends to it, so a partial
+    final line is expected rather than exceptional. `read_log` stays strict, because a
+    *finished* log with a broken line is a different claim than a log still growing.
+    """
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except (FileNotFoundError, NotADirectoryError):
+        return 0
+    calls = 0
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict) and event.get("tool") != EXCLUDED_EVENT:
+            calls += 1
+    return calls
+
+
 def read_log(path: str | Path) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
     for number, line in enumerate(Path(path).read_text(encoding="utf-8").splitlines(), start=1):

@@ -134,10 +134,11 @@ class Bundle:
     oracle: dict[str, bool] | None
     recorded: dict[str, Any] | None
     declared: list[str] | None = None
+    declared_budgets: dict[str, int] | None = None
 
     @property
     def limits(self) -> Limits:
-        budgets = self.run.get("budgets") or {}
+        budgets = self.run.get("budgets") or self.declared_budgets or {}
         return Limits(calls=int(budgets.get("tool_calls", 400)))
 
     @property
@@ -186,6 +187,7 @@ def load(root: str | Path) -> Bundle:
             raise ValueError("run.json: expected an object")
         run = data
     declared: list[str] | None = None
+    declared_budgets: dict[str, int] | None = None
     expected_path = root / "expected.json"
     if expected_path.is_file():
         data = json.loads(expected_path.read_text(encoding="utf-8"))
@@ -193,6 +195,11 @@ def load(root: str | Path) -> Bundle:
         if not isinstance(names, list) or not all(isinstance(name, str) for name in names):
             raise ValueError("expected.json: visible_gates must be a list of names")
         declared = list(names)
+        budgets = data.get("budgets") if isinstance(data, dict) else None
+        if budgets is not None:
+            if not isinstance(budgets, dict):
+                raise ValueError("expected.json: budgets must be an object")
+            declared_budgets = {str(k): int(v) for k, v in budgets.items()}
     recorded: dict[str, Any] | None = None
     outcome_path = root / "outcome.json"
     if outcome_path.is_file():
@@ -208,6 +215,7 @@ def load(root: str | Path) -> Bundle:
         oracle=_booleans(root / "oracle.json", "components"),
         recorded=recorded,
         declared=declared,
+        declared_budgets=declared_budgets,
     )
 
 

@@ -10,8 +10,8 @@ The study needs three environments, and they are deliberately separate:
 
 Phase 0 requires that each image builds **offline from a lockfile** and records
 `bend version`, the OSS CAD Suite release and the image digest in every run.
-All three images now build in CI. Two of the three parts are met and the third is
-not:
+All three images build offline (`docker build --network=none`) and in CI, and a
+matrix cell writes those facts to `environment.json` beside its score:
 
 - **Recorded in every gate report.** `bendeda canary --out` and
   `bendeda law mutate --out` carry an `environment` block (issue #6, criterion 2):
@@ -20,7 +20,9 @@ not:
   image) and the version the image prints for itself (`docker run <image> version`).
   A local source run says `image: none (local source pin)` rather than borrowing a
   digest it never used. The module is `bendeda/provenance.py`; the record is
-  asserted in `tests/test_provenance.py`.
+  asserted in `tests/test_provenance.py`. A matrix cell writes the same facts to
+  `environment.json` in its bundle — `bendeda` version, `bend_release`, and the agent
+  and simulator image digests — asserted in `tests/test_matrix.py`.
 - **The harness image now builds offline.** `docker build --network=none -f
   docker/Dockerfile.harness` succeeds: Node is copied from
   `node:20-bookworm-slim` instead of installed with `apt-get`, and the package is
@@ -33,16 +35,21 @@ not:
   sha256 is checked on both the staged and the downloaded path. The mirror route was
   abandoned because BuildKit cannot be attached to a custom network — the error and
   the reasoning are in `docs/offline-builds.md`.
-- **`oss-cad` is not offline and cannot be**, by staging alone: it needs `g++`,
-  `make`, `zlib` and `readline` from apt, so it needs an apt mirror or a published
-  base image, and the latter waits on the GPL/LGPL notice review (criterion 3).
+- **`oss-cad` builds offline too, from two images.** `docker/Dockerfile.oss-cad-base`
+  carries the apt packages (`g++`, `make`, `zlib`, `readline`) and is built once with a
+  network; `docker/Dockerfile.oss-cad` starts from it and takes the 754 MB suite from a
+  staged archive, so the suite's own build runs `--network=none`. Measured 2026-11-24:
+  base `#6 DONE 52.3s`, suite `#11 DONE 232.3s`, `yosys 0.71+59`, `verilator 5.055`,
+  `iverilog 14.0`, and `tests.test_vector_path` runs its Verilator DUT instead of
+  skipping. Publishing either image still waits on criterion 3.
 
 ## Pinned versions (2026-11-21)
 
 | Image | Pin | Digest verified | Built |
 |---|---|---|---|
 | `bend` | release 2.0.40, tag commit `624dd9f` | **yes** — linux-x64 archive `c9ff8d67…` matches both the GitHub asset digest and the installer's embedded hash | **yes**, by the `bend-image` CI job; also **offline** (`--network=none`) with the archive staged in `docker/archives/` |
-| `osscad` | release 2026-11-20 | **yes** - the release publishes a sha256 per asset and `6e200a57...` matches it; re-checked at build | **yes**, by the `oss-cad-image` workflow; **not offline** (apt packages, see `docs/offline-builds.md`) |
+| `oss-cad` | release 2026-11-20, archive `6e200a57…` | **yes** — the release publishes a sha256 per asset; re-checked at build | **yes**, offline (`--network=none`) from a staged archive, in CI too; suite `sha256:41aa2359…` |
+| `oss-cad-base` | debian bookworm + the apt packages | n/a | **yes**, once, with a network; `sha256:5fbcdb42…`; a prerequisite, not published (criterion 3) |
 | `harness` | python 3.12 + node 20 | n/a | **yes**, offline (`--network=none`) and in CI |
 
 A local build on 2026-11-24 resolved to `sha256:eaf0a9d7…` and reported
@@ -61,10 +68,12 @@ BENDEDA_BEND_CLI=.bend-cache/bend-2.0.40/bend2/main.ts \
 ```
 
 ```bash
-# build
-docker build -f docker/Dockerfile.bend      -t bendeda/bend:2.0.40 .
-docker build -f docker/Dockerfile.oss-cad   -t bendeda/oss-cad:2026-11-20 .
-docker build -f docker/Dockerfile.harness   -t bendeda/harness:0.0.1 .
+# build: CI stages the archives first and builds harness, bend and the suite with
+# --network=none; see docker/archives/README.md for the two staged files
+docker build -f docker/Dockerfile.harness      -t bendeda/harness:0.0.1 .
+docker build -f docker/Dockerfile.bend         -t bendeda/bend:2.0.40 .
+docker build -f docker/Dockerfile.oss-cad-base -t bendeda/oss-cad-base:2026-11-20 .
+docker build -f docker/Dockerfile.oss-cad      -t bendeda/oss-cad:2026-11-20 .
 ```
 
 ## Rules
