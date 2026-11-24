@@ -142,6 +142,26 @@ module b1_fifo_props #(
   endproperty
   a_idle_preserves_head: assert property (p_idle_preserves_head);
 
+  // FIFO-F-14: idle leaves the occupancy alone.
+  property p_idle_preserves_count;
+    @(posedge clk) disable iff (`B1_RST) `B1_NEITHER |=> count_q == $past(count_q);
+  endproperty
+  a_idle_preserves_count: assert property (p_idle_preserves_count);
+
+  // FIFO-F-15: at occupancy 0 the push wins, so occupancy becomes 1.
+  property p_pushpop_empty_count;
+    @(posedge clk) disable iff (`B1_RST)
+      (`B1_BOTH && count_q == 0) |=> count_q == 1;
+  endproperty
+  a_pushpop_empty_count: assert property (p_pushpop_empty_count);
+
+  // FIFO-F-16: at occupancy D the pop wins, so occupancy becomes D-1.
+  property p_pushpop_full_count;
+    @(posedge clk) disable iff (`B1_RST)
+      (`B1_BOTH && count_q == D) |=> count_q == D - 1;
+  endproperty
+  a_pushpop_full_count: assert property (p_pushpop_full_count);
+
   // Covers: the witnesses in LAWS.bend, as reachability on the RTL.
   c_reaches_full: cover property (@(posedge clk) disable iff (!rst_n) full);
   c_reaches_empty: cover property (@(posedge clk) disable iff (!rst_n) empty && $past(!empty));

@@ -79,6 +79,21 @@ def fifo_f11_reset_empty(a, b, level):
 def fifo_f12_idle_preserves_head(a, b):
   {==}
 
+def fifo_f14_idle_preserves_count(a, b, level):
+  match level:
+    case Empty{}:
+      {==}
+    case Half{}:
+      {==}
+    case Full{}:
+      {==}
+
+def fifo_f15_pushpop_empty_count(a, b, d):
+  {==}
+
+def fifo_f16_pushpop_full_count(a, b, d):
+  {==}
+
 def fifo_w01_reaches_full(d1, d2):
   {==}
 

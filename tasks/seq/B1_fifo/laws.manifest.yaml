@@ -7,7 +7,7 @@ spec: spec.md
 status: draft
 bend_version: "2.0.40"
 bv_version: "bv@e9b4562"
-requirements: [R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12]
+requirements: [R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, R13]
 
 laws:
   - id: FIFO-S-01
@@ -138,6 +138,30 @@ laws:
     witness: fifo_w03_reaches_half
     translation: {sva: p_pushpop_empty_head, template: implication_v1}
     reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
+  - id: FIFO-F-14
+    name: fifo_f14_idle_preserves_count
+    class: L-FUNC
+    priority: core
+    requirements: [R13]
+    witness: fifo_w01_reaches_full
+    translation: {sva: p_idle_preserves_count, template: implication_v1}
+    reference_proof: {file: PROOF_ref.bend, lines: 8, effort_minutes: 4}
+  - id: FIFO-F-15
+    name: fifo_f15_pushpop_empty_count
+    class: L-FUNC
+    priority: important
+    requirements: [R11]
+    witness: fifo_w03_reaches_half
+    translation: {sva: p_pushpop_empty_count, template: implication_v1}
+    reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
+  - id: FIFO-F-16
+    name: fifo_f16_pushpop_full_count
+    class: L-FUNC
+    priority: important
+    requirements: [R10]
+    witness: fifo_w01_reaches_full
+    translation: {sva: p_pushpop_full_count, template: implication_v1}
+    reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
   - id: FIFO-W-01
     name: fifo_w01_reaches_full
     class: L-WIT
@@ -164,8 +188,8 @@ conformance_only_requirements: [R12]
 oracle_only_requirements: []
 
 hashes:
-  LAWS.bend: "a58feef1b9d4c0f16134591afa8a3c0652c77a773fac2b2fb5e7314375eced7c"
+  LAWS.bend: "d7e09ae4524858028e3e9cfbe337a124d050e54fb7d64500e636878dc231a0bc"
   model.bend: "f1e293fb6f118adb427aa17a2e928597f6b3cda33cf2a1023cb71f9db24b1594"
   abs.yaml: "c46a7f9d1019876aea9d6f03d3817d69e8eae1c390ac53e9b9f993e4884c6823"
-  props_locked.sv: "2f7d3dd80ff144eba31457f96418d34a04bcd1e52193baaf6a624cad6fe4ccb2"
-  spec.md: "19f1e30d012cfe7a3a602d3bd3e2474e78548e7d19964d9f5c1288f466dc8cf0"
+  props_locked.sv: "9a3eff1c912af033f7868708adc2ed69dc988803fbc0113b14c531bf138e81fe"
+  spec.md: "df9d2ab1e49260f3ecb675f51bae1f124a0478a33639d22a83e4bc074b425af1"

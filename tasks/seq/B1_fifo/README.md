@@ -51,9 +51,9 @@ values.
 
 | Gate | Result | Evidence |
 |---|---|---|
-| **LA1** typing and proof | **pass** | 19/19 laws closed; `ALL PROOFS CHECK` on the composed book |
+| **LA1** typing and proof | **pass** | 22/22 laws closed; `ALL PROOFS CHECK` on the composed book |
 | **LA2** witnesses | **pass (model level)** | the 3 witnesses are closed laws: reaches full, reaches empty, reaches half |
-| **LA3** model sensitivity | **fail** | 51 mutants, 41 killed, kill rate 0.804 against a 0.9 bar; no law survived every mutant, and 10 constructor-choice mutants survived every law (below) |
+| **LA3** model sensitivity | **pass** | 51 mutants, 51 killed, kill rate 1.00 against a 0.9 bar; the ten survivors of the previous run are killed by three post-state laws (below) |
 | **LA4** design discrimination | skip | no seeded-bug corpus and no RTL |
 | **LA5** implementation neutrality | skip | no three implementations |
 | **LA6** coverage and parity | skip | C2 is provisional; parity would be confounded |
@@ -61,10 +61,10 @@ values.
 | **LA8** provability cap | **pass** | longest reference proof is 8 lines; no law needs induction |
 | **LA9** independence | skip | one session wrote every artifact |
 
-Law coverage is 11 of 12 requirements, with R12 (pointer wrap-around) declared
-conformance-only. `law lint` reports zero findings over all fifteen rules, and it
-still reports zero with the full mutation report: every law is killed by at least
-one mutant. The LA3 failure is the other direction — mutants no law kills.
+Law coverage is every requirement except R12 (pointer wrap-around), which is
+declared conformance-only. R13 was added to the specification because the idle
+behaviour was stated without an id, and `fifo_f14` is its law. `law lint` reports
+zero findings over all fifteen rules, with and without the full mutation report.
 
 ### LA3, measured
 
@@ -72,31 +72,36 @@ one mutant. The LA3 failure is the other direction — mutants no law kills.
 $ cat LAWS.bend PROOF_ref.bend > /tmp/laws.bend
 $ python -m bendeda law mutate model.bend --laws /tmp/laws.bend --local \
       --max-mutants 60 --out .bend-cache/b1/mutation_full.json
-law mutate: 51 mutant(s), 41 killed by at least one law, kill rate 0.80
+law mutate: 51 mutant(s), 51 killed by at least one law, kill rate 1.00
 $ echo $?
-1
+0
 ```
 
 51 is every site the catalogue reaches on this model (14 branch swaps, 34
-constructor choices, 3 bare `Nat` literals), and the run costs ~40 minutes locally
-because each mutant is 19 checker invocations. The bar is 0.9, so the gate fails.
-That is the measured result, not a threshold to argue with.
+constructor choices, 3 bare `Nat` literals), and the run costs ~50 minutes locally
+because each mutant is 22 checker invocations. The bar is 0.9 and the gate passes —
+but only after the laws changed, which is the interesting part.
 
-The ten survivors are all constructor choices in `step`'s transition table, and
-they are not equivalent mutants — each changes behaviour the specification pins:
+The same catalogue killed 41 of 51 against the first law set. The ten survivors
+were all constructor choices in `step`'s transition table, and none of them was an
+equivalent mutant: at line 107, `Idle` on a full FIFO returned `Empty{}`; at line
+85, `PushPop` on an empty FIFO stopped returning `Half{}`. Running the mutated model
+against all 19 laws directly printed `ALL PROOFS CHECK` — the scorer was right and
+the laws were the weak part.
 
-| Line | Mutation | What the model then does | Why no law notices |
-|---|---|---|---|
-| 85, 87 | `Half{}` -> `Empty{}` / `Full{}` | `PushPop` on empty no longer leaves `Half` | `f13` states the head, not the occupancy |
-| 97 | `Half{}` -> `Empty{}` / `Full{}` | `Idle` on half no longer leaves `Half` | `f12` states the head is preserved |
-| 105 | `Half{}` -> `Empty{}` / `Full{}` | `PushPop` on full no longer leaves `Half` | no law states the post-state occupancy |
-| 107 | `Full{}` -> `Empty{}` / `Half{}` | `Idle` on full empties the FIFO | `f12` keeps `a` and `b`, which this mutant keeps too |
+The gap was one gap, not ten: the laws constrained the data (`head`, and `count` as
+a *state* predicate) and never the occupancy a cycle produces. Three laws close it,
+and each is killed by the mutants it was written for:
 
-The gap is one gap, not ten: the laws constrain the data (`head`, and `count` as a
-*state* predicate) but never say what occupancy a cycle produces. `Idle` and a
-`Push` on full must leave the level alone, and no law says so. Killing these needs
-laws of the form `count(step(s, Idle{})) == count(s)` — or the level itself as a
-value — which is new law authoring, not a catalogue change.
+| Law | Requirement | Kills |
+|---|---|---|
+| `fifo_f14_idle_preserves_count` | R13 (added: idle leaves occupancy alone) | lines 87, 97, 107 — `Idle` on empty, half and full |
+| `fifo_f15_pushpop_empty_count` | R11 | line 85 — `PushPop` on empty |
+| `fifo_f16_pushpop_full_count` | R10 | line 105 — `PushPop` on full |
+
+R13 had to be added to the specification as well: behaviour item 5 ("with neither
+push nor pop, the state does not change") was stated without a requirement id, and
+citing R9 for a law about occupancy would have been false.
 
 **Correction (2026-11-24):** the first report said
 `fifo_s01_count_within_depth` was *type-enforced*. That was wrong. `count` returns
@@ -104,7 +109,8 @@ value — which is new law authoring, not a catalogue change.
 bare `Nat` literal, which is what a `match` arm's whole body is here. With that
 class added, `m006 literal 2n -> 3n` kills `fifo_s01` at the law layer
 (`- expected : False{}`), and the law stays in the package. The earlier 0.875 came
-from a narrower catalogue; this 0.804 is the wider one, and it is worse.
+from a narrower catalogue, and 0.804 was that wider catalogue measured against the
+old laws. The 1.00 above is the same catalogue against 22 laws.
 
 ## Why the model is a transition table
 
@@ -149,10 +155,8 @@ close by evaluation here.
   implementing it.
 - **SVA elaboration.** No SystemVerilog toolchain is installed locally; the OSS
   CAD image has not been asked to elaborate `props_locked.sv` or `props_c2.sv`.
-- **A clean LA3 pass.** The gate fails at 0.804 over the full catalogue. The ten
-  survivors are unkilled because no law constrains the occupancy a cycle produces;
-  closing that needs post-state laws (and their proofs), then a re-run. The
-  `s01` question is settled — the law is falsifiable and now killed — and the
-  earlier "type-enforced" reading is superseded in the table above.
+- **An independent LA3 result.** The gate passes at 1.00 on this catalogue, but the
+  laws and their proofs came from one session, so the number says the law set
+  constrains the model — not that a second author would have written these laws.
 - **Locking.** `locked/LOCKED.json` stays empty: locking needs LA1-LA9 and a
   Conductor, and neither is available.

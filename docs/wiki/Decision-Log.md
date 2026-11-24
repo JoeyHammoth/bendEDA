@@ -4,6 +4,32 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-24 - LA3 passes only after the laws say what a cycle leaves behind
+
+**Decided:** B1 gains three post-state laws — `fifo_f14_idle_preserves_count`,
+`fifo_f15_pushpop_empty_count`, `fifo_f16_pushpop_full_count` — and the
+specification gains R13 ("with neither push nor pop, occupancy is unchanged") so
+the idle law has a requirement it can honestly cite. LA3 is recorded as **pass**:
+51 mutants, 51 killed, kill rate 1.00.
+
+**Why:** the previous run killed 41 of 51, and the ten survivors were not equivalent
+mutants — they changed the occupancy a cycle produces (`Idle` on full emptying the
+FIFO, `PushPop` on empty leaving it empty). Nothing in the law set observed that,
+because every law pinned the data or the state and none pinned the transition's
+result. The gate found a real hole; the response was to write the laws the hole
+described, not to widen the mutant budget or delete the inconvenient law.
+
+**Cost:** three more laws and proofs to maintain, and a new requirement id in a
+specification that had not numbered the idle behaviour. The run is now 22 checker
+invocations per mutant (~50 minutes locally).
+
+**Evidence:** `tasks/seq/B1_fifo/laws.manifest.yaml` (22 entries, hashes updated);
+`ALL PROOFS CHECK` on the composed book; `law lint --mutation` reports 0 findings;
+the pre-change result and its diagnosis stay in
+`docs/research/2026-11-24-b1-fifo-package.md`.
+
+---
+
 ## 2026-11-24 - Deny wins in the policy proxy, and a log is re-decided before it is read
 
 **Decided:** the proxy is deny-by-default and evaluates every deny rule before any
