@@ -244,10 +244,11 @@ Each cell starts a sandbox, runs `command` inside it, records the submission, te
 sandbox down, re-executes the declared gates on the artifacts, and writes `events.jsonl`,
 `gates.json`, `expected.json`, `score.json` and `cell.json` under `--out/<matrix>/<cell>`.
 Exit 3 is the honest verdict: `S` and `V` are complete and `O` is not, because the oracle
-pack is scored on the scoring host. That answer comes back through
-`bendeda oracle record --bundle <cell> --components <json> --host <name>`, which writes
-`oracle.json` with the host and the pack's Merkle root and refuses a void bundle, a
-bundle that already scored `S=0`, and a bundle that already carries a result.
+pack is scored on the scoring host. That answer comes back through `bendeda oracle score
+--pack <dir> --commitment <json> --bundle <cell> --host <name>` (or `oracle record` when
+the host scores by other means), which writes `oracle.json` with the host and the pack's
+Merkle root and refuses a void bundle, a bundle that already scored `S=0`, and a bundle
+that already carries a result.
 
 `run` also prints the matrix's prereg hash and writes `prereg.json` next to the
 bundles. The hash covers every declared field with defaults folded in; `order`
@@ -258,14 +259,17 @@ so the order is reproducible without an RNG and interleaves arms.
 
 - **Model calls and tool results in the replay.** `replay` covers proxy decisions; the
   design's full RF needs the tool results replayed too.
-- **Running the oracle pack.** `run` cannot compute `O`; it stays absent until the
-  scoring host's answer is recorded with `oracle record`. A cell is incomplete rather
-  than scored on a verdict nobody computed.
+- **Running the oracle pack here.** `run` cannot compute `O`; it stays absent until the
+  scoring host's answer is recorded. `oracle score` now does that on the host that holds
+  the decrypted pack — it verifies the pack against the commitment, runs the pack's
+  `score.py` and records the result — but nothing in this repository runs the pack itself,
+  so a cell here is incomplete rather than scored on a verdict nobody computed.
 - **The mount allowlist as an independent guarantee.** `up` builds the single mount
   into the argv and `check` refutes a live container, but neither can stop a different
   container being started outside this CLI.
-- **A wall-clock guarantee for a silent command.** `--wall-min` is covered by an
-  injected clock in the tests, not by a real command that sleeps past its allowance.
+- **A wall-clock guarantee for a silent command.** `--wall-min` has a real-process test
+  (`tests/test_runner.py` sleeps past a 1.2-second allowance and is killed), but it is
+  still polled, so a command that blocks the poller is outside what it measures.
 
 ## Why replay at all
 

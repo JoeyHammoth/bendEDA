@@ -47,7 +47,6 @@ class TestHonestStubs(unittest.TestCase):
             ["law", "translate", "LAWS.bend"],
             ["tf", "run", "--all"],
             ["gate", "run", "lint"],
-            ["oracle", "score"],
             ["bundle", "verify", "x"],
         ):
             code, out, err = run(*argv)

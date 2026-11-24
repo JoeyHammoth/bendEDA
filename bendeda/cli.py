@@ -551,6 +551,12 @@ def cmd_oracle_record(args: argparse.Namespace) -> int:
     return cmd_record(args)
 
 
+def cmd_oracle_score(args: argparse.Namespace) -> int:
+    from bendeda.oracle import cmd_oracle_score as run
+
+    return run(args)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="bendeda",
@@ -774,13 +780,17 @@ def build_parser() -> argparse.ArgumentParser:
                    help="commitment.json of the pack, recorded as provenance")
     sp.set_defaults(func=cmd_oracle_record)
 
-    sp = oracle_sub.add_parser("score", help="score a run against the sealed pack (scoring host only)")
-    sp.add_argument("paths", nargs="*")
-    sp.set_defaults(func=lambda _a: _todo(
-        "oracle score",
-        "run the sealed pack on the scoring host and feed its result to `oracle record`",
-        "Phase 2",
-    ))
+    sp = oracle_sub.add_parser(
+        "score", help="verify the decrypted pack against its commitment, then score a bundle"
+    )
+    sp.add_argument("--pack", required=True,
+                   help="the decrypted plaintext pack, which must match the commitment")
+    sp.add_argument("--commitment", required=True, help="commitment.json published by `oracle seal`")
+    sp.add_argument("--bundle", required=True, help="the run bundle to score (needs events.jsonl)")
+    sp.add_argument("--host", required=True, help="the scoring host's name, recorded with the result")
+    sp.add_argument("--timeout", type=float, default=900,
+                   help="seconds the pack's score.py may take (default 900)")
+    sp.set_defaults(func=cmd_oracle_score)
 
     p_report = sub.add_parser("report", help="generate tables, plots and the results bundle")
     p_report.add_argument("experiment")

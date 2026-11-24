@@ -9,7 +9,10 @@ The real daemon is exercised separately in docs/policy-proxy.md.
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -330,6 +333,39 @@ class TestStaleImage(unittest.TestCase):
         self.assertEqual(seen[0][:3], ["docker", "run", "--rm"])
         self.assertIn("--network", seen[0])
         self.assertIn("none", seen[0])
+
+
+class TestWallClockStopsRealWork(unittest.TestCase):
+    """`--wall-min` against a command that really sleeps, not an injected clock.
+
+    The injected-clock test above pins the arithmetic; this one pins the behaviour,
+    because an allowance that only exists inside a fake clock is not an allowance.
+    """
+
+    def test_a_sleeping_command_is_stopped_and_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            events = Path(tmp) / "events.jsonl"
+            events.write_text("", encoding="utf-8")
+            process = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+            self.addCleanup(lambda: process.poll() is None and process.kill())
+            started = time.monotonic()
+            result = enforce(
+                process,
+                events,
+                max_calls=100,
+                # 0.02 minutes is 1.2 seconds: short enough to test, long enough that a
+                # real scheduler pause does not make the assertion about the clock.
+                wall_min=0.02,
+                stop=process.kill,
+                sleep=time.sleep,
+                poll_s=0.05,
+            )
+            elapsed = time.monotonic() - started
+
+        self.assertTrue(result.exhausted)
+        self.assertEqual(result.stopped, "wall clock")
+        self.assertIsNotNone(process.poll(), "the sleeping command was actually stopped")
+        self.assertLess(elapsed, 15.0, f"took {elapsed:.1f}s to enforce a 1.2s allowance")
 
 
 if __name__ == "__main__":

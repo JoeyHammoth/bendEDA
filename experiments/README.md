@@ -23,14 +23,24 @@ source here — the oracle pack is scored on the scoring host — so a smoke cel
 with `S` and `V` present and `O` absent. The result comes back through:
 
 ```bash
+bendeda oracle score --pack path/to/oracle/pack \
+  --commitment oracle_sealed/commitment.json \
+  --bundle .bend-cache/runs/smoke/C0-toy_counter-s1 --host scoring-1
+```
+
+`oracle score` refuses a pack that no longer matches the commitment, runs the pack's own
+`score.py` (called as `score.py <bundle>`, printing `{"components": {...}}`), and records
+the result. A host that scores the bundle by other means still has `oracle record`:
+
+```bash
 bendeda oracle record --bundle .bend-cache/runs/smoke/C0-toy_counter-s1 \
   --components components.json --host scoring-1 \
   --commitment oracle_sealed/commitment.json
 ```
 
-`components.json` maps each pack component to a boolean. `oracle record` writes
+`components.json` maps each pack component to a boolean. Both commands write
 `oracle.json` with the host and the pack's Merkle root, which is what lets `score`
-compute `O` without trusting a number someone typed in prose. It refuses a void bundle, a
+compute `O` without trusting a number someone typed in prose. They refuse a void bundle, a
 bundle that already scored `S=0` (zero is already the answer), and a bundle that already
 carries a result: a second score is a disagreement, not an update.
 

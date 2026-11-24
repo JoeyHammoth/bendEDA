@@ -177,6 +177,20 @@ the commitment is built over the plaintext before encryption:
 | 1 | encryption failed | a component differs; both roots printed |
 | 3 | no recipient, no `age`, unreadable input — nothing sealed | no directory, no commitment, unreadable commitment |
 
+On the scoring host, `oracle score` does both halves in one step: it refuses a pack that
+no longer matches the published commitment, runs the pack's own `score.py` over the
+bundle, and records the answer through the same checks as `oracle record`:
+
+```bash
+bendeda oracle score --pack path/to/oracle/pack \
+  --commitment oracle_sealed/commitment.json \
+  --bundle .bend-cache/run/b1-c0-s1 --host scoring-1
+```
+
+The pack's `score.py` is called as `score.py <bundle>` with the pack as its working
+directory, and prints `{"components": {"name": true}}`. A crash, a timeout, output that
+is not JSON, or a component that is not a boolean is exit 3 with nothing written.
+
 `O` is scored on the scoring host, and the result comes back as data rather than as a
 claim:
 
@@ -305,7 +319,7 @@ declaration it belonged to.
 `run --matrix` expands a matrix, runs each cell in the sandbox, re-executes the declared
 gates and leaves `events.jsonl`, `gates.json`, `expected.json`, `score.json` and
 `cell.json` per cell. It exits 3 while `O` is absent: the oracle pack is scored on the
-scoring host, so the cell is incomplete rather than green.
+scoring host with `oracle score`, so the cell is incomplete here rather than green.
 
 | Code | `gate run` | `run --matrix` |
 |---|---|---|
@@ -317,7 +331,6 @@ scoring host, so the cell is incomplete rather than green.
 
 | Command | Issue |
 |---|---|
-| `oracle score` | [#13](https://github.com/JoeyHammoth/bendEDA/issues/13) — seal, verify and `oracle record` exist; running the pack needs the decryption host |
 | `tf run` | blocked by BendBV ([#8](https://github.com/JoeyHammoth/bendEDA/issues/8)) |
 | `conformance` (L2/L3 rungs) | arrives with the EDA image ([#6](https://github.com/JoeyHammoth/bendEDA/issues/6)) |
 | `gate calibrate` | Phase 1.7 — GS/GSp over the bug corpus; `gate run` and `run` exist |

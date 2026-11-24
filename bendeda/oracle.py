@@ -39,6 +39,8 @@ SUMS_NAME = "SHA256SUMS"
 CANARY_NAME = "canary.txt"
 RESULT_NAME = "oracle.json"
 RESULT_SCHEME = "bendeda-oracle-result-v1"
+SCORER_NAME = "score.py"
+SCORER_TIMEOUT = 900
 EXIT_OK = 0
 EXIT_FAILED = 1
 EXIT_NOTHING = 3
@@ -365,6 +367,95 @@ def cmd_record(args) -> int:
         print("oracle record: nothing was written (exit 3)", file=sys.stderr)
         return EXIT_NOTHING
     print(f"oracle record: {len(components)} component(s) from {args.host}")
+    print(f"  {target}")
+    return EXIT_OK
+
+
+def pack_components(
+    pack: Path,
+    bundle: Path,
+    *,
+    timeout: float = SCORER_TIMEOUT,
+    python: str | None = None,
+) -> dict[str, bool]:
+    """Run the pack's own scorer over a bundle and return its component verdicts.
+
+    The pack is the thing that was sealed, so it has to answer for itself through a
+    fixed entry point rather than the scoring host re-implementing it: `score.py` in
+the pack root, called as `score.py <bundle>` with the pack as working directory,
+    printing `{"components": {"name": true}}`. A missing entry point, a crash, a
+    silence, output that is not JSON, or a result that is not an object is a
+    refusal — never an empty set that `O` would read as vacuous.
+    """
+    script = Path(pack) / SCORER_NAME
+    if not script.is_file():
+        raise OracleError(f"{pack}: no {SCORER_NAME}; the pack has to score itself")
+    try:
+        completed = subprocess.run(
+            [python or sys.executable, str(script), str(bundle)],
+            cwd=str(pack),
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        raise OracleError(f"{pack}: the pack did not answer within {timeout:g}s") from None
+    if completed.returncode != 0:
+        lines = [line for line in completed.stderr.strip().splitlines() if line.strip()]
+        raise OracleError(
+            f"{pack}: the pack exited {completed.returncode}: "
+            f"{lines[-1][:300] if lines else '(no output)'}"
+        )
+    try:
+        payload = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        raise OracleError(f"{pack}: the pack printed no JSON result ({exc})") from None
+    if isinstance(payload, dict) and "components" in payload:
+        payload = payload["components"]
+    if not isinstance(payload, dict):
+        raise OracleError(f"{pack}: the pack's result must be an object of name -> boolean")
+    return payload
+
+
+def cmd_oracle_score(args) -> int:
+    """The scoring host's half: prove the pack is the sealed one, then let it score.
+
+    Two failures are worth separating in the output. A pack that no longer matches the
+    commitment is not the pack that was published, so scoring it would produce a
+    number about different code; the differing files are named rather than counted.
+    Everything after that — crash, timeout, bad JSON, non-boolean components, void
+    bundle — is `oracle record`'s refusal, and nothing is written either way.
+    """
+    pack = Path(args.pack)
+    bundle = Path(args.bundle)
+    commitment_path = Path(args.commitment)
+    try:
+        commitment = load_commitment(commitment_path)
+        differences = compare(pack, commitment)
+    except (OSError, json.JSONDecodeError, KeyError, OracleError) as exc:
+        print(f"oracle score: {exc}", file=sys.stderr)
+        print("oracle score: nothing was scored (exit 3)", file=sys.stderr)
+        return EXIT_NOTHING
+    if differences:
+        print(
+            f"oracle score: the pack is not the sealed one: {len(differences)} file(s) "
+            "differ from the commitment",
+            file=sys.stderr,
+        )
+        for difference in differences:
+            print(f"  {difference.render()}", file=sys.stderr)
+        print(f"  committed root {commitment.root}", file=sys.stderr)
+        print("oracle score: nothing was scored (exit 3)", file=sys.stderr)
+        return EXIT_NOTHING
+    try:
+        components = pack_components(pack, bundle, timeout=args.timeout)
+        target = record_result(bundle, components, host=args.host, commitment=commitment_path)
+    except (OracleError, ValueError) as exc:
+        print(f"oracle score: {exc}", file=sys.stderr)
+        print("oracle score: nothing was written (exit 3)", file=sys.stderr)
+        return EXIT_NOTHING
+    print(f"oracle score: {len(components)} component(s) from {args.host}")
+    print(f"  pack root {commitment.root}")
     print(f"  {target}")
     return EXIT_OK
 

@@ -12,7 +12,9 @@ directly:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
+import io
 import json
 import subprocess
 import sys
@@ -303,6 +305,95 @@ class TestRecordResult(unittest.TestCase):
         ]
         self.assertEqual(main(argv), 0)
         self.assertEqual(main(argv), oracle.EXIT_NOTHING)
+
+
+class TestScorePack(unittest.TestCase):
+    """The scoring host's half: prove the pack is the sealed one, then let it answer."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        root = Path(self.tmp.name)
+        self.bundle = root / "bundle"
+        self.bundle.mkdir()
+        (self.bundle / "events.jsonl").write_text(
+            json.dumps(
+                {"seq": 1, "tool": "submit", "resource": "t/submission", "action": "allow"}
+            )
+            + NL,
+            encoding="utf-8",
+        )
+        self.pack = root / "pack"
+        self.pack.mkdir()
+        (self.pack / "a.bend").write_text("law a:" + NL, encoding="utf-8", newline="")
+        self.commitment = root / "commitment.json"
+        self.write_scorer("print('{\"c1\": true}')")
+
+    def write_scorer(self, body: str) -> None:
+        """Write the pack's scorer and re-sign the commitment over the new pack.
+
+        The scorer is part of the pack, so a test that changes it has to publish a
+        commitment that matches — otherwise it would be testing the tamper check.
+        """
+        (self.pack / oracle.SCORER_NAME).write_text(body + NL, encoding="utf-8", newline="")
+        self.commitment.write_text(
+            oracle.build_commitment(self.pack).as_json(), encoding="utf-8", newline=""
+        )
+        self.root = oracle.load_commitment(self.commitment).root
+
+    def score(self, *extra: str) -> int:
+        return main([
+            "oracle", "score",
+            "--pack", str(self.pack),
+            "--commitment", str(self.commitment),
+            "--bundle", str(self.bundle),
+            "--host", "scoring-1",
+            *extra,
+        ])
+
+    def test_the_sealed_pack_scores_and_becomes_o(self) -> None:
+        from bendeda.score import load as load_bundle, report
+
+        self.write_scorer("print('{\"components\": {\"c1\": true, \"c2\": false}}')")
+        self.assertEqual(self.score(), 0)
+        stored = json.loads((self.bundle / oracle.RESULT_NAME).read_text(encoding="utf-8"))
+        self.assertEqual(stored["host"], "scoring-1")
+        self.assertEqual(stored["commitment_root"], self.root)
+
+        scored = report(load_bundle(self.bundle))
+        self.assertEqual(scored.score.O, 0, scored.score.reason)
+        self.assertIn("oracle components failed: c2", scored.score.reason)
+
+    def test_a_tampered_pack_is_not_scored(self) -> None:
+        (self.pack / "a.bend").write_bytes((self.pack / "a.bend").read_bytes() + b" ")
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(self.score(), oracle.EXIT_NOTHING)
+        self.assertIn("not the sealed one", err.getvalue())
+        self.assertIn("a.bend", err.getvalue())
+        self.assertFalse((self.bundle / oracle.RESULT_NAME).exists())
+
+    def test_a_pack_that_crashes_writes_nothing(self) -> None:
+        self.write_scorer("raise SystemExit('pack exploded')")
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(self.score(), oracle.EXIT_NOTHING)
+        self.assertIn("exited", err.getvalue())
+        self.assertFalse((self.bundle / oracle.RESULT_NAME).exists())
+
+    def test_a_pack_that_prints_no_json_writes_nothing(self) -> None:
+        self.write_scorer("print('looks fine to me')")
+        self.assertEqual(self.score(), oracle.EXIT_NOTHING)
+        self.assertFalse((self.bundle / oracle.RESULT_NAME).exists())
+
+    def test_non_boolean_components_are_refused(self) -> None:
+        self.write_scorer("print('{\"c1\": \"true\"}')")
+        self.assertEqual(self.score(), oracle.EXIT_NOTHING)
+        self.assertFalse((self.bundle / oracle.RESULT_NAME).exists())
+
+    def test_the_second_score_is_a_disagreement_not_an_update(self) -> None:
+        self.assertEqual(self.score(), 0)
+        self.assertEqual(self.score(), oracle.EXIT_NOTHING)
 
 
 if __name__ == "__main__":
