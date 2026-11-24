@@ -191,7 +191,10 @@ The pack's `score.py` is called as `score.py <bundle>` with the pack as its work
 directory, and prints `{"components": {"name": true}}`. A crash, a timeout, output that
 is not JSON, or a component that is not a boolean is exit 3 with nothing written.
 `experiments/fixtures/demo_pack/` is a committed stand-in pack with its commitment, so the
-command can be tried on the smoke cell before the real pack exists.
+command can be tried on the smoke cell before the real pack exists. A pack may publish a
+`VERSION` file: it is a component, so the commitment covers it, and the label is written
+into `oracle.json` beside the host and the root. `score` echoes that provenance in an
+`oracle` block, so an `O` names the pack it came from.
 
 `O` is scored on the scoring host, and the result comes back as data rather than as a
 claim:
@@ -217,7 +220,7 @@ The canary GUID in `oracle_sealed/canary.txt` is refused in any file under
 ```bash
 bendeda proxy serve --policy policy.json --events .bend-cache/run/events.jsonl --port 8765
 bendeda proxy decide --policy policy.json --tool fs-read --resource oracle/b1/checks.md
-bendeda replay --events .bend-cache/run/events.jsonl --policy policy.json
+bendeda replay --events .bend-cache/run/events.jsonl --policy policy.json --max-calls 40
 ```
 
 The proxy answers allow/deny for every tool call and writes one JSONL line per
@@ -228,8 +231,11 @@ it is refused, which makes it usable in a script.
 
 `replay` re-decides the log against the policy: 0 every recorded decision follows
 from it, 1 a decision does not (the sequence number and both rules are printed), 3
-there was nothing to replay. It replays the proxy's decisions, not a scored run: budgets are
-enforced and scored by `score`, and replaying tool results and model calls is the rest of
+there was nothing to replay. A `budget` refusal is the proxy's ceiling, not the
+policy's decision, so `--max-calls` supplies the allowance the run declared; the
+`infra` marker the harness writes is not a tool call and is skipped. `score` reads the
+allowance from `expected.json`, so a budget-exhausted run is still evidence. It replays
+the proxy's decisions, not a scored run: replaying tool results and model calls is the rest of
 [#15](https://github.com/JoeyHammoth/bendEDA/issues/15); `docs/policy-proxy.md` states
 what is missing.
 

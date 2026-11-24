@@ -175,6 +175,44 @@ class TestReplay(unittest.TestCase):
         self.assertEqual(report.exit_code(), 3)
         self.assertFalse(report.ok)
 
+    def record_budget(self, calls: int, allowance: int) -> None:
+        log = AuditLog(self.events)
+        for number in range(calls):
+            handle_call(policy(), log, {"tool": "fs-read", "resource": f"tasks/{number}"}, allowance)
+
+    def test_a_budget_refusal_is_reproduced_from_the_declared_allowance(self) -> None:
+        from bendeda.budget import Limits
+
+        self.record_budget(calls=3, allowance=1)  # one call, then two refusals
+        report = replay(self.events, policy(), Limits(calls=1))
+        self.assertEqual(report.exit_code(), 0, report.as_json())
+        self.assertEqual((report.events, report.matched), (3, 3))
+
+    def test_an_allowance_that_was_not_reached_is_a_divergence(self) -> None:
+        from bendeda.budget import Limits
+
+        self.record_budget(calls=3, allowance=1)
+        report = replay(self.events, policy(), Limits(calls=5))
+        self.assertEqual(report.exit_code(), 1)
+        self.assertEqual([party.seq for party in report.diverged], [2, 3])
+        self.assertIn("budget not reached", report.diverged[0].rule_replayed)
+
+    def test_a_budget_refusal_without_an_allowance_is_undecidable(self) -> None:
+        self.record_budget(calls=2, allowance=1)
+        report = replay(self.events, policy())
+        self.assertEqual(report.exit_code(), 1, "it cannot be vouched for, so it is not a pass")
+        self.assertIn("undecidable", report.diverged[0].replayed)
+
+    def test_an_infra_marker_is_not_a_tool_decision(self) -> None:
+        # The harness writes this line when the sandbox fails; the proxy never saw it.
+        self.events.write_text(
+            '{"seq": 0, "tool": "infra", "resource": "daemon died"}' + NL,
+            encoding="utf-8",
+        )
+        report = replay(self.events, policy())
+        self.assertEqual(report.diverged, [])
+        self.assertEqual(report.matched, 0)
+
     def test_a_malformed_line_is_reported_rather_than_skipped(self) -> None:
         self.events.write_text('{"tool": "fs-read", "resource": "tasks/a", "action": "allow", "rule": "read-workspace"}'
                                + NL + "not json" + NL, encoding="utf-8")

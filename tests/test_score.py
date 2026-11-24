@@ -169,6 +169,35 @@ class TestBundle(unittest.TestCase):
         result = report(load(self.root))
         self.assertEqual(result.exit_code(), 3)
 
+    def test_the_score_names_the_oracle_that_produced_o(self) -> None:
+        self.write("run.json", {"visible_gates": ["lint"], "budgets": {"tool_calls": 10}})
+        self.write("gates.json", {"lint": True})
+        self.write(
+            "oracle.json",
+            {
+                "scheme": "bendeda-oracle-result-v1",
+                "host": "scoring-1",
+                "commitment_root": "a9eb",
+                "pack_version": "0.0.1-demo",
+                "components": {"testbench": True},
+            },
+        )
+        self.write_log(SUBMIT_EVENT)
+
+        payload = report(load(self.root)).as_json()
+
+        self.assertEqual(payload["O"], 1)
+        self.assertEqual(payload["oracle"]["host"], "scoring-1")
+        self.assertEqual(payload["oracle"]["pack_version"], "0.0.1-demo")
+        self.assertEqual(payload["oracle"]["commitment_root"], "a9eb")
+
+    def test_a_flat_oracle_file_has_no_provenance(self) -> None:
+        # Hand-written `{name: bool}` results are still readable; they simply have no
+        # scorer to name, and inventing one would be worse than saying nothing.
+        self.write("oracle.json", {"testbench": True})
+        self.write_log(SUBMIT_EVENT)
+        self.assertNotIn("oracle", report(load(self.root)).as_json())
+
     def test_a_bundle_without_a_log_is_refused(self) -> None:
         with self.assertRaises(ValueError):
             load(self.root)

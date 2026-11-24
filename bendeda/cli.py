@@ -225,11 +225,13 @@ def cmd_replay(args: argparse.Namespace) -> int:
     diverged. Outcome replay and budgets are the rest of #15.
     """
     from bendeda import replay as replay_module
+    from bendeda.budget import Limits
     from bendeda.proxy import Policy
 
     try:
         policy = Policy.load(args.policy)
-        report = replay_module.replay(args.events, policy)
+        limits = Limits(calls=args.max_calls) if args.max_calls else None
+        report = replay_module.replay(args.events, policy, limits)
     except (OSError, ValueError) as exc:
         print(f"bendeda replay: {exc}", file=sys.stderr)
         print("  nothing was replayed, so this is not a pass (exit 3).", file=sys.stderr)
@@ -737,6 +739,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_replay = sub.add_parser("replay", help="re-decide a run's tool log")
     p_replay.add_argument("--events", required=True, help="events.jsonl written by the proxy")
     p_replay.add_argument("--policy", required=True, help="the policy the run was governed by")
+    p_replay.add_argument("--max-calls", type=int, default=0,
+                          help="the allowance the run declared, so a budget refusal can be checked")
     p_replay.set_defaults(func=cmd_replay)
 
     p_score = sub.add_parser("score", help="compute S, V and O for a recorded run")

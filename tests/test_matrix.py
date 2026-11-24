@@ -187,6 +187,27 @@ class TestExecuteCell(unittest.TestCase):
         self.assertTrue(record["budget_exhausted"])
         self.assertIn("budget was exhausted", record["error"])
 
+    def test_a_429_from_the_proxy_is_recorded_as_exhaustion(self) -> None:
+        # The poller and the proxy race on the last call; the log is the arbiter.
+        matrix = load(matrix_file(self.artifacts, {"budgets": {"tool_calls": 1}}))
+        deps = self.deps(exec_code=1)
+
+        def run(agent, command, events, budget):
+            for number in range(2):
+                with events.open("a", encoding="utf-8") as handle:
+                    handle.write(json.dumps({
+                        "seq": number + 1, "tool": "fs-read", "resource": f"f{number}",
+                        "action": "deny", "rule": "budget",
+                    }) + "\n")
+            return 1, "urllib.error.HTTPError: HTTP Error 429: Too Many Requests", False
+
+        deps["exec"] = run
+        record = execute_cell(matrix, self.cell, self.root / "runs", deps)
+
+        self.assertTrue(record["budget_exhausted"])
+        self.assertIn("budget was exhausted", record["error"])
+        self.assertEqual((record["S"], record["V"], record["O"]), (0, 0, 0))
+
     def test_the_submission_is_recorded_through_the_agent(self) -> None:
         execute_cell(self.matrix, self.cell, self.root / "runs", self.deps())
         self.assertIn(("submit", "toy_counter/submission"), self.calls)

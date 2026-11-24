@@ -269,6 +269,36 @@ jobs:
         run: |
           docker run --rm bendeda/harness:0.0.1 --version
           docker run --rm bendeda/harness:0.0.1 validate --all
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: One cell, then the scoring host answers for it
+        # The chain `run` -> `oracle score` -> `score`, on the image this job just
+        # built. The trace gate cannot run here (no simulator image in this job), so
+        # it is recorded as skipped and V stays absent. `score` must exit 3 even
+        # after O arrives: an O without a V is not a complete result, and a skipped
+        # gate is not a pass.
+        run: |
+          set +e
+          python -m bendeda run --matrix experiments/matrices/smoke.json --limit 1
+          run_rc=$?
+          set -e
+          test "$run_rc" -eq 3
+          bundle=.bend-cache/runs/smoke/C0-toy_counter-s1
+          python -c "import json,sys; c=json.load(open(sys.argv[1])); assert (c['S'],c['V'],c['O'])==(1,None,None), c; assert c['skipped']==['trace'], c; print('cell: S=1, V and O absent, trace skipped')" "$bundle/cell.json"
+
+          python -m bendeda oracle score \
+            --pack experiments/fixtures/demo_pack \
+            --commitment experiments/fixtures/demo_pack.commitment.json \
+            --bundle "$bundle" --host ci-demo-pack
+
+          set +e
+          python -m bendeda score --bundle "$bundle" \
+            --policy experiments/matrices/smoke.policy.json > score.json
+          score_rc=$?
+          set -e
+          test "$score_rc" -eq 3
+          python -c "import json,sys; s=json.load(open(sys.argv[1])); assert (s['S'],s['V'],s['O'])==(1,None,1), s; assert s['complete'] is False, s; assert s['oracle']['host']=='ci-demo-pack', s; assert s['oracle']['pack_version']=='0.0.1-demo', s; print('score: S=1, O=1 from ci-demo-pack, V absent so incomplete')" score.json
 
   bend-and-eda:
     name: bend and EDA gates
