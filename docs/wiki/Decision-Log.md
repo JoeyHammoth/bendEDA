@@ -4,6 +4,59 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-24 - Deny wins in the policy proxy, and a log is re-decided before it is read
+
+**Decided:** the proxy is deny-by-default and evaluates every deny rule before any
+allow rule, so a broad allow cannot shadow a specific deny. Resources are normalised
+(`..`, absolute paths and drive letters) before glob matching, and every decision —
+allowed or refused — is one line in an append-only JSONL log with the rule that
+fired. `bendeda replay` re-decides that log and exits 1 with the sequence number of
+the first difference.
+
+**Why:** a precedence puzzle in a security policy is a bug waiting for the third
+rule. "Deny wins" removes the ordering question at the cost of making exceptions
+narrow the deny rather than shadow it, which is the trade we want in a study about
+false assurance. Re-deciding rather than trusting is the same principle applied to
+the log: testimony until someone recomputes it from the policy.
+
+**Cost:** the proxy is not yet the only route out — the container plumbing, budget
+accounting and the `S=0` versus excluded distinction are still open, so the proxy
+is the enforcement point by convention rather than by construction.
+
+**Evidence:** `tests/test_proxy.py` (17 tests, including a real HTTP round trip on
+an ephemeral port); `bendeda proxy decide --policy tests/fixtures/proxy/policy.json
+--tool fs-read --resource oracle/x` exits 1 with `deny-oracle`; a Windows drive
+path was accepted as relative until a test caught it.
+
+---
+
+## 2026-11-24 - "Offline build" means `docker build --network=none`, and only the harness image meets it
+
+**Decided:** an image counts as offline when it builds with no route off the machine.
+Base images are pulled once and pinned by digest in `docker/versions.lock`; an
+archive a Dockerfile needs is fetched from a mirror named by a build argument
+(`BEND_BASE_URL`, `OSS_CAD_BASE_URL`) and still verified against the pinned sha256.
+The harness image drops `apt-get` and `pip install` to meet the rule; the other two
+still fetch one release archive each.
+
+**Why:** the weaker reading — "no public *package manager* access, but GitHub is
+fine" — cannot be checked by anyone, and the earlier note (`--network=none` fails at
+`apt-get`) was a symptom rather than the criterion. Making the harness image build
+this way forces two real trades into the open: Node comes from upstream rather than
+bookworm, and the image no longer proves `pip install` works, because a build backend
+is itself a download. The `tests` job runs that install instead.
+
+**Cost:** the harness image loses apt-provided tools (`git`), and CI now depends on
+two base images being pullable before the offline step. The archive path for `bend`
+and `oss-cad` is implemented but has not been run against an internal network, so it
+is recorded as a recipe rather than as a result.
+
+**Evidence:** `docker build --network=none -f docker/Dockerfile.harness` exits 0 and
+the image reports `bendeda 0.0.1` and `node v20.20.2`; the `harness-image` CI job
+pulls the two bases and then builds with `--network=none`; `docs/offline-builds.md`.
+
+---
+
 ## 2026-11-24 - The mutation catalogue bumps bare Nat literals, because "the type enforces it" was a claim about the catalogue
 
 **Decided:** `law mutate` now also bumps a numeric literal that is the whole body

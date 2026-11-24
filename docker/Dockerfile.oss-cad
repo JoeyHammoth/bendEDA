@@ -18,6 +18,9 @@ FROM debian:bookworm-slim
 ARG OSS_CAD_TAG=2026-11-20
 ARG OSS_CAD_SHA256_LINUX_X64=6e200a57cb7cc47a8a1a4772e3feda3777917edcb3fa5e8ee5743d962d265a7e
 ARG OSS_CAD_SHA256_LINUX_ARM64=d58ee2faa0b0b1e43aa8783f66df9fbed5f23fe9d179a638f3d26d75301a6c93
+# Local mirror for the offline build; the digest above is still what is checked
+# (docs/offline-builds.md).
+ARG OSS_CAD_BASE_URL=https://github.com/YosysHQ/oss-cad-suite-build/releases/download
 
 ENV DEBIAN_FRONTEND=noninteractive \
     OSS_CAD_SUITE=/opt/oss-cad-suite \
@@ -41,7 +44,7 @@ RUN set -eu; \
     esac; \
     name="oss-cad-suite-linux-${asset_arch}-$(echo "$OSS_CAD_TAG" | tr -d '-').tgz"; \
     curl --proto '=https' --tlsv1.2 -fsSL -o /tmp/oss.tgz \
-      "https://github.com/YosysHQ/oss-cad-suite-build/releases/download/${OSS_CAD_TAG}/${name}"; \
+      "${OSS_CAD_BASE_URL}/${OSS_CAD_TAG}/${name}"; \
     echo "${sum}  /tmp/oss.tgz" | sha256sum -c - ; \
     tar -xzf /tmp/oss.tgz -C /opt --no-same-owner; \
     rm /tmp/oss.tgz; \

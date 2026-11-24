@@ -1,5 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # Harness image: Python + Node only. No EDA toolchain, no Bend, no models.
+#
+# This image is built with no network (`docker build --network=none`). That rules
+# out `apt-get`, so Node is copied from its pinned upstream image instead of being
+# installed from the bookworm archive: base images are pulled once, before the
+# build, and `docker/versions.lock` records which ones. The Python package installs
+# with `--no-build-isolation`, so pip does not fetch a build backend either.
+FROM node:20-bookworm-slim AS node
+
 FROM python:3.12-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -7,14 +15,20 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
 
 # Node is needed only to load the `bend -o model.mjs` ES module during L1/L2.
-RUN apt-get update \
- && apt-get install -y --no-install-recommends nodejs git ca-certificates \
- && rm -rf /var/lib/apt/lists/*
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm
 
 WORKDIR /work
-COPY pyproject.toml README.md ./
 COPY bendeda ./bendeda
-RUN pip install --no-deps -e .
+
+# No `pip install` here on purpose. Installing the package needs a PEP 517 build
+# backend (`setuptools>=69`), and the slim base image does not carry one, so pip
+# would have to fetch it — which is exactly the network access this build refuses.
+# The image puts the checkout on the import path instead, and the `tests` CI job
+# installs the package on a runner that does have a network, so the build backend
+# is still exercised somewhere rather than dropped.
+ENV PYTHONPATH=/work
 
 # Run as a non-root user: the sandbox is the security boundary, but the image
 # should not hand out root for free.
