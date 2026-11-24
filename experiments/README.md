@@ -52,7 +52,10 @@ It is not the oracle — the real pack stays outside the repository — and
 
 `components.json` maps each pack component to a boolean. Both commands write
 `oracle.json` with the host and the pack's Merkle root, which is what lets `score`
-compute `O` without trusting a number someone typed in prose. They refuse a void bundle, a
+compute `O` without trusting a number someone typed in prose. A pack may also publish a
+`VERSION` file; it is a component like any other, so the commitment covers it, and the
+label is recorded beside the root. `score` echoes all of that in an `oracle` block, so an
+`O` names the pack that produced it. They refuse a void bundle, a
 bundle that already scored `S=0` (zero is already the answer), and a bundle that already
 carries a result: a second score is a disagreement, not an update.
 
@@ -60,6 +63,8 @@ carries a result: a second score is a disagreement, not an update.
 tries three calls. It exists to show the enforcement, not the classification: the cell
 records `budget_exhausted: true`, the sandbox is stopped, and the log scores `S=V=O=0`.
 That cell exits 0, because a spent allowance is a result rather than an incomplete run.
+`oracle score` refuses such a bundle too — `S=0` already fixes `O=0` — so the zero is
+`score`'s, not a pack's.
 
 ```json
 {

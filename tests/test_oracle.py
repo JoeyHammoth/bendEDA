@@ -361,10 +361,34 @@ class TestScorePack(unittest.TestCase):
         stored = json.loads((self.bundle / oracle.RESULT_NAME).read_text(encoding="utf-8"))
         self.assertEqual(stored["host"], "scoring-1")
         self.assertEqual(stored["commitment_root"], self.root)
+        self.assertNotIn(
+            "pack_version", stored, "a pack that publishes no version must not acquire one"
+        )
 
         scored = report(load_bundle(self.bundle))
         self.assertEqual(scored.score.O, 0, scored.score.reason)
         self.assertIn("oracle components failed: c2", scored.score.reason)
+
+    def test_the_pack_version_travels_with_the_result(self) -> None:
+        from bendeda.score import load as load_bundle, report
+
+        (self.pack / oracle.VERSION_NAME).write_text("0.4.2-rc1" + NL, encoding="utf-8", newline="")
+        # VERSION is a component like any other, so publishing it re-signs the pack.
+        self.write_scorer("print('{\"c1\": true}')")
+        self.assertEqual(self.score(), 0)
+
+        stored = json.loads((self.bundle / oracle.RESULT_NAME).read_text(encoding="utf-8"))
+        self.assertEqual(stored["pack_version"], "0.4.2-rc1")
+        self.assertEqual(stored["commitment_root"], self.root)
+        self.assertEqual(
+            report(load_bundle(self.bundle)).as_json()["oracle"],
+            {
+                "host": "scoring-1",
+                "scheme": oracle.RESULT_SCHEME,
+                "commitment_root": self.root,
+                "pack_version": "0.4.2-rc1",
+            },
+        )
 
     def test_a_tampered_pack_is_not_scored(self) -> None:
         (self.pack / "a.bend").write_bytes((self.pack / "a.bend").read_bytes() + b" ")
@@ -431,6 +455,9 @@ class TestDemoPack(unittest.TestCase):
     def test_the_pack_matches_its_commitment(self) -> None:
         commitment = oracle.load_commitment(self.COMMITMENT)
         self.assertEqual([d.render() for d in oracle.compare(self.PACK, commitment)], [])
+
+    def test_the_stand_in_pack_names_its_version(self) -> None:
+        self.assertEqual(oracle.pack_version(self.PACK), "0.0.1-demo")
 
     def test_it_scores_a_bundle_with_a_submission_and_gates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

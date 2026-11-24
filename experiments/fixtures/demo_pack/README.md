@@ -15,6 +15,9 @@ bendeda oracle score --pack experiments/fixtures/demo_pack \
 submission, and whether gate results were recorded. It reads nothing outside the bundle,
 so it needs no key and no network.
 
+`VERSION` names this stand-in (`0.0.1-demo`). It is a pack file like the others, so the
+commitment covers it and `oracle score` records the label beside the root.
+
 `commitment.json` (one directory up) is the Merkle commitment `oracle score` verifies the
 pack against. It is a hash, not a secret. `tests/test_oracle.py` fails if the pack and the
 commitment drift apart, and changing the pack on purpose means regenerating it:

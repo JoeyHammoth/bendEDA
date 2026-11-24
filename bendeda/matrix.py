@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 from bendeda import __version__
+from bendeda.budget import Limits, classify, read_log
 from bendeda.gates import run_gates, skipped, verdicts
 from bendeda.proxy import Policy
 from bendeda.runner import (
@@ -203,6 +204,21 @@ def expand(matrix: Matrix) -> list[Cell]:
     return cells
 
 
+def _exhausted(events: Path, budgets: Mapping[str, int]) -> bool:
+    """Whether the log shows the allowance spent, whatever the poller last saw.
+
+    The proxy refuses past the allowance with 429 before the poller can stop the
+    sandbox, so an arm that makes its last call can exit first. `score` reads the log
+    rather than the poller's timing, so the cell's flag has to come from the same place
+    or one record says zero and the other says nothing happened.
+    """
+    allowance = int(budgets.get("tool_calls") or 0)
+    if not allowance or not events.is_file():
+        return False
+    outcome = classify(read_log(events), Limits(calls=allowance))
+    return outcome.scored and outcome.score == 0
+
+
 def _tail(text: str, limit: int = 400) -> str:
     lines = [line for line in (text or "").strip().splitlines() if line.strip()]
     return lines[-1][:limit] if lines else "(no output)"
@@ -327,6 +343,11 @@ def execute_cell(
             if exhausted:
                 # The sandbox was stopped because the allowance ran out: a result, and a
                 # scored zero, not an infrastructure failure.
+                record["error"] = "the budget was exhausted; the sandbox was stopped"
+            elif _exhausted(events, matrix.budgets):
+                # The 429 arrives before the poller fires, so the command's failure is
+                # the budget doing its job rather than a crash.
+                record["budget_exhausted"] = True
                 record["error"] = "the budget was exhausted; the sandbox was stopped"
             elif code != 0:
                 # A crashed arm is a scored zero, not an exclusion: the log never records

@@ -40,6 +40,7 @@ CANARY_NAME = "canary.txt"
 RESULT_NAME = "oracle.json"
 RESULT_SCHEME = "bendeda-oracle-result-v1"
 SCORER_NAME = "score.py"
+VERSION_NAME = "VERSION"
 SCORER_TIMEOUT = 900
 EXIT_OK = 0
 EXIT_FAILED = 1
@@ -290,12 +291,30 @@ def cmd_seal(args) -> int:
     return EXIT_OK
 
 
+def pack_version(pack: Path) -> str | None:
+    """The pack's own version label, or None when it publishes none.
+
+    `VERSION` is inside the pack, so it is a committed component like any other: the
+    label a result cites cannot drift from the bytes that produced it. A pack without
+    the file is not an error — the commitment root already names it — but a result
+    that has a human-readable version should carry it.
+    """
+    path = Path(pack) / VERSION_NAME
+    if not path.is_file():
+        return None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            return line.strip()[:80]
+    return None
+
+
 def record_result(
     bundle: Path,
     components: Mapping[str, bool],
     *,
     host: str,
     commitment: Path | None = None,
+    version: str | None = None,
 ) -> Path:
     """Write `oracle.json` into a run bundle: the receiving end of the contract.
 
@@ -339,6 +358,8 @@ def record_result(
     }
     if commitment is not None:
         payload["commitment_root"] = load_commitment(Path(commitment)).root
+    if version:
+        payload["pack_version"] = str(version).strip()
     target.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -451,7 +472,13 @@ def cmd_oracle_score(args) -> int:
         return EXIT_NOTHING
     try:
         components = pack_components(pack, bundle, timeout=args.timeout)
-        target = record_result(bundle, components, host=args.host, commitment=commitment_path)
+        target = record_result(
+            bundle,
+            components,
+            host=args.host,
+            commitment=commitment_path,
+            version=pack_version(pack),
+        )
     except (OracleError, ValueError) as exc:
         print(f"oracle score: {exc}", file=sys.stderr)
         print("oracle score: nothing was written (exit 3)", file=sys.stderr)

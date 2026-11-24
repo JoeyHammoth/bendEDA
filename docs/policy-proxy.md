@@ -27,7 +27,10 @@ $ curl -s -X POST localhost:8765/call -H 'Content-Type: application/json' \
 - **`bendeda replay --events ... --policy ...`** re-decides the log and prints the
   sequence number of the first difference. Exit 0 means every recorded decision
   follows from the policy; 1 means one did not; 3 means there was nothing to replay,
-  which is not a pass.
+  which is not a pass. A `budget` refusal is the proxy's ceiling rather than the
+  policy's decision, so `--max-calls` supplies the allowance the run declared and the
+  refusal must be exactly the call the ceiling fired on; without it that line is
+  reported as undecidable instead of being counted against the policy.
 
 ## The runner: one mount, one network
 

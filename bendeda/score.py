@@ -135,6 +135,7 @@ class Bundle:
     recorded: dict[str, Any] | None
     declared: list[str] | None = None
     declared_budgets: dict[str, int] | None = None
+    oracle_provenance: dict[str, Any] | None = None
 
     @property
     def limits(self) -> Limits:
@@ -155,6 +156,10 @@ class Bundle:
         return self.declared
 
 
+#: What `oracle record` writes beside the components, so a score names its scorer.
+PROVENANCE_KEYS = ("host", "scheme", "commitment_root", "pack_version")
+
+
 def _booleans(path: Path, key: str) -> dict[str, bool] | None:
     if not path.is_file():
         return None
@@ -170,6 +175,33 @@ def _booleans(path: Path, key: str) -> dict[str, bool] | None:
             raise ValueError(f"{path.name}: {name} is {type(ok).__name__}, not a boolean")
         out[str(name)] = ok
     return out
+
+
+def _oracle(path: Path) -> tuple[dict[str, bool] | None, dict[str, Any] | None]:
+    """The components `O` reads, plus who produced them.
+
+    The two are read together because they share a file: a hand-written oracle.json
+    that is only a name -> boolean map has no provenance and must not be refused for
+    the absence, while a recorded one must not lose the host and root that make `O`
+    attributable.
+    """
+    if not path.is_file():
+        return None, None
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{path.name}: expected an object, got {type(data).__name__}")
+    values = data.get("components", data)
+    if not isinstance(values, dict):
+        raise ValueError(f"{path.name}: components must be an object of name -> boolean")
+    out: dict[str, bool] = {}
+    for name, ok in values.items():
+        if not isinstance(ok, bool):
+            raise ValueError(f"{path.name}: {name} is {type(ok).__name__}, not a boolean")
+        out[str(name)] = ok
+    provenance = {
+        key: data[key] for key in PROVENANCE_KEYS if data.get(key) is not None and key in data
+    }
+    return out, provenance or None
 
 
 def load(root: str | Path) -> Bundle:
@@ -200,6 +232,7 @@ def load(root: str | Path) -> Bundle:
             if not isinstance(budgets, dict):
                 raise ValueError("expected.json: budgets must be an object")
             declared_budgets = {str(k): int(v) for k, v in budgets.items()}
+    oracle_components, oracle_provenance = _oracle(root / "oracle.json")
     recorded: dict[str, Any] | None = None
     outcome_path = root / "outcome.json"
     if outcome_path.is_file():
@@ -212,10 +245,11 @@ def load(root: str | Path) -> Bundle:
         run=run,
         events=read_log(events_path),
         gates=_booleans(root / "gates.json", "gates"),
-        oracle=_booleans(root / "oracle.json", "components"),
+        oracle=oracle_components,
         recorded=recorded,
         declared=declared,
         declared_budgets=declared_budgets,
+        oracle_provenance=oracle_provenance,
     )
 
 
@@ -225,6 +259,7 @@ class ScoreReport:
     replay: replay_module.ReplayReport | None
     reproduced: bool | None
     notes: tuple[str, ...] = ()
+    oracle: dict[str, Any] | None = None
 
     def as_json(self) -> dict[str, Any]:
         payload = self.score.as_json()
@@ -232,6 +267,10 @@ class ScoreReport:
         payload["outcome_reproduced"] = self.reproduced
         if self.notes:
             payload["notes"] = list(self.notes)
+        if self.oracle:
+            # `O` is a verdict about a pack; a score that does not name the pack is
+            # unattributable, so the provenance travels with the verdict.
+            payload["oracle"] = dict(self.oracle)
         return payload
 
     def exit_code(self) -> int:
@@ -250,7 +289,9 @@ def report(bundle: Bundle, policy: Policy | None = None) -> ScoreReport:
     replayed = None
     notes: list[str] = []
     if policy is not None:
-        replayed = replay_module.replay(bundle.root / "events.jsonl", policy)
+        # The allowance is part of what the log has to follow from: a `budget` refusal
+        # is reproduced from it rather than read as a policy disagreement.
+        replayed = replay_module.replay(bundle.root / "events.jsonl", policy, bundle.limits)
         if not replayed.ok:
             notes.append("the tool log does not follow from its policy, so the outcome is not evidence")
     scored = score(
@@ -267,4 +308,6 @@ def report(bundle: Bundle, policy: Policy | None = None) -> ScoreReport:
         )
         if not reproduced:
             notes.append("the recorded outcome does not follow from the log")
-    return ScoreReport(scored, replayed, reproduced, tuple(notes))
+    return ScoreReport(
+        scored, replayed, reproduced, tuple(notes), oracle=bundle.oracle_provenance
+    )

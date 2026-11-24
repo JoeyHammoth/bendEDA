@@ -7,6 +7,12 @@ is the property a recorded run needs before anyone reads its result — either t
 log and the policy agree, or the difference is printed with the sequence number
 that diverged.
 
+Two recorded decisions are not the policy's and must not be read as disagreements:
+the proxy's ceiling refusal (`rule: budget`, written when the call count reaches the
+allowance the run declared) and the harness's `infra` marker. The first is reproduced
+from the allowance, the second is not a tool call at all — so a budget-exhausted run
+can still be evidence, which `S=0` depends on.
+
 Scoring is not here: gates, budgets and the `S=0`-versus-excluded call belong to
 `score.py`. Re-deriving a score re-runs the gates, which needs the artifacts and
 not just the decisions — so a scored outcome cannot be checked from the log alone.
@@ -19,7 +25,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from bendeda.budget import EXCLUDED_EVENT, Limits
 from bendeda.proxy import Policy
+
+#: The rule the proxy writes when it refuses a call for exceeding the allowance.
+BUDGET_RULE = "budget"
 
 
 @dataclass(frozen=True)
@@ -87,23 +97,68 @@ def read_events(path: str | Path) -> tuple[list[dict[str, Any]], list[str]]:
     return events, problems
 
 
-def replay(events_path: str | Path, policy: Policy) -> ReplayReport:
+def replay(
+    events_path: str | Path,
+    policy: Policy,
+    limits: Limits | None = None,
+) -> ReplayReport:
+    """Every tool decision re-decided; the ceiling refusal re-derived from the allowance.
+
+    `limits` is the allowance the run declared. Without it a `budget` denial cannot be
+    checked at all, and this says so rather than reading the proxy's own ceiling as a
+    policy disagreement — which it never was.
+    """
     report = ReplayReport()
     events, problems = read_events(events_path)
     report.malformed.extend(problems)
     report.events = len(events)
+    calls = 0
     for event in events:
         tool = str(event["tool"])
         resource = str(event["resource"])
-        decision = policy.decide(tool, resource)
+        if tool == EXCLUDED_EVENT:
+            # The harness wrote this when the sandbox failed; the policy never saw it.
+            continue
+        seen = calls
+        calls += 1
         logged = str(event.get("action", ""))
         logged_rule = str(event.get("rule", ""))
+        seq = int(event.get("seq", 0))
+        if logged_rule == BUDGET_RULE:
+            if limits is None:
+                report.diverged.append(
+                    Divergence(
+                        seq=seq,
+                        tool=tool,
+                        resource=resource,
+                        logged=logged or "(missing)",
+                        replayed="(undecidable: no allowance declared)",
+                        rule_logged=logged_rule,
+                        rule_replayed=BUDGET_RULE,
+                    )
+                )
+            elif logged == "deny" and seen >= limits.calls:
+                report.matched += 1
+            else:
+                report.diverged.append(
+                    Divergence(
+                        seq=seq,
+                        tool=tool,
+                        resource=resource,
+                        logged=logged or "(missing)",
+                        replayed="allow",
+                        rule_logged=logged_rule,
+                        rule_replayed=f"budget not reached after {seen} call(s) of {limits.calls}",
+                    )
+                )
+            continue
+        decision = policy.decide(tool, resource)
         if logged == decision.action and logged_rule == decision.rule:
             report.matched += 1
             continue
         report.diverged.append(
             Divergence(
-                seq=int(event.get("seq", 0)),
+                seq=seq,
                 tool=tool,
                 resource=resource,
                 logged=logged or "(missing)",

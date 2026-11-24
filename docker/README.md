@@ -52,9 +52,10 @@ matrix cell writes those facts to `environment.json` beside its score:
 | `oss-cad-base` | debian bookworm + the apt packages | n/a | **yes**, once, with a network; `sha256:5fbcdb42…`; a prerequisite, not published (criterion 3) |
 | `harness` | python 3.12 + node 20 | n/a | **yes**, offline (`--network=none`) and in CI |
 
-A local build on 2026-11-25 resolved to `sha256:75c299fd…` (346,095,202 bytes) and a
-smoke cell's `environment.json` names it; the digest matches `docker image inspect` byte
-for byte. The harness image is rebuilt from the working tree, so two builds of one commit
+A local build on 2026-11-25 resolved to `sha256:c58a8810…` (346,138,690 bytes), after
+`bendeda/score.py`, `bendeda/replay.py` and `bendeda/matrix.py` changed; the smoke and
+budget cells' `environment.json` name it, and the digest matches `docker image inspect`
+byte for byte. The harness image is rebuilt from the working tree, so two builds of one commit
 can differ: its digest identifies the image a run used rather than pinning one. `oss-cad`
 (`sha256:41aa2359…`) came back identical across rebuilds because it is built from the
 staged release archive — that is the difference between a record and a pin, and the
