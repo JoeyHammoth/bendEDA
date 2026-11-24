@@ -29,18 +29,68 @@ $ curl -s -X POST localhost:8765/call -H 'Content-Type: application/json' \
   follows from the policy; 1 means one did not; 3 means there was nothing to replay,
   which is not a pass.
 
+## The runner: one mount, one network
+
+`bendeda runner plan` prints the sandbox and starts nothing. `bendeda runner check`
+inspects a running container and reports every way it is not the sandbox the issue
+asks for: attached to another network, attached to host networking, mounting anything
+besides the workspace, or mounting a directory that contains the oracle.
+
+```console
+$ bendeda runner plan --workspace tasks --policy tests/fixtures/proxy/policy.json \
+    --events .bend-cache/events/run.jsonl
+$ bendeda runner check bendeda-agent-demo --workspace tasks --oracle oracle_sealed
+runner check: bendeda-agent-demo is attached only to bendeda-offline and mounts only .../tasks
+$ echo $?
+0
+```
+
+Measured against a live pair of containers on `docker network create --internal`:
+
+```
+agent: urllib.request.urlopen('http://github.com')  → blocked: URLError (name resolution)
+agent → proxy: fs-read seq/B1_fifo/spec.md   → 200, rule read-workspace
+agent → proxy: fs-read ../oracle_sealed/x    → 403, rule escape
+```
+
+The same check on the repository root instead of `tasks/` fails, correctly: the
+oracle is inside that mount, so it is reachable. Getting that verdict right needed
+two fixes found by running it — Docker Desktop reports a bind source as `/c/Users/...`
+on some calls and `C:/Users/...` on others, and Git Bash's `/c/...` had to be
+converted before `Path.resolve()` turned it into `C:\c\...`.
+
+What `plan` does **not** do is start the pair. The commands it prints are the ones
+run by hand above; wiring them into a subcommand with lifecycle handling is the next
+step, and until it exists `plan` writing to stdout is the only claim it makes.
+
+## Budgets: exhaustion is a result, failure is not
+
+`bendeda runner classify` turns a proxy log into one of three verdicts:
+
+| Verdict | `scored` | `score` | Meaning |
+|---|---|---|---|
+| within budget | true | null | the gates decide the score |
+| exhausted | true | **0.0** | the arm used its allowance; that is a result |
+| excluded | false | null | infrastructure failed; re-run, do not score |
+
+```console
+$ bendeda runner classify --events .bend-cache/events/run.jsonl --max-calls 1
+{"scored": true, "score": 0.0, "reason": "budget exhausted after 2 calls", "calls": 2}
+```
+
+Exclusion beats exhaustion: an event with `tool: "infra"` invalidates the budget
+reading too, so a crashed daemon cannot be recorded as a zero-scoring arm.
+
 ## What does not exist yet
 
-These are the rest of #15 and they are the reason the issue stays open:
-
-- **Budget accounting**, and therefore the `S=0` (exhausted) versus `excluded`
-  (infrastructure) distinction. Nothing in a log today can score that.
-- **Whole-run replay.** `replay` checks the proxy's decisions, not gate results,
-  model calls or the scored outcome.
-- **The container plumbing** — no route to the oracle volume, no network except the
-  proxy, and the mount list that makes both true. Until that exists, the proxy is
-  the enforcement point by convention, not by construction, and no document should
-  say otherwise.
+- **Starting the sandbox from the CLI.** `plan` prints; the containers above were run
+  by hand. Lifecycle, teardown and the proxy's readiness are not implemented.
+- **Whole-run replay and scoring.** `replay` checks the proxy's decisions, not gate
+  results, model calls or the scored outcome, and `classify` returns an unscored
+  outcome when the budget held.
+- **The mount list as a guarantee rather than a check.** `check` reads a running
+  container; it cannot stop a different one from being started without the mount
+  allowlist. That belongs with the CLI lifecycle above.
 
 ## Why replay at all
 
