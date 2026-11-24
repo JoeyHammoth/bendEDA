@@ -5,11 +5,13 @@ laws, manifest, abstraction map, reference proofs, SVA, provenance — whose law
 are all closed by the pinned checker, and what does that exercise expose?
 
 **Answer.** Yes for LA1, LA2 and LA8: 19 laws are closed by the composed book and
-`law lint` reports zero findings. LA3 is now *measured* and **fails**: 32 mutants,
-28 killed, kill rate 0.875 against a 0.9 bar. The failure is informative — one law
-is type-enforced, and one survived only because the mutant budget truncates in
-source order. Everything that needs a second role (RPA proofs, PA's C2, OAA's
-oracle) or an EDA toolchain is still open and is named in the package README.
+`law lint` reports zero findings. LA3 is now *measured* over the whole catalogue and
+**fails**: 51 mutants, 41 killed, kill rate 0.804 against a 0.9 bar. The failure is
+informative — the laws pin the data (`head`, and `count` as a state predicate) but
+never the occupancy a cycle produces, and ten constructor-choice mutants on
+`step`'s transition table survive every law for that one reason. Everything that
+needs a second role (RPA proofs, PA's C2, OAA's oracle) or an EDA toolchain is still
+open and is named in the package README.
 
 ## What was run
 
@@ -32,17 +34,18 @@ OK
 
 $ cat tasks/seq/B1_fifo/LAWS.bend tasks/seq/B1_fifo/PROOF_ref.bend > /tmp/laws.bend
 $ python -m bendeda law mutate tasks/seq/B1_fifo/model.bend --laws /tmp/laws.bend \
-      --local --max-mutants 32 --out .bend-cache/b1/mutation32.json
-law mutate: 32 mutant(s), 28 killed by at least one law, kill rate 0.875,
-            2 law(s) survived every mutant
+      --local --max-mutants 60 --out .bend-cache/b1/mutation_full.json
+law mutate: 51 mutant(s), 41 killed by at least one law, kill rate 0.80
 $ echo $?
 1
 
-$ python -m bendeda law lint tasks/seq/B1_fifo --mutation .bend-cache/b1/mutation32.json
-tasks\seq\B1_fifo: 19 law(s), 2 finding(s)
-  L006  [fifo_s01_count_within_depth]: law survived all 32 model mutants, so it does not constrain the model
-  L006  [fifo_f12_idle_preserves_head]: law survived all 32 model mutants, so it does not constrain the model
+$ python -m bendeda law lint tasks/seq/B1_fifo --mutation .bend-cache/b1/mutation_full.json
+tasks\seq\B1_fifo: 19 law(s), 0 finding(s)
+law lint: 1 package(s), 19 law(s), 0 finding(s)
 ```
+
+Every law is killed by at least one mutant, so L006 is silent. The failure is the
+opposite direction: ten mutants no law kills.
 
 The negative control is refused as required:
 
@@ -73,27 +76,40 @@ no proof also prints `SOME PROOFS FAIL` (`1 TODO found`). Counting that as a kil
 would credit the catalogue with catching a bug it never saw, so the tool now
 records it as an error. The gate has to be given the composed law+proof file.
 
-**2. LA3 fails at 0.875, and the two survivors have different causes.**
+**2. LA3 fails at 0.804, and the ten survivors are one law gap seen ten ways.**
+The survivors are all constructor choices in `step`, and none of them is an
+equivalent mutant: at line 107, `Idle` on a full FIFO returns `Empty{}` instead of
+`Full{}`; at line 85, `PushPop` on an empty FIFO stops returning `Half{}`. The
+composed book accepts both, which I checked by running the mutated model against all
+19 laws directly rather than trusting the scorer:
 
 ```console
-$ bun ... .bend-cache/b1/book_idle.bend     # Full arm: idle treated as pop
-SOME PROOFS FAIL
-- expected : b
-- observed : a
+$ bun main.ts .bend-cache/b1/m046_book.bend    # Idle on Full -> Empty
+ALL PROOFS CHECK
 ```
 
-- `fifo_s01_count_within_depth` is **type-enforced**: `count` decodes a
-  three-valued `Level`, so `count <= 2` cannot be false for any inhabitant, and no
-  branch or constructor mutant can produce a count of 3. It is not vacuous as a
-  statement — a `count` whose `Full` decodes to `3n` is refuted with
-  `expected False{} / observed True{}` — but the type excludes the states that
-  would refute it. L006 firing here is correct, and the law needs either dropping
-  from the reduced instance or restating parametrically.
-- `fifo_f12_idle_preserves_head` survived because `--max-mutants 32` truncates in
-  source order and stops inside the `Half` arm of `step`. The hand-written Full-arm
-  mutant above is refuted, so the survivor is a budget artifact, not a weak law.
-  A 48-mutant run costs roughly 40 minutes locally (each mutant is 19 checker
-  invocations, ~50 s per mutant), and the cap is recorded with the result.
+Why: `f12_idle_preserves_head` asserts the head survives, and it does — the mutant
+only changes the level. `f13_pushpop_empty_head` asserts the head is `din`, and it
+is. `count` laws are stated over *states* (`s02`, `s03`), not over a transition's
+result. So the laws constrain the data and never the occupancy a cycle produces,
+and ten mutants that only change the occupancy all pass.
+
+This supersedes the first report's reading of the same gate. It said
+`fifo_s01_count_within_depth` was *type-enforced*; that was a statement about the
+catalogue, not the law. `count` returns `Nat` and nothing stopped it returning
+`3n`, but the catalogue bumped literals only on lines its arithmetic pattern
+matched, and a `match` arm's body (`2n`) is not one. Adding that class makes
+`m006 literal 2n -> 3n` kill `fifo_s01` at the law layer:
+
+```console
+$ bun main.ts .bend-cache/b1/attr/fifo_s01_count_within_depth.bend
+SOME PROOFS FAIL
+- expected : False{}
+Note: the left side of the equality is the expected, the right side is the observed.
+```
+
+So the earlier 0.875 measured the catalogue's reach (48 sites, 32 tried), and 0.804
+measures the laws against all 51. The second number is the honest one.
 
 **3. A Nat occupancy cannot be bounded, and the induction lands on the wrong bound.**
 The next step after this package was a depth-parameterised model. Reducing it to
@@ -144,7 +160,8 @@ the reduced ADT stays the only shape whose laws close by evaluation.
   locally and the OSS CAD image was not asked to run one.
 - No oracle pack exists, so no sealed commitment is recorded and no seeded bug
   corpus exists for LA4/LA5.
-- LA3 has no passing result: 0.875 against a 0.9 bar, with one survivor that is a
-  cap artifact and one that the type makes unfalsifiable.
+- LA3 has no passing result: 0.804 against a 0.9 bar. All ten survivors are
+  occupancy-transition mutants, so the package needs post-state laws (with proofs)
+  before the gate can pass, and that is new law authoring rather than a re-run.
 - The package is `draft`. `locked/LOCKED.json` remains empty and
   `provenance.yaml` says `locked.by: unlocked` rather than naming a Conductor.

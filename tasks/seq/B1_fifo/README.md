@@ -53,7 +53,7 @@ values.
 |---|---|---|
 | **LA1** typing and proof | **pass** | 19/19 laws closed; `ALL PROOFS CHECK` on the composed book |
 | **LA2** witnesses | **pass (model level)** | the 3 witnesses are closed laws: reaches full, reaches empty, reaches half |
-| **LA3** model sensitivity | **fail** | 32 mutants, 28 killed, kill rate 0.875 against a 0.9 bar; two laws survived, for two different reasons (below) |
+| **LA3** model sensitivity | **fail** | 51 mutants, 41 killed, kill rate 0.804 against a 0.9 bar; no law survived every mutant, and 10 constructor-choice mutants survived every law (below) |
 | **LA4** design discrimination | skip | no seeded-bug corpus and no RTL |
 | **LA5** implementation neutrality | skip | no three implementations |
 | **LA6** coverage and parity | skip | C2 is provisional; parity would be confounded |
@@ -62,40 +62,49 @@ values.
 | **LA9** independence | skip | one session wrote every artifact |
 
 Law coverage is 11 of 12 requirements, with R12 (pointer wrap-around) declared
-conformance-only. `law lint` reports zero findings over all fifteen rules without a
-mutation report; with `.bend-cache/b1/mutation32.json` it reports two L006 findings,
-for the two survivors named below.
+conformance-only. `law lint` reports zero findings over all fifteen rules, and it
+still reports zero with the full mutation report: every law is killed by at least
+one mutant. The LA3 failure is the other direction — mutants no law kills.
 
 ### LA3, measured
 
 ```console
 $ cat LAWS.bend PROOF_ref.bend > /tmp/laws.bend
 $ python -m bendeda law mutate model.bend --laws /tmp/laws.bend --local \
-      --max-mutants 32 --out .bend-cache/b1/mutation32.json
-law mutate: 32 mutant(s), 28 killed by at least one law, kill rate 0.875,
-            2 law(s) survived every mutant
+      --max-mutants 60 --out .bend-cache/b1/mutation_full.json
+law mutate: 51 mutant(s), 41 killed by at least one law, kill rate 0.80
 $ echo $?
 1
 ```
 
-The bar is 0.9, so the gate fails. That is the measured result, not a threshold to
-argue with. What the two survivors mean is more interesting than the number:
+51 is every site the catalogue reaches on this model (14 branch swaps, 34
+constructor choices, 3 bare `Nat` literals), and the run costs ~40 minutes locally
+because each mutant is 19 checker invocations. The bar is 0.9, so the gate fails.
+That is the measured result, not a threshold to argue with.
 
-- **`fifo_s01_count_within_depth` is insensitive for a reason the law hides.** In
-the reduced instance `count` decodes a three-valued type, so `count <= 2` cannot be
-false for *any* value of `Level`; no branch swap or constructor choice can produce
-a count of 3. The law is falsifiable — a model whose `Full` decodes to `3n` is
-refuted with `expected False{} / observed True{}` — but the type rules out the
-states that would refute it, which is exactly what L006 is for. The catalogue also
-does not bump `Nat` literals outside arithmetic lines, so a `0n/1n/2n` decode is
-outside its reach.
-- **`fifo_f12_idle_preserves_head` survived only because the cap stopped early.**
-`--max-mutants` truncates in source order, and 32 mutants end inside the `Half`
-arm of `step`, before the `Full` arm's `Idle{}` body. A hand-written mutant that
-treats idle as a pop in the `Full` arm is refuted (`expected b / observed a`). So
-this survivor is a coverage artifact of the cap, not evidence that the law is weak —
-and the full 48-mutant run costs ~40 minutes locally, which is why the cap is
-recorded with the result.
+The ten survivors are all constructor choices in `step`'s transition table, and
+they are not equivalent mutants — each changes behaviour the specification pins:
+
+| Line | Mutation | What the model then does | Why no law notices |
+|---|---|---|---|
+| 85, 87 | `Half{}` -> `Empty{}` / `Full{}` | `PushPop` on empty no longer leaves `Half` | `f13` states the head, not the occupancy |
+| 97 | `Half{}` -> `Empty{}` / `Full{}` | `Idle` on half no longer leaves `Half` | `f12` states the head is preserved |
+| 105 | `Half{}` -> `Empty{}` / `Full{}` | `PushPop` on full no longer leaves `Half` | no law states the post-state occupancy |
+| 107 | `Full{}` -> `Empty{}` / `Half{}` | `Idle` on full empties the FIFO | `f12` keeps `a` and `b`, which this mutant keeps too |
+
+The gap is one gap, not ten: the laws constrain the data (`head`, and `count` as a
+*state* predicate) but never say what occupancy a cycle produces. `Idle` and a
+`Push` on full must leave the level alone, and no law says so. Killing these needs
+laws of the form `count(step(s, Idle{})) == count(s)` — or the level itself as a
+value — which is new law authoring, not a catalogue change.
+
+**Correction (2026-11-24):** the first report said
+`fifo_s01_count_within_depth` was *type-enforced*. That was wrong. `count` returns
+`Nat`, nothing stopped it returning `3n`, and the catalogue simply never bumped a
+bare `Nat` literal, which is what a `match` arm's whole body is here. With that
+class added, `m006 literal 2n -> 3n` kills `fifo_s01` at the law layer
+(`- expected : False{}`), and the law stays in the package. The earlier 0.875 came
+from a narrower catalogue; this 0.804 is the wider one, and it is worse.
 
 ## Why the model is a transition table
 
@@ -140,10 +149,10 @@ close by evaluation here.
   implementing it.
 - **SVA elaboration.** No SystemVerilog toolchain is installed locally; the OSS
   CAD image has not been asked to elaborate `props_locked.sv` or `props_c2.sv`.
-- **A clean LA3 pass.** The gate fails at 0.875 with one type-enforced survivor
-  and one survivor the cap never reached. A pass needs a bigger budget (~40 min for
-  48 mutants locally) and a decision about `s01`: either drop it as type-enforced,
-  or state it parametrically, which needs the lemma library the next section rules
-  out for now.
+- **A clean LA3 pass.** The gate fails at 0.804 over the full catalogue. The ten
+  survivors are unkilled because no law constrains the occupancy a cycle produces;
+  closing that needs post-state laws (and their proofs), then a re-run. The
+  `s01` question is settled — the law is falsifiable and now killed — and the
+  earlier "type-enforced" reading is superseded in the table above.
 - **Locking.** `locked/LOCKED.json` stays empty: locking needs LA1-LA9 and a
   Conductor, and neither is available.

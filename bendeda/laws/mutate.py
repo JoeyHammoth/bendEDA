@@ -19,9 +19,15 @@ mutation tool cannot depend on an import form the checker refuses.
 The catalogue has two halves. Operator swaps and literal bumps need arithmetic,
 so they say nothing about a model that is a finite transition table; for those,
 the catalogue swaps the bodies of sibling `match` arms with the same bound names,
-and replaces a nullary constructor with another of the same declared type. Both
-keep the program well typed, which is the point: a mutant that stops compiling
-is not a killed mutant.
+replaces a nullary constructor with another of the same declared type, and bumps
+a bare numeric literal that stands alone as a definition's result. All three keep
+the program well typed, which is the point: a mutant that stops compiling is not
+a killed mutant.
+
+The bare-literal case matters for a decode. `count` returning `2n` is a total
+function into `Nat`; nothing about the occupancy type stops it returning `3n`, so
+a bound law over `count` is falsifiable and a catalogue that only bumps literals
+on arithmetic lines cannot see that.
 """
 
 from __future__ import annotations
@@ -66,6 +72,10 @@ _TYPE_CTOR = re.compile(r"^(\s+)(\w+)\{([^}]*)\}\s*$")
 _MATCH = re.compile(r"^(\s*)match\b.*:\s*$")
 _CASE = re.compile(r"^(\s*)case\s+(.+?):\s*$")
 _CONSTRUCT = re.compile(r"\b([A-Z]\w*)\{\}")
+#: A line that is nothing but a numeric literal (and an optional comment). These
+#: are the results of a decode such as `count`, where the value is the whole point
+#: of the line and there is no operator to swap.
+_BARE_LITERAL = re.compile(r"^(\s*)(\d+)(n?)(\s*(?:#.*)?)$")
 
 #: Nullary constructors the checker provides, so a `Bool` result can be flipped
 #: in a model that does not declare `Bool` itself.
@@ -154,8 +164,13 @@ class MutationReport:
             return EXIT_FAIL
         return EXIT_OK
 
-    def as_json(self, min_mutants: int = 20, min_kill: float = 0.9) -> dict:
-        return {
+    def as_json(
+        self,
+        min_mutants: int = 20,
+        min_kill: float = 0.9,
+        environment: Mapping[str, str] | None = None,
+    ) -> dict:
+        payload = {
             "model": self.model,
             "checker": self.checker,
             "laws": self.law_records(),
@@ -181,6 +196,9 @@ class MutationReport:
                 "ok": self.exit_code(min_mutants, min_kill) == EXIT_OK,
             },
         }
+        if environment is not None:
+            payload["environment"] = dict(environment)
+        return payload
 
 
 def indent_of(line: str) -> int:
@@ -322,6 +340,13 @@ def candidates(model_text: str, max_mutants: int = 48) -> list[Mutant]:
                 edited = list(lines)
                 edited[number - 1] = line[: match.start()] + bumped + line[match.end() :]
                 sites.append((number, f"literal {match.group(1)} -> {bumped}", edited))
+        else:
+            bare = _BARE_LITERAL.match(line.rstrip())
+            if bare:
+                bumped = f"{int(bare.group(2)) + 1}{bare.group(3)}"
+                edited = list(lines)
+                edited[number - 1] = f"{bare.group(1)}{bumped}{bare.group(4)}"
+                sites.append((number, f"literal {bare.group(2)}{bare.group(3)} -> {bumped}", edited))
 
     types, declarations = constructor_types(lines)
     sites.extend(constructor_choices(lines, types, declarations))
@@ -462,10 +487,16 @@ def format_table(report: MutationReport) -> str:
     return "\n".join(lines)
 
 
-def write_report(report: MutationReport, path: Path, min_mutants: int, min_kill: float) -> None:
+def write_report(
+    report: MutationReport,
+    path: Path,
+    min_mutants: int,
+    min_kill: float,
+    environment: Mapping[str, str] | None = None,
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps(report.as_json(min_mutants, min_kill), indent=2) + "\n",
+        json.dumps(report.as_json(min_mutants, min_kill, environment), indent=2) + "\n",
         encoding="utf-8",
         newline="",
     )
@@ -533,10 +564,17 @@ def cmd_mutate(args) -> int:
     )
     report.model = model_path.as_posix()
 
+    from bendeda import provenance
+
+    environment = provenance.environment(checker, args.docker)
     if args.out:
-        write_report(report, Path(args.out), args.min_mutants, args.min_kill)
+        write_report(report, Path(args.out), args.min_mutants, args.min_kill, environment)
     if args.json:
-        print(json.dumps(report.as_json(args.min_mutants, args.min_kill), indent=2))
+        print(
+            json.dumps(
+                report.as_json(args.min_mutants, args.min_kill, environment), indent=2
+            )
+        )
     elif not args.quiet:
         print(format_table(report))
         for note in report.notes:

@@ -157,6 +157,35 @@ class TestTableCatalogue(unittest.TestCase):
         )
         self.assertEqual([m.description for m in candidates(model)], [])
 
+    def test_a_bare_literal_result_is_bumped(self) -> None:
+        # A decode returns the literal and nothing else, so there is no operator
+        # to swap. Without this the bound law over `count` cannot be falsified by
+        # any mutant, and L006 blames the law for the catalogue's blind spot.
+        model = NL.join(
+            [
+                "type Level is Data:",
+                "  Empty{}",
+                "  Full{}",
+                "",
+                "def count(l: Level) -> Nat:",
+                "  match l:",
+                "    case Empty{}:",
+                "      0n",
+                "    case Full{}:",
+                "      2n",
+                "",
+            ]
+        )
+        descriptions = [m.description for m in candidates(model)]
+        self.assertIn("literal 0n -> 1n", descriptions)
+        self.assertIn("literal 2n -> 3n", descriptions)
+        bumped = next(m for m in candidates(model) if m.description == "literal 2n -> 3n")
+        self.assertIn("case Full{}:" + NL + "      3n", bumped.text)
+
+    def test_a_literal_inside_a_comment_is_not_bumped(self) -> None:
+        mutants = candidates("# 2n" + NL + "def toy_id() -> Nat:" + NL + "  0n" + NL)
+        self.assertEqual([m.description for m in mutants], ["literal 0n -> 1n"])
+
     def test_the_source_order_is_kept_and_ids_are_sequential(self) -> None:
         mutants = candidates(TABLE)
         self.assertEqual([m.id for m in mutants], [f"m{i:03d}" for i in range(1, len(mutants) + 1)])
