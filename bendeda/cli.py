@@ -189,10 +189,16 @@ def cmd_canary(args: argparse.Namespace) -> int:
         )
     result = canary.run_suite(controls, checker, workdir, timeout=args.timeout)
 
+    from bendeda import provenance
+
+    # Criterion 2 of issue #6: a run names the image digest and the version the
+    # tool reported. The tag alone cannot distinguish a rebuilt image.
+    environment = provenance.environment(checker, args.docker)
+
     if args.out:
-        canary.write_report(result, Path(args.out))
+        canary.write_report(result, Path(args.out), environment)
     if args.json:
-        print(json.dumps(result.as_json(), indent=2))
+        print(json.dumps(result.as_json(environment), indent=2))
     elif not args.quiet:
         print(canary.format_table(result))
 

@@ -4,6 +4,54 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-24 - The mutation catalogue bumps bare Nat literals, because "the type enforces it" was a claim about the catalogue
+
+**Decided:** `law mutate` now also bumps a numeric literal that is the whole body
+of a line (`2n` as a match arm's body). `fifo_s01_count_within_depth` stays in B1
+and is not recorded as an equivalent mutant.
+
+**Why:** LA3's first B1 report called `s01` *type-enforced* — `count` decodes a
+three-valued `Level`, so `count <= 2` could not be false. That was wrong, and wrong
+in a way that mattered: `count` returns `Nat`, and nothing stops it returning `3n`.
+The catalogue never edited a decode, because it bumped literals only on lines its
+arithmetic pattern matched, so the gate reported the catalogue's reach as the
+law's weakness. The correct reading is the one L006 is for: the law is falsifiable
+and was untested.
+
+**Cost:** three more mutants per table model (48 to 51 on B1), and each mutant is
+one checker run per law. The 0.875 result this replaces came from a narrower
+catalogue, which is a reason to re-run rather than to reinterpret the old number.
+
+**Evidence:** `m006 literal 2n -> 3n` refutes `fifo_s01_count_within_depth` with
+`- expected : False{}` and the checker's "left side of the equality is the
+expected" note — a law-layer refusal, not a type error;
+`tests/test_law_mutate.py::TestTableCatalogue`.
+
+---
+
+## 2026-11-24 - A gate report names the image digest it ran, not the tag it asked for
+
+**Decided:** `bendeda canary --out` and `bendeda law mutate --out` write an
+`environment` block: the checker, the digest the daemon resolved for the image, and
+the version the image prints for itself. Local source runs record
+`image: none (local source pin)`.
+
+**Why:** Phase 0 criterion 2 asks every run to record `bend version` and the image
+digest. A tag can be rebuilt, so `bendeda/bend:2.0.40` identifies what was
+requested, not what executed. Reading the digest from the daemon is the only way to
+state the latter, and a missing image has to appear as a missing digest rather than
+as the repository's pin file.
+
+**Cost:** each image-mode report costs two extra daemon calls. A run whose image
+has since been pruned carries an `image_id_missing` note instead of the tag.
+Offline builds remain the open half of issue #6.
+
+**Evidence:** `bendeda/provenance.py`; `tests/test_provenance.py`; a real
+`canary --local --only a01 --out` report records
+`{'checker': ..., 'mode': 'default', 'image': 'none (local source pin)'}`.
+
+---
+
 ## 2026-11-24 - The mutation catalogue mutates branches, because a table has no arithmetic
 
 **Decided:** `law mutate` also exchanges the bodies of sibling `match` arms that bind the same names and replaces a nullary constructor with another of its declared type. A run over a law file whose laws have no proofs records `SOME PROOFS FAIL` with `1 TODO found` as an *error*, never as a kill.

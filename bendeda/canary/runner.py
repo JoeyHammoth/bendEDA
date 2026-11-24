@@ -23,7 +23,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Iterable, Sequence
+from typing import Callable, Iterable, Mapping, Sequence
 
 from bendeda.canary.controls import ANY, ACCEPT, REFUSE, Control
 from bendeda.plugins.interfaces import CanaryReport
@@ -72,6 +72,9 @@ class Checker:
     cwd: Path
     label: str
     mode: str = "default"  # default | verdict
+    #: The container image, when the checker runs in one. Bare `<image>:<tag>` in
+    #: `label` identifies what was asked for; a digest is what identifies what ran.
+    image: str | None = None
 
     def command(self, relative: str) -> list[str]:
         argv = list(self.argv) + [relative]
@@ -174,8 +177,8 @@ class SuiteResult:
             return 3
         return 0
 
-    def as_json(self) -> dict:
-        return {
+    def as_json(self, environment: Mapping[str, str] | None = None) -> dict:
+        payload = {
             "checker": self.checker,
             "mode": self.mode,
             "controls": [o.__dict__ for o in self.outcomes],
@@ -191,6 +194,9 @@ class SuiteResult:
                 "ok": self.exit_code() == 0,
             },
         }
+        if environment is not None:
+            payload["environment"] = dict(environment)
+        return payload
 
 
 def build_checker(
@@ -227,6 +233,7 @@ def build_checker(
         root,
         image,
         mode,
+        image=image,
     )
 
 
@@ -238,8 +245,17 @@ def _run(argv: Sequence[str], cwd: Path, timeout: int) -> tuple[int, str]:
         # The npm Bun on Windows is a POSIX shim, not a PE image. CI is Linux and
         # never takes this path; a local run must still work.
         shell = " ".join(shlex.quote(part) for part in argv)
+        # The shim is an MSYS bash on Windows, and it rewrites arguments that
+        # look like POSIX paths: `-w /work` reached Docker as
+        # `C:/Program Files/Git/work` and the container refused to start. The
+        # argv is ours and already absolute, so conversion must be off.
         completed = subprocess.run(
-            ["bash", "-c", shell], cwd=cwd, capture_output=True, text=True, timeout=timeout
+            ["bash", "-c", shell],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            env={**os.environ, "MSYS2_ARG_CONV_EXCL": "*"},
         )
         return completed.returncode, completed.stdout + completed.stderr
     except subprocess.TimeoutExpired:
@@ -336,6 +352,10 @@ def print_failures(result: SuiteResult) -> None:
         print(f"  command  {o.command}", file=sys.stderr)
 
 
-def write_report(result: SuiteResult, path: Path) -> None:
+def write_report(
+    result: SuiteResult, path: Path, environment: Mapping[str, str] | None = None
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(result.as_json(), indent=2) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(result.as_json(environment), indent=2) + "\n", encoding="utf-8"
+    )

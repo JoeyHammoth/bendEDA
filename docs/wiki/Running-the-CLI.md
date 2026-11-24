@@ -99,7 +99,11 @@ refused at. Exit codes:
 | 1 | a false accept, a false reject, or a control refused at the wrong stage |
 | 3 | no checker could run, so nothing was measured — not a pass |
 
-`--out <path>` writes the full per-control report. At this pin `--verdict` exits 3
+`--out <path>` writes the full per-control report, which now carries an
+`environment` block: the checker, and — when it runs in a container — the digest
+the daemon resolved plus the version the image reports. A local source run says
+`image: none (local source pin)` instead of borrowing a digest it never used.
+At this pin `--verdict` exits 3
 because the BendTT kernel needs Lean v4.34.0; the record is in
 `docs/research/2026-11-23-checker-canary.md`.
 
@@ -119,12 +123,14 @@ needs metadata the package does not carry says so (`L004 not evaluated: ...`,
 `law mutate` exit codes: 0 at least 20 mutants, kill rate at least 0.9 and no law
 surviving every mutant; 1 below any of those; 3 no checker or no mutable site.
 `--local` uses the pinned sources under Bun, and `--max-mutants` caps a run
-because each mutant costs one checker run per law. The catalogue and its limits
+because each mutant costs one checker run per law. Its `--out` report carries the
+same `environment` block as `canary`. The catalogue and its limits
 are in `docs/research/2026-11-24-law-lint.md`.
 
 The catalogue mutates arithmetic *and* table structure: sibling `match` arms that
-bind the same names are exchanged, and a nullary constructor is replaced by
-another of its type. A package that keeps `LAWS.bend` and `PROOF_ref.bend` apart
+bind the same names are exchanged, a nullary constructor is replaced by another of
+its type, and a bare numeric literal on its own line (`2n` as a match arm's whole
+body) is bumped. A package that keeps `LAWS.bend` and `PROOF_ref.bend` apart
 must pass a composed file, because `--laws` names one file and a law with no proof
 is recorded as an error, not as a kill:
 

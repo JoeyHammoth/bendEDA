@@ -10,10 +10,21 @@ The study needs three environments, and they are deliberately separate:
 
 Phase 0 requires that each image builds **offline from a lockfile** and records
 `bend version`, the OSS CAD Suite release and the image digest in every run.
-All three images now build in CI, but **no image has been shown to build
-offline**, and no run records its digest yet: `docker build --network=none`
-fails at `apt-get`, so offline means a mirrored base image and a package cache,
-which is the reopened part of issue #6.
+All three images now build in CI. Two of the three parts are met and the third is
+not:
+
+- **Recorded in every gate report.** `bendeda canary --out` and
+  `bendeda law mutate --out` carry an `environment` block (issue #6, criterion 2):
+  the checker, and — when the checker runs in a container — the digest the daemon
+  resolved (`docker image inspect`, so a rebuilt tag cannot pass for the pinned
+  image) and the version the image prints for itself (`docker run <image> version`).
+  A local source run says `image: none (local source pin)` rather than borrowing a
+  digest it never used. The module is `bendeda/provenance.py`; the record is
+  asserted in `tests/test_provenance.py`.
+- **Offline builds are still unproven.** `docker build --network=none` fails at
+  `apt-get`, not at the archive digest, so offline means a mirrored base image and
+  a package cache — a decision about build infrastructure, and the reopened part
+  of issue #6.
 
 ## Pinned versions (2026-11-21)
 
@@ -22,6 +33,10 @@ which is the reopened part of issue #6.
 | `bend` | release 2.0.40, tag commit `624dd9f` | **yes** — linux-x64 archive `c9ff8d67…` matches both the GitHub asset digest and the installer's embedded hash | **yes**, by the `bend-image` CI job |
 | `osscad` | release 2026-11-20 | **yes** - the release publishes a sha256 per asset and `6e200a57...` matches it; re-checked at build | **yes**, by the `oss-cad-image` workflow |
 | `harness` | python 3.12 + node 20 | n/a | **yes**, by the `harness-image` CI job |
+
+A local build on 2026-11-24 resolved to `sha256:eaf0a9d7…` and reported
+`bend 2.0.40`; a canary report from that image records both in its `environment`
+block, and the digest matches `docker image inspect` byte for byte.
 
 `docker/versions.lock` is the human record; `docker/bend-sources.sha256` is the
 machine-checked one, consumed by `python tools/fetch_bend.py`. The Bend *source*
