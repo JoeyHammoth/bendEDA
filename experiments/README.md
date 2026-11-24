@@ -38,6 +38,18 @@ bendeda oracle record --bundle .bend-cache/runs/smoke/C0-toy_counter-s1 \
   --commitment oracle_sealed/commitment.json
 ```
 
+`experiments/fixtures/demo_pack/` is a stand-in pack, committed in the clear with a
+`commitment.json` beside it, so the scoring half can be tried on a real cell:
+
+```bash
+bendeda oracle score --pack experiments/fixtures/demo_pack \
+  --commitment experiments/fixtures/demo_pack.commitment.json \
+  --bundle .bend-cache/runs/smoke/C0-toy_counter-s1 --host demo-pack
+```
+
+It is not the oracle — the real pack stays outside the repository — and
+`tests/test_oracle.py` fails if the pack and its commitment drift apart.
+
 `components.json` maps each pack component to a boolean. Both commands write
 `oracle.json` with the host and the pack's Merkle root, which is what lets `score`
 compute `O` without trusting a number someone typed in prose. They refuse a void bundle, a

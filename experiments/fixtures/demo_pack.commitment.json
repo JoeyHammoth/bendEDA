@@ -1,0 +1,10 @@
+{
+  "archive_sha256": "a395718e115e0936911e5ff756e2f903edb4830498bc423a37818ed114197d32",
+  "components": {
+    "README.md": "544b4361d5a4dc714690ba4378067643f8d0e4769b799dea7320fda0c8848abe",
+    "score.py": "49116167869804c189e0b938e77ac588c4529015b5cd6058e3146aad63653936"
+  },
+  "leaf_count": 2,
+  "root": "a9ebed2f8b7becb4aca0e3727998b6710bd7696db6834f22c4b63de3c4b3fbd9",
+  "scheme": "bendeda-merkle-v1"
+}

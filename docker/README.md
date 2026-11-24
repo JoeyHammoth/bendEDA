@@ -52,7 +52,7 @@ matrix cell writes those facts to `environment.json` beside its score:
 | `oss-cad-base` | debian bookworm + the apt packages | n/a | **yes**, once, with a network; `sha256:5fbcdb42…`; a prerequisite, not published (criterion 3) |
 | `harness` | python 3.12 + node 20 | n/a | **yes**, offline (`--network=none`) and in CI |
 
-A local build on 2026-11-25 resolved to `sha256:f14015d3…` (346,012,847 bytes) and a
+A local build on 2026-11-25 resolved to `sha256:75c299fd…` (346,095,202 bytes) and a
 smoke cell's `environment.json` names it; the digest matches `docker image inspect` byte
 for byte. The harness image is rebuilt from the working tree, so two builds of one commit
 can differ: its digest identifies the image a run used rather than pinning one. `oss-cad`
