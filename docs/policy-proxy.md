@@ -244,19 +244,28 @@ Each cell starts a sandbox, runs `command` inside it, records the submission, te
 sandbox down, re-executes the declared gates on the artifacts, and writes `events.jsonl`,
 `gates.json`, `expected.json`, `score.json` and `cell.json` under `--out/<matrix>/<cell>`.
 Exit 3 is the honest verdict: `S` and `V` are complete and `O` is not, because the oracle
-pack is scored on the scoring host.
+pack is scored on the scoring host. That answer comes back through
+`bendeda oracle record --bundle <cell> --components <json> --host <name>`, which writes
+`oracle.json` with the host and the pack's Merkle root and refuses a void bundle, a
+bundle that already scored `S=0`, and a bundle that already carries a result.
+
+`run` also prints the matrix's prereg hash and writes `prereg.json` next to the
+bundles. The hash covers every declared field with defaults folded in; `order`
+(`declared`, or `hash-v1` with a seed) fixes the sequence by `sha256("<seed>:<label>")`,
+so the order is reproducible without an RNG and interleaves arms.
 
 ## What does not exist yet
 
 - **Model calls and tool results in the replay.** `replay` covers proxy decisions; the
   design's full RF needs the tool results replayed too.
-- **The oracle pack at run time.** `O` stays absent, so a cell is incomplete rather than
-  scored on a verdict nobody computed.
+- **Running the oracle pack.** `run` cannot compute `O`; it stays absent until the
+  scoring host's answer is recorded with `oracle record`. A cell is incomplete rather
+  than scored on a verdict nobody computed.
 - **The mount allowlist as an independent guarantee.** `up` builds the single mount
   into the argv and `check` refutes a live container, but neither can stop a different
   container being started outside this CLI.
-- **Budget accounting across the matrix.** A cell's budget is recorded, not enforced:
-  nothing stops a command that exceeds it part-way through.
+- **A wall-clock guarantee for a silent command.** `--wall-min` is covered by an
+  injected clock in the tests, not by a real command that sleeps past its allowance.
 
 ## Why replay at all
 

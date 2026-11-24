@@ -15,6 +15,7 @@ through any mount.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import posixpath
@@ -31,6 +32,69 @@ DEFAULT_NETWORK = "bendeda-offline"
 PROXY_NAME = "bendeda-policy-proxy"
 AGENT_NAME = "bendeda-agent"
 PROXY_PORT = 8765
+
+PACKAGE_DIR = Path(__file__).resolve().parent
+
+# The image bakes `bendeda` at /opt/bendeda, so the probe reads that copy with only the
+# standard library: a stale image is exactly the one that may not have this module's
+# newer helpers. The bytes hashed here must match `package_fingerprint` below.
+_PACKAGE_PROBE = "\n".join(
+    [
+        "import hashlib, pathlib",
+        "h = hashlib.sha256()",
+        "for p in sorted(pathlib.Path('/opt/bendeda/bendeda').glob('*.py')):",
+        "    h.update(p.name.encode('utf-8') + b'\\0' + p.read_bytes() + b'\\0')",
+        "print(h.hexdigest())",
+    ]
+)
+
+# Successes only: a mismatch is re-probed next time, in case the image was rebuilt.
+_PROBED: dict[tuple[str, str], str | None] = {}
+
+
+def package_fingerprint(directory: Path | str = PACKAGE_DIR) -> str:
+    """One hash over the package's modules, so an image can be compared with a checkout."""
+    digest = hashlib.sha256()
+    for path in sorted(Path(directory).glob("*.py")):
+        digest.update(path.name.encode("utf-8") + b"\0" + path.read_bytes() + b"\0")
+    return digest.hexdigest()
+
+
+def stale_image(image: str, run=None) -> str | None:
+    """A problem string when the image carries a different `bendeda` than this checkout.
+
+    The harness image installs the package by copying it in, so a CLI change that is not
+    rebuilt appears inside the sandbox as `unrecognized arguments` — twice now the
+    explanation was a stale image rather than a defect. This asks the image for its own
+    copy and compares. An image that cannot report one is not usable for `up` anyway.
+    """
+    if os.environ.get("BENDEDA_SKIP_IMAGE_CHECK"):
+        return None
+    run = run or _run
+    expected = package_fingerprint()
+    key = (image, expected)
+    if key in _PROBED:
+        return _PROBED[key]
+    code, output = run(
+        [
+            "docker", "run", "--rm", "--network", "none", "--entrypoint", "python",
+            image, "-c", _PACKAGE_PROBE,
+        ]
+    )
+    actual = _last(output)
+    if code != 0:
+        return (
+            f"{image}: could not read bendeda from the image ({actual}); rebuild it with "
+            "`docker build -f docker/Dockerfile.harness` (or set BENDEDA_SKIP_IMAGE_CHECK=1)"
+        )
+    if actual != expected:
+        return (
+            f"{image}: the image's bendeda is not this checkout ({actual[:12]}... vs "
+            f"{expected[:12]}...); rebuild the image, or the sandbox runs a CLI you did "
+            "not test (BENDEDA_SKIP_IMAGE_CHECK=1 overrides)"
+        )
+    _PROBED[key] = None
+    return None
 
 
 @dataclass(frozen=True)
@@ -159,6 +223,11 @@ def up(spec: AgentSpec, run=None, wait=None) -> list[str]:
     run = run or _run
     network, proxy, _agent = plan(spec)
     wait = wait or _wait_for_proxy
+    # Before anything is created: a mismatched image would otherwise fail later, inside
+    # the sandbox, where the message looks like a bug in the command being run.
+    stale = stale_image(spec.image, run)
+    if stale:
+        raise SandboxError(stale)
     started: list[str] = []
     for name, argv in (
         ("network", network),

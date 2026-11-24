@@ -19,6 +19,8 @@ Thumbs.db
 
 # Local scratch & secrets
 .scratch/
+# Chat transcripts exported by the editor integration: large, and not part of the study
+freebuff-chat-*.md
 *.pem
 *.age
 !oracle_sealed/*.age

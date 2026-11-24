@@ -245,5 +245,46 @@ class TestExecuteCell(unittest.TestCase):
         self.assertIsNone(record["V"], "a gate that never ran cannot be a pass")
 
 
+class TestPrereg(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+
+    def labels(self, overrides: dict) -> list[str]:
+        return [cell.label for cell in expand(load(matrix_file(self.root, overrides)))]
+
+    def test_the_same_declaration_hashes_the_same(self) -> None:
+        path = matrix_file(self.root)
+        self.assertEqual(load(path).prereg, load(path).prereg)
+
+    def test_changing_one_field_changes_the_hash(self) -> None:
+        first = load(matrix_file(self.root)).prereg
+        second = load(matrix_file(self.root, {"arms": ["C1"]})).prereg
+        self.assertNotEqual(first, second)
+
+    def test_hash_order_is_reproducible_and_depends_on_the_seed(self) -> None:
+        declaration = {"arms": ["C0", "C1", "C2", "C3"], "seeds": [1, 2]}
+        seven = self.labels(dict(declaration, order={"method": "hash-v1", "seed": 7}))
+        again = self.labels(dict(declaration, order={"method": "hash-v1", "seed": 7}))
+        eight = self.labels(dict(declaration, order={"method": "hash-v1", "seed": 8}))
+
+        self.assertEqual(seven, again, "the same seed must expand to the same order")
+        self.assertEqual(sorted(seven), sorted(eight), "a seed only reorders, never drops")
+        self.assertNotEqual(seven, eight)
+
+    def test_declared_order_is_left_alone(self) -> None:
+        self.assertEqual(
+            self.labels({"arms": ["C0", "C1"]}),
+            ["C0-toy_counter-s1", "C1-toy_counter-s1"],
+        )
+
+    def test_a_bad_order_is_refused(self) -> None:
+        with self.assertRaises(ValueError):
+            load(matrix_file(self.root, {"order": {"method": "random"}}))
+        with self.assertRaises(ValueError):
+            load(matrix_file(self.root, {"order": {"method": "hash-v1", "seed": 0}}))
+
+
 if __name__ == "__main__":
     unittest.main()

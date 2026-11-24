@@ -177,6 +177,21 @@ the commitment is built over the plaintext before encryption:
 | 1 | encryption failed | a component differs; both roots printed |
 | 3 | no recipient, no `age`, unreadable input — nothing sealed | no directory, no commitment, unreadable commitment |
 
+`O` is scored on the scoring host, and the result comes back as data rather than as a
+claim:
+
+```bash
+bendeda oracle record --bundle .bend-cache/run/b1-c0-s1 \
+  --components components.json --host scoring-1 \
+  --commitment oracle_sealed/commitment.json
+```
+
+`components.json` maps each pack component to a boolean. The command writes `oracle.json`
+carrying the host and the pack's Merkle root, so `score` can compute `O` without trusting
+a number typed into prose. It refuses a void bundle, a bundle that already scored `S=0`
+(zero is already the answer) and a bundle that already carries a result — a second score
+is a disagreement, not an update. Exit 3 means nothing was written.
+
 The canary GUID in `oracle_sealed/canary.txt` is refused in any file under
 `tasks/` by `tools/check_oracle_absence.py`. Details:
 `docs/research/2026-11-24-sealed-oracle.md`.
@@ -197,9 +212,10 @@ it is refused, which makes it usable in a script.
 
 `replay` re-decides the log against the policy: 0 every recorded decision follows
 from it, 1 a decision does not (the sequence number and both rules are printed), 3
-there was nothing to replay. It replays the proxy's decisions, not a scored run —
-budgets and outcome replay are the rest of [#15](https://github.com/JoeyHammoth/bendEDA/issues/15);
-`docs/policy-proxy.md` states what is missing.
+there was nothing to replay. It replays the proxy's decisions, not a scored run: budgets are
+enforced and scored by `score`, and replaying tool results and model calls is the rest of
+[#15](https://github.com/JoeyHammoth/bendEDA/issues/15); `docs/policy-proxy.md` states
+what is missing.
 
 ## The sandbox: plan, up, check, down
 
@@ -218,7 +234,11 @@ workspace. Any failure tears down what started, so a failed `up` leaves no agent
 without its proxy. `runner check` inspects a live container and exits 1 naming each
 problem: another network, host networking, a mount that is not the workspace, or a
 mount that contains the oracle. `runner down` removes both containers and the network;
-something already gone is not a failure.
+something already gone is not a failure. Before creating anything, `up` asks the image for
+its copy of `bendeda` and compares it with the checkout: a harness image built before your
+last change would otherwise fail inside the sandbox as `unrecognized arguments`, which
+reads like a bug in the command rather than a stale image. `BENDEDA_SKIP_IMAGE_CHECK=1`
+overrides the check deliberately.
 
 ## Budgets and the score
 
@@ -276,6 +296,12 @@ that makes no calls at all). A matrix cell hands its own `budgets` to both, so
 `budget_exhausted: true` in `cell.json` means the sandbox was actually stopped. Exit 0 is
 deliberate — a spent allowance is a result, and the log then scores `S=V=O=0`.
 
+A matrix may declare `"order": { "method": "hash-v1", "seed": 7 }`. `hash-v1` sorts each
+cell label by `sha256("<seed>:<label>")` — reproducible on any machine, with no RNG state
+to reproduce — and interleaves arms. `run` prints the prereg hash and writes
+`prereg.json` beside the bundles, so a run says which order it executed and which
+declaration it belonged to.
+
 `run --matrix` expands a matrix, runs each cell in the sandbox, re-executes the declared
 gates and leaves `events.jsonl`, `gates.json`, `expected.json`, `score.json` and
 `cell.json` per cell. It exits 3 while `O` is absent: the oracle pack is scored on the
@@ -291,7 +317,7 @@ scoring host, so the cell is incomplete rather than green.
 
 | Command | Issue |
 |---|---|
-| `oracle score` | [#13](https://github.com/JoeyHammoth/bendEDA/issues/13) — seal and verify exist; scoring needs the decryption host |
+| `oracle score` | [#13](https://github.com/JoeyHammoth/bendEDA/issues/13) — seal, verify and `oracle record` exist; running the pack needs the decryption host |
 | `tf run` | blocked by BendBV ([#8](https://github.com/JoeyHammoth/bendEDA/issues/8)) |
 | `conformance` (L2/L3 rungs) | arrives with the EDA image ([#6](https://github.com/JoeyHammoth/bendEDA/issues/6)) |
 | `gate calibrate` | Phase 1.7 — GS/GSp over the bug corpus; `gate run` and `run` exist |
