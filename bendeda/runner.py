@@ -143,6 +143,21 @@ def _normalise_source(text: str) -> str:
     return text.rstrip("/").lower()
 
 
+def _host_user() -> list[str]:
+    """The proxy's uid, so it can write the audit log it mounts.
+
+    The image's own user is uid 10001, and a bind-mounted events directory belongs to
+    the invoking user (uid 1001 on a GitHub runner). The proxy could then start, answer
+    `/health` — which touches no file — and still fail to record a single call, closing
+    the connection with no response. That is exactly how the first CI smoke cell failed.
+    The proxy is the harness, not the arm, so it runs as the caller; Windows has no uid
+    to pass and its bind mounts are permissive anyway.
+    """
+    if not hasattr(os, "getuid"):
+        return []
+    return ["-u", f"{os.getuid()}:{os.getgid()}"]
+
+
 def plan(spec: AgentSpec) -> list[list[str]]:
     """The commands that would create the sandbox, or raise `Unrunnable`."""
     workspace = Path(_docker_path(spec.workspace))
@@ -154,6 +169,7 @@ def plan(spec: AgentSpec) -> list[list[str]]:
     network = ["docker", "network", "create", "--internal", spec.network]
     proxy = [
         "docker", "run", "-d", "--name", PROXY_NAME, "--network", spec.network,
+        *_host_user(),
         "--mount", f"type=bind,source={_docker_path(spec.policy)},target=/policy.json,readonly",
         "--mount", f"type=bind,source={_docker_path(spec.events.parent)},target=/events",
         "--entrypoint", "python", spec.image,
