@@ -4,6 +4,30 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-24 - oss-cad is two images, and only the second one is offline
+
+**Decided:** the suite image no longer runs `apt-get`. `docker/Dockerfile.oss-cad-base`
+carries the Debian packages and is built once with a network;
+`docker/Dockerfile.oss-cad` starts from it, takes the 754 MB suite from a staged archive,
+and builds with `--network=none`.
+
+**Why:** apt was the last networked step, and a release-archive mirror cannot supply it
+(packages, not tarballs). Moving it into a prerequisite image leaves the suite's own
+build with no HTTP client at all and keeps the archive's digest check. Publishing a base
+image would add an artifact to the licence review; a local prerequisite does not, so this
+is the part that can be done before criterion 3 clears.
+
+**Cost:** two images (5.35 GB for the suite), a base to rebuild when the packages or the
+pin move, and a CI job that downloads the archive before building instead of during.
+
+**Evidence:** the suite built with `--network=none` in 232.3 s from the verified archive
+(754,324,403 bytes, sha256 `6e200a57…`); `yosys 0.71+59`, `verilator 5.055` and
+`iverilog 14.0` answer; with the image present `tests.test_vector_path` runs its Verilator
+DUT instead of skipping — 27 tests, OK, 114.9 s. Both digests are in
+`docker/versions.lock`.
+
+---
+
 ## 2026-11-24 - The sandbox gets a lifecycle, and a score is three verdicts
 
 **Decided:** `runner up` creates the internal network, starts the proxy on it, waits for

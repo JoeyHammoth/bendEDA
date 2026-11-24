@@ -35,3 +35,4 @@ docker/smoke/*_prove/
 
 # Staged build archives (see docker/archives/README.md); never committed.
 docker/archives/*.tar.gz
+docker/archives/*.tgz
