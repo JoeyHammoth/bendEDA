@@ -190,6 +190,8 @@ bendeda oracle score --pack path/to/oracle/pack \
 The pack's `score.py` is called as `score.py <bundle>` with the pack as its working
 directory, and prints `{"components": {"name": true}}`. A crash, a timeout, output that
 is not JSON, or a component that is not a boolean is exit 3 with nothing written.
+`experiments/fixtures/demo_pack/` is a committed stand-in pack with its commitment, so the
+command can be tried on the smoke cell before the real pack exists.
 
 `O` is scored on the scoring host, and the result comes back as data rather than as a
 claim:

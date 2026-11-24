@@ -20,6 +20,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -408,9 +409,55 @@ class TestScorePack(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertTrue((self.bundle / oracle.RESULT_NAME).is_file())
 
+    def test_a_pack_that_never_answers_is_refused(self) -> None:
+        self.write_scorer("import time; time.sleep(5)")
+        started = time.monotonic()
+        with self.assertRaises(oracle.OracleError) as caught:
+            oracle.pack_components(self.pack, self.bundle, timeout=0.2)
+        self.assertIn("did not answer", str(caught.exception))
+        self.assertLess(time.monotonic() - started, 4.0, "the timeout, not the sleep, ended it")
+
     def test_the_second_score_is_a_disagreement_not_an_update(self) -> None:
         self.assertEqual(self.score(), 0)
         self.assertEqual(self.score(), oracle.EXIT_NOTHING)
+
+
+class TestDemoPack(unittest.TestCase):
+    """The committed stand-in pack is only useful while it matches its commitment."""
+
+    PACK = ROOT / "experiments" / "fixtures" / "demo_pack"
+    COMMITMENT = ROOT / "experiments" / "fixtures" / "demo_pack.commitment.json"
+
+    def test_the_pack_matches_its_commitment(self) -> None:
+        commitment = oracle.load_commitment(self.COMMITMENT)
+        self.assertEqual([d.render() for d in oracle.compare(self.PACK, commitment)], [])
+
+    def test_it_scores_a_bundle_with_a_submission_and_gates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle = Path(tmp) / "bundle"
+            bundle.mkdir()
+            (bundle / "events.jsonl").write_text(
+                json.dumps(
+                    {"seq": 1, "tool": "submit", "resource": "x", "action": "allow"}
+                )
+                + NL,
+                encoding="utf-8",
+            )
+            (bundle / "gates.json").write_text(json.dumps({"trace": True}), encoding="utf-8")
+            components = oracle.pack_components(self.PACK, bundle)
+        self.assertEqual(
+            components, {"permitted submission": True, "gate results recorded": True}
+        )
+
+    def test_an_unscored_bundle_is_not_a_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle = Path(tmp) / "bundle"
+            bundle.mkdir()
+            (bundle / "events.jsonl").write_text("", encoding="utf-8")
+            components = oracle.pack_components(self.PACK, bundle)
+        self.assertEqual(
+            components, {"permitted submission": False, "gate results recorded": False}
+        )
 
 
 if __name__ == "__main__":
