@@ -363,6 +363,31 @@ def cmd_runner_up(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_runner_exec(args: argparse.Namespace) -> int:
+    """Run the arm's command inside the sandbox, then record the submission."""
+    from bendeda.runner import exec_in, submit
+
+    command = list(args.command)
+    if command and command[0] == "--":
+        command = command[1:]
+    if not command:
+        print("bendeda runner exec: no command given", file=sys.stderr)
+        return EXIT_USAGE
+    code, output = exec_in(args.container, command)
+    if output.strip():
+        print(output.rstrip())
+    if code != 0:
+        return code
+    if args.submit:
+        code, output = submit(args.container, args.submit)
+        if output.strip():
+            print(output.rstrip())
+        if code != 0:
+            print("runner exec: the submission was not recorded", file=sys.stderr)
+            return EXIT_CHECK_FAILED
+    return EXIT_OK
+
+
 def cmd_runner_down(args: argparse.Namespace) -> int:
     """Remove the sandbox. Something already gone is not a failure."""
     from bendeda.runner import down
@@ -379,6 +404,89 @@ def cmd_runner_down(args: argparse.Namespace) -> int:
         return EXIT_CHECK_FAILED
     print(f"runner down: removed the agent, the proxy and the network {spec.network}")
     return EXIT_OK
+
+
+def cmd_gate_run(args: argparse.Namespace) -> int:
+    """Re-execute gates on submitted artifacts. A skip is not a pass."""
+    from bendeda.gates import GATES, PLANNED, run_gates, skipped, verdicts
+
+    names = list(args.names) or sorted(GATES)
+    for name in names:
+        if name in PLANNED:
+            print(f"gate run: {name}: not implemented yet — {PLANNED[name]}", file=sys.stderr)
+    runnable = [name for name in names if name not in PLANNED]
+    unknown = [name for name in runnable if name not in GATES]
+    if unknown:
+        print(f"gate run: unknown gate(s): {', '.join(unknown)}", file=sys.stderr)
+        return EXIT_USAGE
+    if not runnable:
+        return EXIT_NOT_IMPLEMENTED
+    try:
+        results = run_gates(
+            args.artifacts, runnable, {"image": args.image, "cycles": args.cycles}
+        )
+    except KeyError as exc:
+        print(f"gate run: unknown gate {exc.args[0]}", file=sys.stderr)
+        return EXIT_USAGE
+    if args.json:
+        print(json.dumps(
+            {
+                name: {
+                    "status": result.status,
+                    "reason": result.reason,
+                    "detail": dict(result.detail),
+                    "elapsed_ms": result.elapsed_ms,
+                }
+                for name, result in results.items()
+            },
+            indent=2,
+        ))
+    else:
+        for name, result in results.items():
+            suffix = f" — {result.reason}" if result.reason else ""
+            print(f"gate {name}: {result.status}{suffix}")
+    if args.out:
+        Path(args.out).write_text(
+            json.dumps(verdicts(results), indent=2, sort_keys=True), encoding="utf-8"
+        )
+        print(f"gate run: wrote {args.out}")
+    if any(result.status == "fail" for result in results.values()):
+        return EXIT_CHECK_FAILED
+    if skipped(results):
+        return EXIT_NOT_IMPLEMENTED
+    return EXIT_OK
+
+
+def cmd_run(args: argparse.Namespace) -> int:
+    """Expand a matrix and, unless --dry-run, execute cells into scoreable bundles."""
+    from bendeda.matrix import execute_cell, expand, load as load_matrix
+
+    try:
+        matrix = load_matrix(Path(args.matrix))
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"bendeda run: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    cells = expand(matrix)
+    if args.dry_run:
+        for number, cell in enumerate(cells, start=1):
+            print(json.dumps({
+                "n": number, "cell": cell.label, "task": cell.task.name,
+                "arm": cell.arm, "seed": cell.seed,
+            }))
+        print(f"run: {len(cells)} cell(s) in {matrix.name}; nothing was executed")
+        return EXIT_OK
+
+    limit = args.limit or len(cells)
+    records = [execute_cell(matrix, cell, args.out) for cell in cells[:limit]]
+    for record in records:
+        print(json.dumps(
+            {key: record[key] for key in ("cell", "S", "V", "O", "complete", "error")},
+            sort_keys=True,
+        ))
+    complete = sum(1 for record in records if record["complete"])
+    print(f"run: {len(records)} cell(s), {complete} complete, {len(records) - complete} incomplete")
+    print("run: bundles are in " + str(Path(args.out) / matrix.name))
+    return EXIT_OK if complete == len(records) else EXIT_NOT_IMPLEMENTED
 
 
 def cmd_score(args: argparse.Namespace) -> int:
@@ -499,18 +607,24 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_gate = sub.add_parser("gate", help="gate operations")
     gate_sub = p_gate.add_subparsers(dest="gate_command", metavar="<subcommand>")
-    sp = gate_sub.add_parser("run", help="run one gate on an artifact directory")
-    sp.add_argument("name")
+    sp = gate_sub.add_parser("run", help="re-execute gates on an artifact directory")
+    sp.add_argument("names", nargs="*", help="trace, formal (default: every implemented gate)")
     sp.add_argument("--artifacts", default=".")
-    sp.set_defaults(func=lambda _a: _todo("gate run", "lint/sim/formal/conformance gate runner", "Phase 2"))
+    sp.add_argument("--image", default="bendeda/oss-cad:2026-11-20")
+    sp.add_argument("--cycles", type=int, default=8)
+    sp.add_argument("--out", default=None, help="write the pass/fail map (gates.json) here")
+    sp.add_argument("--json", action="store_true")
+    sp.set_defaults(func=cmd_gate_run)
     sp = gate_sub.add_parser("calibrate", help="gate sensitivity and specificity")
     sp.add_argument("--corpus", default="bugs/")
     sp.set_defaults(func=lambda _a: _todo("gate calibrate", "GS and GSp over the bug corpus", "Phase 1.7"))
 
     p_run = sub.add_parser("run", help="execute an experiment matrix")
-    p_run.add_argument("experiment")
-    p_run.add_argument("--dry-run", action="store_true")
-    p_run.set_defaults(func=lambda _a: _todo("run", "arm x task x model x seed matrix with budgets", "Phase 2"))
+    p_run.add_argument("--matrix", required=True, help="matrix JSON (see experiments/README.md)")
+    p_run.add_argument("--dry-run", action="store_true", help="expand the cells and execute nothing")
+    p_run.add_argument("--limit", type=int, default=0, help="execute only the first N cells")
+    p_run.add_argument("--out", default=str(Path(".bend-cache") / "runs"), help="where bundles go")
+    p_run.set_defaults(func=cmd_run)
 
     p_runner = sub.add_parser("runner", help="agent sandbox: plan it, then check it")
     runner_sub = p_runner.add_subparsers(dest="runner_command", metavar="<subcommand>")
@@ -538,6 +652,12 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--policy", required=True, help="proxy policy JSON")
     sp.add_argument("--events", required=True, help="audit log the proxy writes")
     sp.set_defaults(func=cmd_runner_up)
+    sp = runner_sub.add_parser("exec", help="run a command inside the agent container")
+    sp.add_argument("--container", default="bendeda-agent")
+    sp.add_argument("--submit", default=None,
+                   help="record a submission for this resource when the command succeeds")
+    sp.add_argument("command", nargs=argparse.REMAINDER, help="the command; prefix with -- if it takes flags")
+    sp.set_defaults(func=cmd_runner_exec)
     sp = runner_sub.add_parser("down", help="remove the sandbox's containers and network")
     sp.add_argument("--workspace", default=".")
     sp.add_argument("--network", default="bendeda-offline")

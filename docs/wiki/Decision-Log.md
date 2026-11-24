@@ -4,6 +4,34 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-24 - Gates execute, the arm runs inside the sandbox, and a matrix scores it
+
+**Decided:** `gate run` fills the `Gate` protocol with two real gates — `trace` (model and
+submitted RTL agree every cycle) and `formal` (every `.sby` job writes PASS) — and treats a
+missing compiler or image as `skip`, never as pass or fail. `runner exec` runs the arm's
+command inside the keepalive container and can record a submission through the proxy.
+`bendeda run --matrix` expands cells deterministically, runs each one, re-executes the
+gates and writes a bundle `score` reads.
+
+**Why:** `V` was being read from results somebody else recorded, which is testimony. A
+gate that reruns the checker on the submitted artifacts is the only version of `V` that
+survives a replay. The matrix exists for the same reason: without it, every claim about
+scoring rests on a hand-assembled directory.
+
+**Cost:** cells are incomplete by construction (`O` has no source outside the scoring
+host), so a matrix run exits 3; budgets are recorded, not enforced mid-command; and the
+harness image had to move its package to `/opt/bendeda`, because mounting a workspace at
+`/work` used to hide the CLI.
+
+**Evidence:** `gate trace` passes the golden fixture, fails the same task with wrapping
+RTL at cycle 7, and `gate formal` passes the sby fixture; the smoke matrix cell reports
+`S=1, V=1, O=null` and exits 3. Three defects surfaced by running it: a denied `submit`
+was counted as a submission (`S=1` with no submission); the matrix handed the agent's
+image to the simulator gate, so `trace` failed for the wrong reason; and the harness
+image's `/work` package was hidden by the workspace mount.
+
+---
+
 ## 2026-11-24 - oss-cad is two images, and only the second one is offline
 
 **Decided:** the suite image no longer runs `apt-get`. `docker/Dockerfile.oss-cad-base`

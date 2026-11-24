@@ -1,0 +1,15 @@
+{
+  "name": "smoke",
+  "image": "bendeda/harness:0.0.1",
+  "sim_image": "bendeda/oss-cad:2026-11-20",
+  "network": "bendeda-offline",
+  "policy": "experiments/matrices/smoke.policy.json",
+  "command": ["python", "-m", "bendeda", "--version"],
+  "budgets": { "tool_calls": 40 },
+  "visible_gates": ["trace"],
+  "tasks": [
+    { "name": "toy_counter", "artifacts": "experiments/fixtures/toy_counter" }
+  ],
+  "arms": ["C0"],
+  "seeds": [1]
+}

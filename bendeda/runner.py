@@ -258,6 +258,39 @@ def check(
     return problems
 
 
+def exec_in(container: str, argv: Sequence[str], run=None) -> tuple[int, str]:
+    """Run the arm's work inside the sandbox, where the proxy governs it.
+
+    `up` starts a keepalive container precisely so the scored command runs here and
+    not on the host: a command run outside the container is not the run the log
+    describes.
+    """
+    run = run or _run
+    return run(["docker", "exec", container, *argv])
+
+
+def submit(container: str, resource: str, run=None) -> tuple[int, str]:
+    """Record a submission by calling the proxy from inside the agent's network.
+
+    The host can reach neither the internal network nor the agent, so the submit
+    event has to be posted from the container — which is also what keeps the proxy
+    the only thing that writes the log.
+    """
+    run = run or _run
+    script = (
+        "import json, sys, urllib.error as e, urllib.request as u\n"
+        "try:\n"
+        f"    r = u.urlopen(u.Request('http://{PROXY_NAME}:{PROXY_PORT}/call', data=json.dumps("
+        f"{{'tool': 'submit', 'resource': {resource!r}}}).encode(), "
+        "headers={'Content-Type': 'application/json'}), timeout=10)\n"
+        "    print(r.status)\n"
+        "except e.HTTPError as exc:\n"
+        "    print('refused', exc.code)\n"
+        "    sys.exit(1)\n"
+    )
+    return run(["docker", "exec", container, "python", "-c", script])
+
+
 def mount_target(source: str) -> str:
     """Where a mount source lands inside the container, for reporting."""
     return posixpath.normpath(source)

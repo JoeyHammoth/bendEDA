@@ -1,0 +1,19 @@
+{
+  "default": "deny",
+  "rules": [
+    {
+      "id": "read-workspace",
+      "action": "allow",
+      "tool": "fs-*",
+      "resource": "**",
+      "reason": "the workspace is the agent's own work"
+    },
+    {
+      "id": "submit",
+      "action": "allow",
+      "tool": "submit",
+      "resource": "**",
+      "reason": "a submission is the arm's result; a policy without this rule cannot score S=1"
+    }
+  ]
+}

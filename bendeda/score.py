@@ -77,6 +77,22 @@ def _verdict(
     return 1, f"all {len(results)} {noun} passed"
 
 
+def submitted(events: Sequence[dict[str, Any]]) -> bool:
+    """A submission counts only when the proxy allowed it.
+
+    A refused `submit` is still one JSONL line with `tool: submit`, and counting any
+    such line made a policy that forbids submission look like an arm that submitted —
+    which turned a refused call into `S=1` in the first matrix run.
+    """
+    for event in events:
+        if event.get("tool") != SUBMIT_EVENT:
+            continue
+        action = event.get("action")
+        if action is None or str(action).lower() == "allow":
+            return True
+    return False
+
+
 def score(
     events: Sequence[dict[str, Any]],
     limits: Limits,
@@ -93,8 +109,8 @@ def score(
         return Score(True, 0, 0, 0, outcome.reason)
     if any(event.get("tool") == CRASH_EVENT for event in events):
         return Score(True, 0, 0, 0, "the agent crashed before submitting")
-    if not any(event.get("tool") == SUBMIT_EVENT for event in events):
-        return Score(True, 0, 0, 0, "no submission was recorded before the log ended")
+    if not submitted(events):
+        return Score(True, 0, 0, 0, "no permitted submission was recorded before the log ended")
 
     visible, visible_reason = _verdict(gates, expected_gates, "visible gates")
     oracle_verdict, oracle_reason = _verdict(oracle, None, "oracle components")
@@ -117,6 +133,7 @@ class Bundle:
     gates: dict[str, bool] | None
     oracle: dict[str, bool] | None
     recorded: dict[str, Any] | None
+    declared: list[str] | None = None
 
     @property
     def limits(self) -> Limits:
@@ -125,8 +142,16 @@ class Bundle:
 
     @property
     def expected_gates(self) -> list[str] | None:
+        """The arm's declared gate set, from run.json or the matrix's expected.json.
+
+        The second source exists because a pilot cell has no schema-valid `run.json`
+        (its artifacts may be a fixture, and `task` must name a real task), while the
+        completeness check still has to know which gates were promised.
+        """
         gates = self.run.get("visible_gates")
-        return [str(name) for name in gates] if isinstance(gates, list) else None
+        if isinstance(gates, list):
+            return [str(name) for name in gates]
+        return self.declared
 
 
 def _booleans(path: Path, key: str) -> dict[str, bool] | None:
@@ -160,6 +185,14 @@ def load(root: str | Path) -> Bundle:
         if not isinstance(data, dict):
             raise ValueError("run.json: expected an object")
         run = data
+    declared: list[str] | None = None
+    expected_path = root / "expected.json"
+    if expected_path.is_file():
+        data = json.loads(expected_path.read_text(encoding="utf-8"))
+        names = data.get("visible_gates") if isinstance(data, dict) else data
+        if not isinstance(names, list) or not all(isinstance(name, str) for name in names):
+            raise ValueError("expected.json: visible_gates must be a list of names")
+        declared = list(names)
     recorded: dict[str, Any] | None = None
     outcome_path = root / "outcome.json"
     if outcome_path.is_file():
@@ -174,6 +207,7 @@ def load(root: str | Path) -> Bundle:
         gates=_booleans(root / "gates.json", "gates"),
         oracle=_booleans(root / "oracle.json", "components"),
         recorded=recorded,
+        declared=declared,
     )
 
 

@@ -42,10 +42,16 @@ class TestVerdicts(unittest.TestCase):
         self.assertEqual((result.S, result.V, result.O), (0, 0, 0))
         self.assertIn("crashed", result.reason)
 
+    def test_a_refused_submission_is_not_a_submission(self) -> None:
+        refused = [{"seq": 1, "tool": SUBMIT_EVENT, "resource": "x", "action": "deny", "rule": "default"}]
+        result = score(refused, LIMITS, {"lint": True}, {"sva": True})
+        self.assertEqual((result.S, result.V), (0, 0))
+        self.assertIn("no permitted submission", result.reason)
+
     def test_no_submission_is_not_a_pass(self) -> None:
         result = score(events("fs-read", "fs-read"), LIMITS, {"lint": True}, {"sva": True})
         self.assertEqual(result.S, 0)
-        self.assertIn("no submission", result.reason)
+        self.assertIn("no permitted submission", result.reason)
 
     def test_one_failing_visible_gate_makes_v_zero(self) -> None:
         result = score(
