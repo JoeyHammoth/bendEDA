@@ -43,7 +43,7 @@ controls and a registration token.
 
 ## Required checks and branch protection
 
-The checks that should be required on `main`:
+The checks required on `main` (set on 2026-11-25):
 
 | Check | Why |
 |---|---|
@@ -51,7 +51,9 @@ The checks that should be required on `main`:
 | `repository hygiene` | secrets, licence headers, whitespace, oracle absence, DCO |
 | `locked-file guard` | a locked artifact cannot change without an amendment |
 | `docs site` | the site's links and assets |
-| `bend and EDA gates` | the reason the runner exists |
+| `harness image (pinned Dockerfile)` | the sandbox image builds offline, and the `run` → `oracle score` → `score` chain runs on it |
+| `oss-cad suite image (pinned)` | the simulator and prover image builds, and the trace gate judges real RTL in it |
+| `bend and EDA gates` | the reason the runner exists — **not** required yet; see below |
 
 Protection settings:
 
@@ -61,10 +63,41 @@ Protection settings:
 - dismiss stale approvals on push;
 - require the checks above, and require branches to be up to date before merge.
 
-The repository API calls for these need an admin token; a token with only `repo`
-and `project` scopes cannot set them. Until they are set, `CODEOWNERS` and the
-`locked-file guard` are the only enforcement, and that is written here rather
-than assumed.
+The image jobs were left out of the original five, and that had a cost: PR #49 merged
+with a red `harness image (pinned Dockerfile)` because the job was not required, and its
+defect — the proxy could not write the events directory — was only found afterwards.
+Both image jobs are required now, so that cannot repeat.
+
+`bend and EDA gates` stays unrequired until the tools runner exists (#12): the job is
+skipped while `BENDEDA_TOOLS_RUNNER` is unset, and a required check that reports
+`skipped` on every pull request would be a check that says nothing.
+
+Requiring `oss-cad suite image (pinned)` also removed its `paths` filter on
+`pull_request`. A required job behind a path filter is unsatisfiable in practice: a
+pull request that touches none of the paths never gets the status, so it waits forever.
+A companion "gate" job that reports success when the build was skipped would be the
+same false green in a different shape. The job now runs on every pull request, at the
+cost of a 754 MB download and a suite build; `push` keeps the narrow filter because a
+docs commit on `main` does not need a new simulator image.
+
+Setting the list needs an admin token; a token with only `repo` and `project` scopes
+cannot do it. The endpoint replaces the whole list, so the existing five have to be
+repeated:
+
+```bash
+gh api -X PATCH repos/OWNER/REPO/branches/main/protection/required_status_checks \
+  -f strict=true \
+  -f 'contexts[]=tests (py3.12)' -f 'contexts[]=tests (py3.13)' \
+  -f 'contexts[]=repository hygiene' -f 'contexts[]=docs site' \
+  -f 'contexts[]=locked-file guard' \
+  -f 'contexts[]=harness image (pinned Dockerfile)' \
+  -f 'contexts[]=oss-cad suite image (pinned)'
+```
+
+`CODEOWNERS` still cannot enforce the owner review or the two-review rule for
+`tasks/`, `prereg/` and `amendments/`, because branch protection reports
+`reviews: null` until the repository is on a paid plan or made public. That limit is
+written here rather than assumed.
 
 ## The failure this avoids
 
