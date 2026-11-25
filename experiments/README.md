@@ -85,6 +85,21 @@ That cell exits 0, because a spent allowance is a result rather than an incomple
 `image` is what the agent runs in; `sim_image` is what the gates simulate in. Passing one
 for both made the trace gate report a fail, because the harness image has no Verilator.
 
+## Corpus
+
+`corpus/toy_counter/` is the gate-calibration corpus (LA4): a base submission plus nine
+one-file variants — three correct implementations, three mutants and three seeded
+defects. Each entry replaces files of the base, so a bug reads as a diff rather than a
+second copy of the task.
+
+```bash
+bendeda gate calibrate --corpus experiments/corpus/toy_counter --out .bend-cache/calibrate.json
+```
+
+It is fixture-scale: nine entries in one task, with `trace` as the only gate. A study
+task's corpus adds the MCY mutant set for that task, and `formal` when the task has
+proofs.
+
 ## Planned matrices
 
 | File | Phase | Matrix |
