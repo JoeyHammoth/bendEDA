@@ -1,20 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
-# Building the OSS CAD Suite image is a 754 MB download and ~2.5 GB unpacked, so
-# it runs only when the pin or the image changes — not on every pull request.
+# Building the OSS CAD Suite image is a 754 MB download and ~2.5 GB unpacked. It ran
+# only when the pin or the image changed until it became a required check; a required
+# job behind a `paths` filter cannot work, because an unrelated pull request then waits
+# for a status nothing ever reports. The alternatives were worse: a companion "gate"
+# job that passes when the build was skipped is exactly the green that hides work that
+# did not happen. So the filter is gone from `pull_request`, and the cost is a suite
+# build on every pull request. `push` keeps the narrow filter: a docs commit on main
+# does not need a new simulator image.
 name: oss-cad-image
 
 on:
   workflow_dispatch:
   pull_request:
-    paths:
-      - docker/Dockerfile.oss-cad
-      - docker/Dockerfile.oss-cad-base
-      - docker/versions.lock
-      - .github/workflows/oss-cad-image.yml
-      - bendeda/**
-      - tools/model_vectors.mjs
-      - experiments/fixtures/**
-      - tests/test_vector_path.py
   push:
     branches: [main]
     paths:

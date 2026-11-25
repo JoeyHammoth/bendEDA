@@ -72,6 +72,14 @@ Both image jobs are required now, so that cannot repeat.
 skipped while `BENDEDA_TOOLS_RUNNER` is unset, and a required check that reports
 `skipped` on every pull request would be a check that says nothing.
 
+Requiring `oss-cad suite image (pinned)` also removed its `paths` filter on
+`pull_request`. A required job behind a path filter is unsatisfiable in practice: a
+pull request that touches none of the paths never gets the status, so it waits forever.
+A companion "gate" job that reports success when the build was skipped would be the
+same false green in a different shape. The job now runs on every pull request, at the
+cost of a 754 MB download and a suite build; `push` keeps the narrow filter because a
+docs commit on `main` does not need a new simulator image.
+
 Setting the list needs an admin token; a token with only `repo` and `project` scopes
 cannot do it. The endpoint replaces the whole list, so the existing five have to be
 repeated:
