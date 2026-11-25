@@ -229,6 +229,14 @@ Where the CLI lives is not cosmetic either. The harness image used to keep the p
 module named bendeda` inside a sandbox whose purpose is to run it. The image now carries
 the package at `/opt/bendeda` and leaves `/work` to the agent.
 
+Both containers run as the invoking user, not as the image's uid 10001: the workspace and
+the events directory are bind mounts owned by the caller, so the proxy's log and the
+arm's artifacts would otherwise be files the host can neither read nor clean up. The
+proxy hit that first (it answered `/health`, which touches no file, and then could not
+record a call), and the arm has the same problem in the other direction once it writes
+`/work`. The sandbox's boundary is the single mount and the internal network, not the uid
+inside it; Windows has no uid, so it keeps the image user.
+
 ## The run matrix
 
 ```console

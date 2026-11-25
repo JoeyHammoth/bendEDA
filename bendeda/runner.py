@@ -144,14 +144,17 @@ def _normalise_source(text: str) -> str:
 
 
 def _host_user() -> list[str]:
-    """The proxy's uid, so it can write the audit log it mounts.
+    """The invoking user's uid, so a container can write the bind mount it is given.
 
-    The image's own user is uid 10001, and a bind-mounted events directory belongs to
-    the invoking user (uid 1001 on a GitHub runner). The proxy could then start, answer
+    The image's own user is uid 10001, and a bind-mounted directory belongs to the
+    invoking user (uid 1001 on a GitHub runner). The proxy could then start, answer
     `/health` — which touches no file — and still fail to record a single call, closing
     the connection with no response. That is exactly how the first CI smoke cell failed.
-    The proxy is the harness, not the arm, so it runs as the caller; Windows has no uid
-    to pass and its bind mounts are permissive anyway.
+    The arm has the same problem in the other direction: it writes its artifacts into
+    `/work`, which the host then has to read, and files owned by uid 10001 are not the
+    caller's to clean up. The sandbox is the security boundary — one mount, one internal
+    network — not the uid inside it, so both containers run as the caller. Windows has
+    no uid to pass and its bind mounts are permissive anyway.
     """
     if not hasattr(os, "getuid"):
         return []
@@ -189,6 +192,7 @@ def agent_command(spec: AgentSpec, keepalive: bool = False) -> list[str]:
     workspace = Path(_docker_path(spec.workspace))
     argv = [
         "docker", "run", "--rm", "--name", AGENT_NAME, "--network", spec.network,
+        *_host_user(),
         # Exactly one mount: the workspace. The oracle is not among them, which is the
         # whole point, so it is nowhere in this argv.
         "--mount", f"type=bind,source={_docker_path(workspace)},target=/work",
