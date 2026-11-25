@@ -84,6 +84,25 @@ class TestPlan(unittest.TestCase):
             proxy = plan(self.spec)[1]
         self.assertEqual(proxy[proxy.index("-u") + 1], "1001:1001")
 
+    def test_the_arm_also_runs_as_the_invoking_user(self) -> None:
+        """The workspace is the caller's mount; the arm writes its artifacts into it."""
+        from unittest import mock
+
+        with mock.patch("bendeda.runner.os.getuid", return_value=1001, create=True), \
+                mock.patch("bendeda.runner.os.getgid", return_value=1001, create=True):
+            _network, proxy, agent = plan(self.spec)
+        self.assertEqual(agent[agent.index("-u") + 1], "1001:1001")
+        self.assertEqual(proxy[proxy.index("-u") + 1], "1001:1001")
+
+    def test_a_host_without_a_uid_passes_none(self) -> None:
+        """Windows has no uid; Docker's own image user is the only option there."""
+        from unittest import mock
+
+        with mock.patch("bendeda.runner.hasattr", return_value=False, create=True):
+            _network, proxy, agent = plan(self.spec)
+        self.assertNotIn("-u", proxy)
+        self.assertNotIn("-u", agent)
+
     def test_a_plan_without_a_policy_is_refused(self) -> None:
         self.assertRaises(Unrunnable, plan, AgentSpec(workspace=self.root))
 
