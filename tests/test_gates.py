@@ -13,7 +13,17 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from bendeda.gates import GATES, run_gates, skipped, trace_gate, verdicts, formal_gate
+from bendeda.gates import (
+    GATES,
+    calibrate,
+    formal_gate,
+    load_corpus,
+    run_gates,
+    skipped,
+    stage,
+    trace_gate,
+    verdicts,
+)
 from bendeda.plugins import GateResult
 
 
@@ -163,6 +173,181 @@ class TestFormalGate(unittest.TestCase):
         formal_gate(self.root, {}, run=lambda argv: (0, ""), available=lambda *_: True)
 
         self.assertEqual(sorted(p.name for p in self.root.iterdir()), before)
+
+
+def make_corpus(root: Path, entries: list[tuple[str, str, str]]) -> None:
+    """A base submission plus one-file variants, the shape `load_corpus` expects."""
+    base = root / "base"
+    base.mkdir()
+    (base / "model.bend").write_text("# model\n", encoding="utf-8")
+    (base / "dut.sv").write_text("// base\n", encoding="utf-8")
+    (base / "dut.json").write_text(
+        json.dumps(
+            {
+                "top": "dut",
+                "clock": {"port": "clk"},
+                "inputs": [],
+                "outputs": [{"port": "y"}],
+                "compare": "y",
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest: dict = {"task": "toy", "base": "base", "gates": ["trace"], "entries": []}
+    for identifier, kind, text in entries:
+        directory = root / kind / identifier
+        directory.mkdir(parents=True)
+        (directory / "dut.sv").write_text(text, encoding="utf-8")
+        manifest["entries"].append(
+            {"id": identifier, "kind": kind, "artifacts": f"{kind}/{identifier}"}
+        )
+    (root / "corpus.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+
+def fake_run(seen: list[list[str]] | None = None):
+    """A gate runner that answers from the staged RTL, and records what it saw."""
+
+    def run(artifacts, names, cfg):
+        if seen is not None:
+            seen.append(sorted(path.name for path in Path(artifacts).iterdir()))
+        text = (Path(artifacts) / "dut.sv").read_text(encoding="utf-8")
+        status = "fail" if "REJECT" in text else "skip" if "SKIP" in text else "pass"
+        return {
+            name: GateResult(name, status, reason=f"{name} says {status}") for name in names
+        }
+
+    return run
+
+
+GOOD = ("correct", ("a", "b", "c"))
+BUGS = (
+    ("mutant", ("m1",)),
+    ("seeded", ("s1",)),
+)
+
+
+def standard(root: Path, **overrides: str) -> None:
+    """Three correct implementations, one mutant and one seeded bug."""
+    entries: list[tuple[str, str, str]] = []
+    for kind, ids in (GOOD, *BUGS):
+        for identifier in ids:
+            text = overrides.get(identifier, "// REJECT\n" if kind != "correct" else "// ok\n")
+            entries.append((identifier, kind, text))
+    make_corpus(root, entries)
+
+
+class TestCalibration(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+
+    def test_a_clean_corpus_calibrates(self) -> None:
+        standard(self.root)
+        report = calibrate(load_corpus(self.root), run=fake_run())
+
+        self.assertEqual(report.gs(), 1.0)
+        self.assertEqual(report.gsp(), 1.0)
+        self.assertEqual(report.exit_code(), 0)
+        self.assertEqual(report.counts("correct"), {"decided": 3, "total": 3})
+        self.assertTrue(report.as_json()["ok"])
+
+    def test_a_bug_no_gate_caught_is_a_failure_and_is_named(self) -> None:
+        standard(self.root, m1="// passes\n")
+        report = calibrate(load_corpus(self.root), run=fake_run())
+
+        self.assertLess(report.gs(), 1.0)
+        self.assertEqual([entry.id for entry in report.survivors()], ["m1"])
+        self.assertEqual(report.exit_code(), 1)
+        self.assertEqual(report.as_json()["survivors"], ["m1"])
+
+    def test_sensitivity_is_reported_apart_for_mutants_and_seeded_bugs(self) -> None:
+        standard(self.root, m1="// passes\n")
+        report = calibrate(load_corpus(self.root), run=fake_run())
+
+        self.assertEqual(report.gs("mutant"), 0.0)
+        self.assertEqual(report.gs("seeded"), 1.0)
+        self.assertEqual(report.as_json()["gs"]["mutant"], 0.0)
+
+    def test_a_rejected_correct_implementation_fails_specificity(self) -> None:
+        standard(self.root, c="// REJECT\n")
+        report = calibrate(load_corpus(self.root), run=fake_run())
+
+        self.assertLess(report.gsp(), 1.0)
+        self.assertEqual([entry.id for entry in report.false_rejects()], ["c"])
+        self.assertEqual(report.exit_code(), 1, "an over-fitted gate is a failure even at GS 1")
+
+    def test_a_skipped_gate_leaves_the_entry_undecidable_and_uncalibrated(self) -> None:
+        standard(self.root, s1="// SKIP\n")
+        report = calibrate(load_corpus(self.root), run=fake_run())
+
+        self.assertEqual([entry.id for entry in report.undecidable()], ["s1"])
+        self.assertEqual(report.gs("seeded"), None, "nothing decidable of that kind")
+        self.assertEqual(report.counts("seeded"), {"decided": 0, "total": 1})
+        self.assertEqual(report.exit_code(), 3)
+        self.assertEqual(report.as_json()["undecidable"], ["s1"])
+
+    def test_fewer_than_three_correct_implementations_is_not_calibrated(self) -> None:
+        make_corpus(
+            self.root,
+            [
+                ("a", "correct", "// ok\n"),
+                ("m1", "mutant", "// REJECT\n"),
+                ("s1", "seeded", "// REJECT\n"),
+            ],
+        )
+        report = calibrate(load_corpus(self.root), run=fake_run())
+
+        self.assertEqual(report.exit_code(), 3)
+        self.assertFalse(report.as_json()["ok"])
+
+    def test_an_entry_overrides_the_base_and_the_base_is_untouched(self) -> None:
+        standard(self.root)
+        seen: list[list[str]] = []
+        corpus = load_corpus(self.root)
+        calibrate(corpus, run=fake_run(seen))
+
+        self.assertEqual(seen[0], ["dut.json", "dut.sv", "model.bend"])
+        self.assertEqual(
+            sorted(path.name for path in corpus.base.iterdir()),
+            ["dut.json", "dut.sv", "model.bend"],
+        )
+        staged = self.root / "staged"
+        staged.mkdir()
+        stage(corpus, corpus.entries[0], staged)
+        self.assertEqual(
+            (staged / "dut.sv").read_text(encoding="utf-8"), "// ok\n",
+            "the entry's file wins over the base's",
+        )
+
+    def test_a_manifest_without_a_correct_entry_is_refused(self) -> None:
+        make_corpus(self.root, [("m1", "mutant", "// REJECT\n")])
+        with self.assertRaises(ValueError) as caught:
+            load_corpus(self.root)
+        self.assertIn("correct", str(caught.exception))
+
+    def test_a_manifest_naming_a_gate_that_does_not_exist_is_refused(self) -> None:
+        standard(self.root)
+        manifest = json.loads((self.root / "corpus.json").read_text(encoding="utf-8"))
+        manifest["gates"] = ["lint"]
+        (self.root / "corpus.json").write_text(json.dumps(manifest), encoding="utf-8")
+        with self.assertRaises(ValueError) as caught:
+            load_corpus(self.root)
+        self.assertIn("unknown gate", str(caught.exception))
+
+    def test_a_duplicate_id_is_refused(self) -> None:
+        standard(self.root)
+        manifest = json.loads((self.root / "corpus.json").read_text(encoding="utf-8"))
+        manifest["entries"].append(dict(manifest["entries"][0]))
+        (self.root / "corpus.json").write_text(json.dumps(manifest), encoding="utf-8")
+        with self.assertRaises(ValueError) as caught:
+            load_corpus(self.root)
+        self.assertIn("twice", str(caught.exception))
+
+    def test_a_directory_without_a_manifest_is_refused(self) -> None:
+        with self.assertRaises(ValueError) as caught:
+            load_corpus(self.root)
+        self.assertIn("corpus.json", str(caught.exception))
 
 
 class TestRegistry(unittest.TestCase):
