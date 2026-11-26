@@ -476,6 +476,83 @@ def cmd_gate_run(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_gate_calibrate(args: argparse.Namespace) -> int:
+    """GS and GSp over a corpus. Partial rates are reported as partial, never as a pass."""
+    from bendeda.gates import GATES, calibrate, load_corpus
+
+    try:
+        corpus = load_corpus(args.corpus)
+    except ValueError as exc:
+        print(f"gate calibrate: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    names = tuple(name.strip() for name in (args.gates or "").split(",") if name.strip())
+    unknown = [name for name in names if name not in GATES]
+    if unknown:
+        print(f"gate calibrate: unknown gate(s): {', '.join(unknown)}", file=sys.stderr)
+        return EXIT_USAGE
+
+    calibration = calibrate(
+        corpus, {"image": args.image, "cycles": args.cycles}, gates=names or None
+    )
+    payload = calibration.as_json(args.min_gs, args.min_correct)
+
+    if args.out:
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.out).write_text(
+            json.dumps(payload, indent=2) + "\n", encoding="utf-8", newline=""
+        )
+    if args.json:
+        print(json.dumps(payload, indent=2))
+    elif not args.quiet:
+        print(
+            f"gate calibrate: {corpus.task} from {corpus.root}, "
+            f"gates {', '.join(calibration.gates)}"
+        )
+        for entry in calibration.entries:
+            detail = ", ".join(
+                f"{name}: {status}" for name, status in entry.gates.items()
+            )
+            suffix = f" — {entry.reason}" if entry.reason else ""
+            print(f"  {entry.kind + '/' + entry.id:<34} {entry.verdict:<11} {detail}{suffix}")
+
+    def rate(value: float | None) -> str:
+        return "n/a" if value is None else f"{value:.3f}"
+
+    mutants, seeded, correct = (
+        calibration.counts("mutant"),
+        calibration.counts("seeded"),
+        calibration.counts("correct"),
+    )
+    summary = (
+        f"GS {rate(calibration.gs())} "
+        f"(mutant {calibration.gs('mutant') or 0.0:.3f} {mutants['decided']}/{mutants['total']}, "
+        f"seeded {calibration.gs('seeded') or 0.0:.3f} {seeded['decided']}/{seeded['total']}), "
+        f"GSp {rate(calibration.gsp())} ({correct['decided']}/{correct['total']} correct)"
+    )
+    code = calibration.exit_code(args.min_gs, args.min_correct)
+    undecided = calibration.undecidable()
+    if undecided:
+        summary += (
+            f"; {len(undecided)} entry(ies) undecidable because a gate could not run, "
+            "so these rates are partial"
+        )
+    if calibration.false_rejects():
+        summary += f"; rejected correct implementations: {', '.join(e.id for e in calibration.false_rejects())}"
+    if calibration.survivors():
+        summary += f"; bugs no gate caught: {', '.join(e.id for e in calibration.survivors())}"
+    if correct["decided"] < args.min_correct:
+        summary += (
+            f"; {correct['decided']} decidable correct implementation(s) is fewer than "
+            f"the {args.min_correct} LA4 needs to expose an over-fitted gate"
+        )
+    if calibration.gs() is not None and calibration.gs() < args.min_gs:
+        summary += f"; below LA4's floor of {args.min_gs}"
+    print(f"gate calibrate: {summary}", file=sys.stderr if code else sys.stdout)
+    if code == EXIT_NOT_IMPLEMENTED:
+        print("  nothing was calibrated, so this is not a pass (exit 3).", file=sys.stderr)
+    return code
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     """Expand a matrix and, unless --dry-run, execute cells into scoreable bundles."""
     from bendeda.matrix import execute_cell, expand, load as load_matrix
@@ -667,9 +744,20 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--out", default=None, help="write the pass/fail map (gates.json) here")
     sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=cmd_gate_run)
-    sp = gate_sub.add_parser("calibrate", help="gate sensitivity and specificity")
-    sp.add_argument("--corpus", default="bugs/")
-    sp.set_defaults(func=lambda _a: _todo("gate calibrate", "GS and GSp over the bug corpus", "Phase 1.7"))
+    sp = gate_sub.add_parser("calibrate", help="gate sensitivity and specificity (LA4)")
+    sp.add_argument("--corpus", default="bugs/", help="corpus directory holding corpus.json")
+    sp.add_argument("--gates", default=None,
+                    help="comma-separated gate names; default: the corpus's own set")
+    sp.add_argument("--image", default="bendeda/oss-cad:2026-11-20")
+    sp.add_argument("--cycles", type=int, default=8)
+    sp.add_argument("--min-gs", type=float, default=0.95,
+                    help="LA4's floor on gate sensitivity (default 0.95)")
+    sp.add_argument("--min-correct", type=int, default=3,
+                    help="correct implementations needed to expose an over-fitted gate (default 3)")
+    sp.add_argument("--out", default=None, help="write the full report as JSON")
+    sp.add_argument("--json", action="store_true")
+    sp.add_argument("--quiet", action="store_true")
+    sp.set_defaults(func=cmd_gate_calibrate)
 
     p_run = sub.add_parser("run", help="execute an experiment matrix")
     p_run.add_argument("--matrix", required=True, help="matrix JSON (see experiments/README.md)")

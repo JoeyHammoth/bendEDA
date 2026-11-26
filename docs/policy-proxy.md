@@ -208,6 +208,35 @@ against the model names `incs`, while the generated testbench wants one sequence
 input port (for a single-input design they are the same sequence); and `load_plan`
 normalises a missing `stimulus` section to `{}`, so "absent" has to be tested as empty.
 
+## Calibration: GS and GSp (LA4)
+
+`gate run` says what one submission did; `gate calibrate` says what the gate set is
+worth. It runs the gates over a corpus and reports gate sensitivity (the share of bugs
+some gate rejected) and gate specificity (the share of correct implementations accepted):
+
+```console
+$ bendeda gate calibrate --corpus experiments/corpus/toy_counter
+gate calibrate: toy_counter from experiments/corpus/toy_counter, gates trace
+  correct/golden                     accepted    trace: pass
+  ...
+gate calibrate: GS 1.000 (mutant 1.000 3/3, seeded 1.000 3/3), GSp 1.000 (3/3 correct)
+$ echo $?
+0
+```
+
+A corpus is a `corpus.json` naming a base submission, a gate set and one entry per
+variant; each entry directory holds only the files it replaces, so a bug is a one-file
+diff against a design that already passes, and `calibrate` stages base-then-overlay in a
+temporary directory. `mutant` and `seeded` are reported apart because the design reports
+them apart: a gate that catches only the hand-written half is not calibrated.
+
+An entry whose gate skipped is *undecidable*: excluded from the rate and listed.
+Counting it as a miss would blame the gate for a machine with no simulator; counting it
+as a catch would invent a result. An undecidable entry, or fewer than `--min-correct`
+decidable correct implementations, exits 3 — not calibrated — even when the partial rates
+look perfect. Exit 1 is calibrated and failing: a surviving bug, a rejected correct
+implementation, or GS below `--min-gs` (0.95, LA4's floor).
+
 ## `runner exec`: the arm runs inside the sandbox
 
 `up` leaves a keepalive container; `runner exec` runs the arm's command in it and can

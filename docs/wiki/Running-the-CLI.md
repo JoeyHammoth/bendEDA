@@ -295,6 +295,7 @@ an `outcome.json` to reproduce.
 ```bash
 bendeda gate run trace --artifacts experiments/fixtures/toy_counter --out gates.json
 bendeda gate run formal --artifacts docker/smoke
+bendeda gate calibrate --corpus experiments/corpus/toy_counter --out calibrate.json
 bendeda runner exec --submit tasks/seq/B1_fifo/submission -- python -m bendeda --version
 bendeda run --matrix experiments/matrices/smoke.json --dry-run
 bendeda run --matrix experiments/matrices/smoke.json --limit 1
@@ -305,6 +306,15 @@ gate could not run (a missing compiler or image is a skip, never a pass). `trace
 compiles the submitted model, simulates the submitted RTL and requires every cycle to
 agree; the same task with wrapping RTL fails at cycle 7. `formal` runs every `*.sby` job
 and requires a PASS marker.
+
+`gate calibrate` runs the gate set over a corpus and reports gate sensitivity (GS: the
+share of bugs some gate rejected) and gate specificity (GSp: the share of correct
+implementations accepted). A corpus declares a base submission, its gate set and one
+entry per variant; an entry holds only the files it replaces, so a bug is a one-file
+diff. `mutant` and `seeded` are reported apart. An entry whose gates skipped is
+*undecidable* — excluded from the rate and listed — so a machine without a simulator
+exits 3 rather than reporting a sensitivity it never measured. Exit 0 calibrated, 1
+calibrated and failing, 3 not calibrated.
 
 `runner exec` runs the arm's command inside the sandbox started by `up`. `--submit`
 records a submission through the proxy afterwards; the policy has to permit `submit`, or
@@ -341,7 +351,6 @@ scoring host with `oracle score`, so the cell is incomplete here rather than gre
 |---|---|
 | `tf run` | blocked by BendBV ([#8](https://github.com/JoeyHammoth/bendEDA/issues/8)) |
 | `conformance` (L2/L3 rungs) | arrives with the EDA image ([#6](https://github.com/JoeyHammoth/bendEDA/issues/6)) |
-| `gate calibrate` | Phase 1.7 — GS/GSp over the bug corpus; `gate run` and `run` exist |
 | `report`, `bundle verify`, `serve` | Phase 6 / Phase 2 |
 
 ## Common friction

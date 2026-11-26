@@ -1,0 +1,61 @@
+{
+  "task": "toy_counter",
+  "base": "../../fixtures/toy_counter",
+  "gates": ["trace"],
+  "entries": [
+    {
+      "id": "golden",
+      "kind": "correct",
+      "artifacts": "correct/golden",
+      "note": "the bit-select saturation the fixture ships"
+    },
+    {
+      "id": "compare",
+      "kind": "correct",
+      "artifacts": "correct/compare",
+      "note": "saturates on a five-bit comparison instead of the overflow bit"
+    },
+    {
+      "id": "subtract",
+      "kind": "correct",
+      "artifacts": "correct/subtract",
+      "note": "asks whether adding would overrun the ceiling, by subtraction"
+    },
+    {
+      "id": "m01_adds_one",
+      "kind": "mutant",
+      "artifacts": "mutant/m01_adds_one",
+      "note": "off-by-one: adds one in the unsaturated path"
+    },
+    {
+      "id": "m02_resets_to_one",
+      "kind": "mutant",
+      "artifacts": "mutant/m02_resets_to_one",
+      "note": "the reset value changed from zero to one"
+    },
+    {
+      "id": "m03_truncates_increment",
+      "kind": "mutant",
+      "artifacts": "mutant/m03_truncates_increment",
+      "note": "the increment width shrank: inc[1:0] instead of inc"
+    },
+    {
+      "id": "s01_wraps_at_16",
+      "kind": "seeded",
+      "artifacts": "seeded/s01_wraps_at_16",
+      "note": "the carried defect in the fixture: no saturation, wraps at 16"
+    },
+    {
+      "id": "s02_ceiling_13",
+      "kind": "seeded",
+      "artifacts": "seeded/s02_ceiling_13",
+      "note": "saturates one short of the contract's ceiling"
+    },
+    {
+      "id": "s03_double_counts",
+      "kind": "seeded",
+      "artifacts": "seeded/s03_double_counts",
+      "note": "adds the increment twice"
+    }
+  ]
+}

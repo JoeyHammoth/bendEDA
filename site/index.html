@@ -244,7 +244,7 @@ python -m unittest discover -s tests -v</code></pre>
           <tr><td><code>bendeda tf run &lt;task&gt;</code></td><td>Compute translation fidelity over random and mutated traces</td><td><span class="status planned">planned</span></td></tr>
           <tr><td><code>bendeda canary</code></td><td>Run the checker negative-control suite; one false accept blocks the Bend arms</td><td><span class="status working">working</span></td></tr>
           <tr><td><code>bendeda gate run &lt;name&gt;</code></td><td>Run one gate (lint, sim, formal, conformance) on an artifact directory</td><td><span class="status planned">planned</span></td></tr>
-          <tr><td><code>bendeda gate calibrate</code></td><td>Gate sensitivity and specificity against the seeded-bug corpus</td><td><span class="status planned">planned</span></td></tr>
+          <tr><td><code>bendeda gate calibrate</code></td><td>Gate sensitivity and specificity over a corpus; an undecidable entry keeps the rate partial and the exit 3</td><td><span class="status working">working</span></td></tr>
           <tr><td><code>bendeda run &lt;experiment.yaml&gt;</code></td><td>Execute an arm × task × model × seed matrix within budgets</td><td><span class="status planned">planned</span></td></tr>
           <tr><td><code>bendeda replay &lt;run_id&gt;</code></td><td>Replay a run deterministically from its event log</td><td><span class="status planned">planned</span></td></tr>
           <tr><td><code>bendeda oracle seal &lt;dir&gt; --recipient &lt;key&gt;</code></td><td>Deterministic archive and a Merkle commitment over every component; refuses rather than writing plaintext</td><td><span class="status working">working</span></td></tr>

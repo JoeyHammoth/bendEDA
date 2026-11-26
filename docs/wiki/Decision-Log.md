@@ -4,6 +4,33 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-25 - Calibration reads a corpus of one-file variants, and a skipped gate is undecidable
+
+**Decided:** `gate calibrate` reads `corpus.json`: a base submission, the gate set, and
+one entry per variant. An entry directory holds only the files it replaces, and
+`calibrate` stages base-then-overlay in a temporary directory before running the gates.
+GS is reported for `mutant` and `seeded` apart; GSp needs at least three decidable
+correct implementations. An entry whose gate skipped is undecidable — excluded from both
+rates and listed — and exits 3.
+
+**Why:** a corpus that repeats the whole submission per bug hides the diff, and one that
+names a bug without staging a runnable directory makes the gate's answer depend on which
+files happened to be present. Splitting mutant from seeded keeps a gate from looking
+calibrated on the half it was tuned for. A skip is the one result that is neither a catch
+nor a false assurance, so averaging it in as either is a fabricated number.
+
+**Cost:** one more file format to maintain, and eleven files (a manifest, a README and
+nine one-file variants) for a fixture-scale corpus; a study task's corpus adds the MCY
+mutant set. `--min-correct 3` is LA4's requirement, so a corpus with two correct
+implementations cannot calibrate even if both pass.
+
+**Evidence:** `experiments/corpus/toy_counter` — 3 correct, 3 mutant, 3 seeded; GS and
+GSp 1.000 over nine entries against the `trace` gate. The undecidable path is covered in
+`tests/test_gates.py::TestCalibration`: an entry whose gate skipped leaves its kind's
+rate `null` and exits 3.
+
+---
+
 ## 2026-11-24 - The budget stops the run, and every cell records what produced it
 
 **Decided:** the allowance is enforced in the proxy (`proxy serve --max-calls N`), which

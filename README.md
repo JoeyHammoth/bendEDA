@@ -91,7 +91,7 @@ Nothing here needs a GPU, a network connection, or a Bend install to run the tes
 | `bendeda tf run <task>` | Compute translation fidelity |
 | `bendeda canary` | Checker negative-control suite: 32 controls, one false accept blocks the Bend arms |
 | `bendeda gate run <name> --artifacts <dir>` | Run one gate standalone |
-| `bendeda gate calibrate --corpus bugs/` | Gate sensitivity and specificity |
+| `bendeda gate calibrate --corpus <dir>` | Gate sensitivity and specificity over a corpus (LA4) |
 | `bendeda run <experiment.yaml>` | Execute a run matrix |
 | `bendeda replay <run_id>` | Replay a run from its event log |
 | `bendeda oracle seal <dir> --recipient <key>` | Deterministic archive plus a Merkle commitment; never writes plaintext |
