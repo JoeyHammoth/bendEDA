@@ -87,18 +87,28 @@ for both made the trace gate report a fail, because the harness image has no Ver
 
 ## Corpus
 
-`corpus/toy_counter/` is the gate-calibration corpus (LA4): a base submission plus nine
-one-file variants — three correct implementations, three mutants and three seeded
-defects. Each entry replaces files of the base, so a bug reads as a diff rather than a
-second copy of the task.
+Two gate-calibration corpora (LA4), one per implemented gate that can be judged without
+a simulator. Each is a base plus nine one- or two-file variants — three correct
+implementations, three mutants and three seeded defects — so a bug reads as a diff
+rather than a second copy of the task.
+
+| Corpus | Base | Gate | What it measures |
+|---|---|---|---|
+| `corpus/toy_counter/` | `fixtures/toy_counter` | `trace` | model and RTL agree on a submitted artifact directory |
+| `corpus/b1_fifo_laws/` | `tasks/seq/B1_fifo` | `lint` | a law package passes rules L001-L015 |
 
 ```bash
 bendeda gate calibrate --corpus experiments/corpus/toy_counter --out .bend-cache/calibrate.json
+bendeda gate calibrate --corpus experiments/corpus/b1_fifo_laws
 ```
 
-It is fixture-scale: nine entries in one task, with `trace` as the only gate. A study
-task's corpus adds the MCY mutant set for that task, and `formal` when the task has
-proofs.
+The output says what each gate decided, not only what the set did: `per gate:` lists the
+bugs a gate caught, how many it caught alone, and how many correct implementations it
+rejected, and the summary names any gate that caught nothing.
+
+Both are fixture-scale: nine entries in one task. A study task's corpus adds the MCY
+mutant set for that task, and `formal` when the task has proofs. No task here carries
+both RTL and a law package yet, which is why no corpus names two gates.
 
 ## Planned matrices
 

@@ -1,0 +1,195 @@
+# SPDX-License-Identifier: Apache-2.0
+# B1 FIFO: law metadata (Appendix G.7). The YAML subset the linter reads has no
+# anchors, tags or block scalars on purpose; see bendeda/laws/manifest.py.
+task: B1_fifo
+tier: A
+spec: spec.md
+status: draft
+bend_version: "2.0.40"
+bv_version: "bv@e9b4562"
+requirements: [R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, R13]
+
+laws:
+  - id: FIFO-S-01
+    name: fifo_s01_count_within_depth
+    class: L-SAFE
+    priority: core
+    requirements: [R1]
+    witness: fifo_w01_reaches_full
+    translation: {sva: p_count_within_depth, template: invariant_v1}
+    reference_proof: {file: PROOF_ref.bend, lines: 8, effort_minutes: 5}
+  - id: FIFO-S-02
+    name: fifo_s02_full_iff_count_depth
+    class: L-SAFE
+    priority: core
+    requirements: [R6]
+    witness: fifo_w01_reaches_full
+    translation: {sva: p_full_iff_depth, template: invariant_v1}
+    reference_proof: {file: PROOF_ref.bend, lines: 8, effort_minutes: 5}
+  - id: FIFO-S-03
+    name: fifo_s03_empty_iff_count_zero
+    class: L-SAFE
+    priority: core
+    requirements: [R7]
+    witness: fifo_w02_reaches_empty
+    translation: {sva: p_empty_iff_zero, template: invariant_v1}
+    reference_proof: {file: PROOF_ref.bend, lines: 8, effort_minutes: 5}
+  - id: FIFO-F-01
+    name: fifo_f01_push_empty_count
+    class: L-FUNC
+    priority: core
+    requirements: [R11]
+    witness: null
+    translation: {sva: p_push_empty_count, template: implication_v1}
+    reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
+  - id: FIFO-F-02
+    name: fifo_f02_push_empty_head
+    class: L-FUNC
+    priority: core
+    requirements: [R9, R11]
+    witness: fifo_w03_reaches_half
+    translation: {sva: p_push_empty_head, template: implication_v1}
+    reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
+  - id: FIFO-F-03
+    name: fifo_f03_push_half_full
+    class: L-FUNC
+    priority: important
+    requirements: [R6]
+    witness: fifo_w03_reaches_half
+    translation: {sva: p_push_half_full, template: implication_v1}
+    reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
+  - id: FIFO-F-04
+    name: fifo_f04_push_full_noop
+    class: L-FUNC
+    priority: core
+    requirements: [R2]
+    witness: fifo_w01_reaches_full
+    translation: {sva: p_push_full_noop, template: implication_v1}
+    reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
+  - id: FIFO-F-05
+    name: fifo_f05_pop_empty_noop
+    class: L-FUNC
+    priority: core
+    requirements: [R3]
+    witness: fifo_w02_reaches_empty
+    translation: {sva: p_pop_empty_noop, template: implication_v1}
+    reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
+  - id: FIFO-F-06
+    name: fifo_f06_pop_full_count
+    class: L-FUNC
+    priority: important
+    requirements: [R10]
+    witness: fifo_w01_reaches_full
+    translation: {sva: p_pop_full_count, template: implication_v1}
+    reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
+  - id: FIFO-F-07
+    name: fifo_f07_pop_full_next_head
+    class: L-REFN
+    priority: core
+    requirements: [R5, R9]
+    witness: fifo_w01_reaches_full
+    translation: {sva: p_pop_full_next_head, template: miter_ref_model_v1}
+    reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 3}
+  - id: FIFO-F-08
+    name: fifo_f08_pushpop_half_count
+    class: L-FUNC
+    priority: core
+    requirements: [R4]
+    witness: fifo_w03_reaches_half
+    translation: {sva: p_pushpop_half_count, template: implication_v1}
+    reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
+  - id: FIFO-F-09
+    name: fifo_f09_pushpop_half_head
+    class: L-FUNC
+    priority: core
+    requirements: [R4, R9]
+    witness: fifo_w03_reaches_half
+    translation: {sva: p_pushpop_half_head, template: implication_v1}
+    reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
+  - id: FIFO-F-10
+    name: fifo_f10_pushpop_full_head
+    class: L-REFN
+    priority: important
+    requirements: [R5, R10]
+    witness: fifo_w01_reaches_full
+    translation: {sva: p_pushpop_full_head, template: miter_ref_model_v1}
+    reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 3}
+  - id: FIFO-F-11
+    name: fifo_f11_reset_empty
+    class: L-FUNC
+    priority: core
+    requirements: [R8]
+    witness: fifo_w02_reaches_empty
+    translation: {sva: p_reset_empty, template: implication_v1}
+    reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
+  - id: FIFO-F-12
+    name: fifo_f12_idle_preserves_head
+    class: L-FUNC
+    priority: extended
+    requirements: [R9]
+    witness: fifo_w01_reaches_full
+    translation: {sva: p_idle_preserves_head, template: implication_v1}
+    reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
+  - id: FIFO-F-13
+    name: fifo_f13_pushpop_empty_head
+    class: L-FUNC
+    priority: important
+    requirements: [R11, R9]
+    witness: fifo_w03_reaches_half
+    translation: {sva: p_pushpop_empty_head, template: implication_v1}
+    reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
+  - id: FIFO-F-14
+    name: fifo_f14_idle_preserves_count
+    class: L-FUNC
+    priority: core
+    requirements: [R13]
+    witness: fifo_w01_reaches_full
+    translation: {sva: p_idle_preserves_count, template: implication_v1}
+    reference_proof: {file: PROOF_ref.bend, lines: 8, effort_minutes: 4}
+  - id: FIFO-F-15
+    name: fifo_f15_pushpop_empty_count
+    class: L-FUNC
+    priority: important
+    requirements: [R11]
+    witness: fifo_w03_reaches_half
+    translation: {sva: p_pushpop_empty_count, template: implication_v1}
+    reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
+  - id: FIFO-F-16
+    name: fifo_f16_pushpop_full_count
+    class: L-FUNC
+    priority: important
+    requirements: [R10]
+    witness: fifo_w01_reaches_full
+    translation: {sva: p_pushpop_full_count, template: implication_v1}
+    reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
+  - id: FIFO-W-01
+    name: fifo_w01_reaches_full
+    class: L-WIT
+    priority: core
+    requirements: [R1]
+    witness: null
+    translation_reason: "a witness sequence, not a property to translate"
+  - id: FIFO-W-02
+    name: fifo_w02_reaches_empty
+    class: L-WIT
+    priority: core
+    requirements: [R1]
+    witness: null
+    translation_reason: "a witness sequence, not a property to translate"
+  - id: FIFO-W-03
+    name: fifo_w03_reaches_half
+    class: L-WIT
+    priority: core
+    requirements: [R1]
+    witness: null
+    translation_reason: "a witness sequence, not a property to translate"
+
+conformance_only_requirements: [R12]
+oracle_only_requirements: []
+
+hashes:
+  LAWS.bend: "d7e09ae4524858028e3e9cfbe337a124d050e54fb7d64500e636878dc231a0bc"
+  model.bend: "f1e293fb6f118adb427aa17a2e928597f6b3cda33cf2a1023cb71f9db24b1594"
+  abs.yaml: "c46a7f9d1019876aea9d6f03d3817d69e8eae1c390ac53e9b9f993e4884c6823"
+  props_locked.sv: "9a3eff1c912af033f7868708adc2ed69dc988803fbc0113b14c531bf138e81fe"
+  spec.md: "df9d2ab1e49260f3ecb675f51bae1f124a0478a33639d22a83e4bc074b425af1"

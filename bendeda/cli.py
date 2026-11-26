@@ -514,6 +514,12 @@ def cmd_gate_calibrate(args: argparse.Namespace) -> int:
             )
             suffix = f" — {entry.reason}" if entry.reason else ""
             print(f"  {entry.kind + '/' + entry.id:<34} {entry.verdict:<11} {detail}{suffix}")
+        print("  per gate:")
+        for name, counts in calibration.contribution().items():
+            print(
+                f"    {name:<10} caught {counts['catch']} bug(s), {counts['sole_catch']} of "
+                f"them alone; rejected {counts['false_reject']} correct implementation(s)"
+            )
 
     def rate(value: float | None) -> str:
         return "n/a" if value is None else f"{value:.3f}"
@@ -540,6 +546,8 @@ def cmd_gate_calibrate(args: argparse.Namespace) -> int:
         summary += f"; rejected correct implementations: {', '.join(e.id for e in calibration.false_rejects())}"
     if calibration.survivors():
         summary += f"; bugs no gate caught: {', '.join(e.id for e in calibration.survivors())}"
+    if calibration.inert():
+        summary += f"; gates that caught nothing: {', '.join(calibration.inert())}"
     if correct["decided"] < args.min_correct:
         summary += (
             f"; {correct['decided']} decidable correct implementation(s) is fewer than "
@@ -737,7 +745,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_gate = sub.add_parser("gate", help="gate operations")
     gate_sub = p_gate.add_subparsers(dest="gate_command", metavar="<subcommand>")
     sp = gate_sub.add_parser("run", help="re-execute gates on an artifact directory")
-    sp.add_argument("names", nargs="*", help="trace, formal (default: every implemented gate)")
+    sp.add_argument(
+        "names", nargs="*", help="trace, formal, lint (default: every implemented gate)"
+    )
     sp.add_argument("--artifacts", default=".")
     sp.add_argument("--image", default="bendeda/oss-cad:2026-11-20")
     sp.add_argument("--cycles", type=int, default=8)

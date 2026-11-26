@@ -25,6 +25,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+from uuid import uuid4
 
 from bendeda.conformance.vector_path import (
     DEFAULT_IMAGE,
@@ -193,14 +194,19 @@ def formal_gate(
                 shutil.copyfile(item, work / item.name)
         for job in jobs:
             out_dir = f"{job.name}.out"
+            docker = str(cfg.get("docker", "docker"))
+            name = f"bendeda-sby-{uuid4().hex[:8]}"
             argv = [
-                str(cfg.get("docker", "docker")), "run", "--rm",
+                docker, "run", "--rm", "--name", name,
                 "--mount", f"type=bind,source={_docker_path(work)},target=/work",
                 "-w", "/work", image,
                 "sby", "-f", job.name, "-d", out_dir,
             ]
             code, output = run(argv)
             if code != 0:
+                # A timeout kills the client, not the daemon's process, and that process
+                # still holds the temporary directory this gate has to delete.
+                run([docker, "rm", "-f", name])
                 return _result(
                     "formal", "fail", started=started,
                     reason=f"{job.name} exited {code}: {_tail(output)}",
@@ -216,12 +222,58 @@ def formal_gate(
     )
 
 
-GATES = {"trace": trace_gate, "formal": formal_gate}
+LINT_MANIFEST = "laws.manifest.yaml"
+
+
+def lint_gate(
+    artifacts: str | Path,
+    cfg: Mapping[str, Any] | None = None,
+    *,
+    lint=None,
+) -> GateResult:
+    """The law-package gate: lint the submitted laws, pass only on no finding.
+
+    This gate has no capability to be missing — the linter is part of the harness, so
+    there is no simulator or compiler whose absence could justify a skip. A submission
+    that carries no package is therefore a defect in the submission and is named as one,
+    rather than skipped into silence. A finding is a fail that quotes the rule that
+    fired, because "lint failed" without L012 is a shrug.
+    """
+    from bendeda.laws import lint as law_lint
+
+    root = Path(artifacts)
+    started = time.monotonic()
+    if not (root / LINT_MANIFEST).is_file():
+        return _result(
+            "lint", "fail", started=started,
+            reason=f"the submission has no {LINT_MANIFEST}, so no law package was linted",
+        )
+    report = (lint or law_lint.run)([str(root)])
+    if not report.results:
+        # The linter was handed a path it could not read as a package. That is not a
+        # clean package and not a defect in the design, so it is neither pass nor fail.
+        return _result(
+            "lint", "skip", started=started,
+            reason="the linter found no package in the submission, so nothing was checked",
+        )
+    findings = report.findings
+    if findings:
+        return _result(
+            "lint", "fail", started=started,
+            reason=findings[0].render(),
+            detail={
+                "laws": report.laws,
+                "findings": [finding.rule for finding in findings],
+            },
+        )
+    return _result("lint", "pass", started=started, detail={"laws": report.laws})
+
+
+GATES = {"trace": trace_gate, "formal": formal_gate, "lint": lint_gate}
 
 #: Named gates the design lists but that need something an artifact directory does not
-#: carry. Reporting them as planned is what keeps `gate run lint` from looking green.
+#: carry. Reporting them as planned is what keeps a stubbed gate from looking green.
 PLANNED = {
-    "lint": "the lint gate needs a task's law package, not an artifact directory (Phase 1.7)",
     "conformance": "the conformance gate arrives with the L2/L3 rungs (Phase 2)",
 }
 
@@ -429,6 +481,38 @@ class Calibration:
         of_kind = self._of((kind,))
         return {"decided": len(self._decided(of_kind)), "total": len(of_kind)}
 
+    def contribution(self) -> dict[str, dict[str, int]]:
+        """What each gate actually decided, so a gate that never fires is visible.
+
+        A gate set is not calibrated because its union rejects the bugs; it is
+        calibrated because its members earn the place. `catch` counts bugs a gate
+        rejected, `sole_catch` those it rejected alone (it was the only thing standing
+        between that bug and an accept), and `false_reject` counts correct
+        implementations the gate rejected, which is worse than contributing nothing.
+        """
+        counts = {
+            name: {"catch": 0, "sole_catch": 0, "false_reject": 0}
+            for name in self.gates
+        }
+        for entry in self._decided(self.entries):
+            failed = [name for name, status in entry.gates.items() if status == "fail"]
+            if entry.kind in BUG_KINDS and entry.verdict == "rejected":
+                for name in failed:
+                    if name in counts:
+                        counts[name]["catch"] += 1
+                        if len(failed) == 1:
+                            counts[name]["sole_catch"] += 1
+            elif entry.kind == "correct" and entry.verdict == "rejected":
+                for name in failed:
+                    if name in counts:
+                        counts[name]["false_reject"] += 1
+        return counts
+
+    def inert(self) -> list[str]:
+        """Gates that caught no bug in this corpus: dead weight until shown otherwise."""
+        counts = self.contribution()
+        return [name for name in self.gates if counts[name]["catch"] == 0]
+
     def undecidable(self) -> list[CalibrationEntry]:
         return [entry for entry in self.entries if entry.verdict == "undecidable"]
 
@@ -474,6 +558,8 @@ class Calibration:
             "undecidable": [entry.id for entry in self.undecidable()],
             "survivors": [entry.id for entry in self.survivors()],
             "false_rejects": [entry.id for entry in self.false_rejects()],
+            "contribution": self.contribution(),
+            "inert": self.inert(),
             "min_gs": min_gs,
             "min_correct": min_correct,
             "ok": self.exit_code(min_gs, min_correct) == EXIT_OK,

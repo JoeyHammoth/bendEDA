@@ -9,6 +9,7 @@ counts as a skip, and that a skip never becomes a pass.
 from __future__ import annotations
 
 import json
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,6 +18,7 @@ from bendeda.gates import (
     GATES,
     calibrate,
     formal_gate,
+    lint_gate,
     load_corpus,
     run_gates,
     skipped,
@@ -204,6 +206,9 @@ def make_corpus(root: Path, entries: list[tuple[str, str, str]]) -> None:
     (root / "corpus.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 
+TASK = Path(__file__).resolve().parents[1] / "tasks" / "seq" / "B1_fifo"
+
+
 def fake_run(seen: list[list[str]] | None = None):
     """A gate runner that answers from the staged RTL, and records what it saw."""
 
@@ -329,7 +334,7 @@ class TestCalibration(unittest.TestCase):
     def test_a_manifest_naming_a_gate_that_does_not_exist_is_refused(self) -> None:
         standard(self.root)
         manifest = json.loads((self.root / "corpus.json").read_text(encoding="utf-8"))
-        manifest["gates"] = ["lint"]
+        manifest["gates"] = ["conformance"]
         (self.root / "corpus.json").write_text(json.dumps(manifest), encoding="utf-8")
         with self.assertRaises(ValueError) as caught:
             load_corpus(self.root)
@@ -350,9 +355,118 @@ class TestCalibration(unittest.TestCase):
         self.assertIn("corpus.json", str(caught.exception))
 
 
+def gated_run():
+    """A runner whose verdict comes from the file: `REJECT:<gate>` fails that gate."""
+
+    def run(artifacts, names, cfg):
+        text = (Path(artifacts) / "dut.sv").read_text(encoding="utf-8")
+        results = {}
+        for name in names:
+            status = "fail" if f"REJECT:{name}" in text else "pass"
+            results[name] = GateResult(name, status, reason=f"{name} says {status}")
+        return results
+
+    return run
+
+
+def with_gates(root: Path, names: list[str]) -> None:
+    path = root / "corpus.json"
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest["gates"] = names
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+
+class TestContribution(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+
+    def test_a_sole_catcher_and_a_shared_catcher_are_counted_apart(self) -> None:
+        standard(self.root, m1="// REJECT:trace\n", s1="// REJECT:trace\nREJECT:lint\n")
+        with_gates(self.root, ["trace", "lint"])
+        report = calibrate(load_corpus(self.root), run=gated_run())
+
+        self.assertEqual(
+            report.contribution()["trace"],
+            {"catch": 2, "sole_catch": 1, "false_reject": 0},
+            "trace caught both bugs, and one of them alone",
+        )
+        self.assertEqual(
+            report.contribution()["lint"],
+            {"catch": 1, "sole_catch": 0, "false_reject": 0},
+            "lint caught the bug trace also caught, and nothing alone",
+        )
+        self.assertEqual(report.exit_code(), 0)
+
+    def test_a_gate_that_catches_nothing_is_reported_as_inert(self) -> None:
+        standard(self.root, m1="// REJECT:trace\n", s1="// REJECT:trace\n")
+        with_gates(self.root, ["trace", "lint"])
+        report = calibrate(load_corpus(self.root), run=gated_run())
+
+        self.assertEqual(report.inert(), ["lint"])
+        self.assertEqual(report.as_json()["inert"], ["lint"])
+        self.assertEqual(report.as_json()["contribution"]["lint"]["catch"], 0)
+        self.assertEqual(report.exit_code(), 0, "an inert gate is reported, not turned into a failure")
+
+    def test_a_gate_that_rejects_a_correct_implementation_is_counted(self) -> None:
+        standard(
+            self.root,
+            c="// REJECT:lint\n",
+            m1="// REJECT:trace\n",
+            s1="// REJECT:trace\n",
+        )
+        with_gates(self.root, ["trace", "lint"])
+        report = calibrate(load_corpus(self.root), run=gated_run())
+
+        self.assertEqual(report.contribution()["lint"]["false_reject"], 1)
+        self.assertEqual(report.contribution()["trace"]["false_reject"], 0)
+        self.assertEqual(report.exit_code(), 1)
+
+
+class TestLintGate(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name) / "package"
+        shutil.copytree(TASK, self.root)
+
+    def test_the_shipped_task_package_lints_clean_and_passes(self) -> None:
+        result = lint_gate(TASK)
+        self.assertEqual(result.status, "pass", result.reason)
+        self.assertGreater(result.detail["laws"], 0)
+
+    def test_a_finding_fails_and_quotes_the_rule_that_fired(self) -> None:
+        manifest = self.root / "laws.manifest.yaml"
+        text = manifest.read_text(encoding="utf-8")
+        manifest.write_text(text.replace("    priority: core\n", "", 1), encoding="utf-8")
+
+        result = lint_gate(self.root)
+
+        self.assertEqual(result.status, "fail")
+        self.assertIn("L012", result.reason)
+        self.assertEqual(result.detail["findings"], ["L012"])
+
+    def test_a_submission_without_a_package_is_a_failure_naming_the_manifest(self) -> None:
+        empty = Path(self.tmp.name) / "empty"
+        empty.mkdir()
+        result = lint_gate(empty)
+
+        self.assertEqual(result.status, "fail")
+        self.assertIn("laws.manifest.yaml", result.reason)
+
+    def test_a_path_the_linter_cannot_read_is_a_skip_with_a_reason(self) -> None:
+        from bendeda.laws.lint import Report
+
+        result = lint_gate(self.root, lint=lambda paths: Report())
+
+        self.assertEqual(result.status, "skip")
+        self.assertIn("no package", result.reason)
+
+
 class TestRegistry(unittest.TestCase):
     def test_the_registry_names_the_gates_that_execute(self) -> None:
-        self.assertEqual(sorted(GATES), ["formal", "trace"])
+        self.assertEqual(sorted(GATES), ["formal", "lint", "trace"])
 
     def test_an_unknown_gate_raises_rather_than_being_ignored(self) -> None:
         with self.assertRaises(KeyError):
