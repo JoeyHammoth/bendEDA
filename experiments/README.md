@@ -87,28 +87,37 @@ for both made the trace gate report a fail, because the harness image has no Ver
 
 ## Corpus
 
-Two gate-calibration corpora (LA4), one per implemented gate that can be judged without
-a simulator. Each is a base plus nine one- or two-file variants — three correct
-implementations, three mutants and three seeded defects — so a bug reads as a diff
-rather than a second copy of the task.
+Three gate-calibration corpora (LA4). Each is a base plus nine one- or two-file
+variants — three correct implementations, three mutants and three seeded defects — so a
+bug reads as a diff rather than a second copy of the task.
 
-| Corpus | Base | Gate | What it measures |
+| Corpus | Base | Gates | What it measures |
 |---|---|---|---|
 | `corpus/toy_counter/` | `fixtures/toy_counter` | `trace` | model and RTL agree on a submitted artifact directory |
 | `corpus/b1_fifo_laws/` | `tasks/seq/B1_fifo` | `lint` | a law package passes rules L001-L015 |
+| `corpus/toy_counter_laws/` | `fixtures/toy_counter_laws` | `trace`, `lint` | one submission judged by both gates |
 
 ```bash
 bendeda gate calibrate --corpus experiments/corpus/toy_counter --out .bend-cache/calibrate.json
 bendeda gate calibrate --corpus experiments/corpus/b1_fifo_laws
+bendeda gate calibrate --corpus experiments/corpus/toy_counter_laws --sim-timeout 600
 ```
 
 The output says what each gate decided, not only what the set did: `per gate:` lists the
 bugs a gate caught, how many it caught alone, and how many correct implementations it
 rejected, and the summary names any gate that caught nothing.
 
-Both are fixture-scale: nine entries in one task. A study task's corpus adds the MCY
-mutant set for that task, and `formal` when the task has proofs. No task here carries
-both RTL and a law package yet, which is why no corpus names two gates.
+The third corpus exists because the first two exercise one gate each, and `per gate:`
+is only worth reading when two gates answer on the same entries. Its base is the one
+fixture that carries RTL and a law package together, so a mutant can fail `trace` and a
+seeded defect can fail `lint` on the same corpus and the contribution table shows each
+gate earning its place. `--sim-timeout` bounds a hung simulation: an entry whose DUT
+never returns is a rejected entry with that reason, not a calibration that runs until
+someone notices.
+
+All three are fixture-scale: nine entries in one task. A study task's corpus adds the
+MCY mutant set for that task, and `formal` when the task has proofs. No *study* task
+carries both RTL and a law package yet; the dual corpus uses a fixture for that reason.
 
 ## Planned matrices
 
