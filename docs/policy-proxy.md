@@ -219,6 +219,8 @@ $ bendeda gate calibrate --corpus experiments/corpus/toy_counter
 gate calibrate: toy_counter from experiments/corpus/toy_counter, gates trace
   correct/golden                     accepted    trace: pass
   ...
+  per gate:
+    trace      caught 6 bug(s), 6 of them alone; rejected 0 correct implementation(s)
 gate calibrate: GS 1.000 (mutant 1.000 3/3, seeded 1.000 3/3), GSp 1.000 (3/3 correct)
 $ echo $?
 0
@@ -236,6 +238,27 @@ as a catch would invent a result. An undecidable entry, or fewer than `--min-cor
 decidable correct implementations, exits 3 — not calibrated — even when the partial rates
 look perfect. Exit 1 is calibrated and failing: a surviving bug, a rejected correct
 implementation, or GS below `--min-gs` (0.95, LA4's floor).
+
+A rate for the union is not a rate for the members, so the run reports what each gate
+decided: bugs it caught, how many of those it caught alone (it was the only thing between
+that bug and an accept), and correct implementations it rejected. A gate that caught
+nothing is named as inert. It does not fail the run by itself — a gate can be right to
+pass a corpus it was not built to catch — but a gate set that is only as good as its
+strongest member is not the set the design claims.
+
+`lint` is the second implemented gate, and the one a law package is judged by. It runs
+rules L001-L015 over the submitted `LAWS.bend` and `laws.manifest.yaml` and passes only
+on no finding, quoting the rule that fired (`L012 ...: priority is None`). The linter
+ships with the harness, so this gate has no missing capability to skip for: a submission
+without a law package is a failure that names the missing manifest, not a skip.
+`experiments/corpus/b1_fifo_laws` calibrates it over the shipped B1 FIFO package — GS and
+GSp 1.000, each seeded defect caught by the rule it was seeded for.
+
+A gate cannot hold a calibration entry forever either. Every simulated container is
+named, and a timeout removes it: killing the `docker` client stops the client, not the
+daemon's process, and that process keeps the bind mount busy. On a timeout, or when the
+client cannot start at all, the harness runs `docker rm -f` before reporting, so a hung
+simulation is a failure that names its limit instead of a hung harness.
 
 ## `runner exec`: the arm runs inside the sandbox
 

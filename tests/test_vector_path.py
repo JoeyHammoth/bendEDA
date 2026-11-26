@@ -131,6 +131,40 @@ class TestVerilatorDut(unittest.TestCase):
         self.assertEqual(vp.shift_trace([1, 2, 3], 0), [1, 2, 3])
         self.assertEqual(vp.shift_trace([], 2), [])
 
+    def test_the_command_can_name_its_container_so_a_hang_can_be_killed(self) -> None:
+        command = vp.verilator_command(
+            Path("/tmp/work"), 4, name="bendeda-dut-x"
+        )
+        self.assertEqual(command[command.index("--name") + 1], "bendeda-dut-x")
+
+    def test_a_simulation_that_hangs_is_removed_and_reported(self) -> None:
+        import subprocess
+
+        fixture = ROOT / "experiments" / "fixtures" / "toy_counter"
+        removed: list[list[str]] = []
+        seen: list[list[str]] = []
+
+        def runner(argv, **kwargs):
+            seen.append(list(argv))
+            raise subprocess.TimeoutExpired(argv, kwargs.get("timeout"))
+
+        with self.assertRaises(RuntimeError) as caught:
+            vp.simulate_verilator(
+                fixture / "dut.sv",
+                fixture / "dut.json",
+                {"incs": [1, 2], "stimulus": {"inc": [1, 2]}},
+                timeout=5,
+                runner=runner,
+                remove=lambda argv, **kwargs: removed.append(list(argv)),
+            )
+
+        self.assertIn("did not finish within 5s", str(caught.exception))
+        self.assertEqual(len(removed), 1, "the hung container must be removed exactly once")
+        self.assertEqual(removed[0][:3], ["docker", "rm", "-f"])
+        name = removed[0][3]
+        self.assertIn("--name", seen[0])
+        self.assertEqual(seen[0][seen[0].index("--name") + 1], name)
+
     def test_command_runs_the_pinned_image_and_the_testbench(self) -> None:
         command = vp.verilator_command(Path("/tmp/work"), 12, image="example/img:1", docker="docker")
         joined = " ".join(command)

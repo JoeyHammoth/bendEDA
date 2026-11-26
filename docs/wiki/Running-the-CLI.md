@@ -295,7 +295,9 @@ an `outcome.json` to reproduce.
 ```bash
 bendeda gate run trace --artifacts experiments/fixtures/toy_counter --out gates.json
 bendeda gate run formal --artifacts docker/smoke
+bendeda gate run lint --artifacts tasks/seq/B1_fifo
 bendeda gate calibrate --corpus experiments/corpus/toy_counter --out calibrate.json
+bendeda gate calibrate --corpus experiments/corpus/b1_fifo_laws
 bendeda runner exec --submit tasks/seq/B1_fifo/submission -- python -m bendeda --version
 bendeda run --matrix experiments/matrices/smoke.json --dry-run
 bendeda run --matrix experiments/matrices/smoke.json --limit 1
@@ -305,7 +307,10 @@ bendeda run --matrix experiments/matrices/smoke.json --limit 1
 gate could not run (a missing compiler or image is a skip, never a pass). `trace`
 compiles the submitted model, simulates the submitted RTL and requires every cycle to
 agree; the same task with wrapping RTL fails at cycle 7. `formal` runs every `*.sby` job
-and requires a PASS marker.
+and requires a PASS marker. `lint` runs rules L001-L015 over a submitted law package
+(`LAWS.bend` plus `laws.manifest.yaml`) and passes only on no finding, quoting the rule
+that fired; the linter ships with the harness, so a missing package is a failure rather
+than a skip.
 
 `gate calibrate` runs the gate set over a corpus and reports gate sensitivity (GS: the
 share of bugs some gate rejected) and gate specificity (GSp: the share of correct
@@ -315,6 +320,12 @@ diff. `mutant` and `seeded` are reported apart. An entry whose gates skipped is
 *undecidable* — excluded from the rate and listed — so a machine without a simulator
 exits 3 rather than reporting a sensitivity it never measured. Exit 0 calibrated, 1
 calibrated and failing, 3 not calibrated.
+
+The report also says what each gate decided: what it caught, how much of that alone, and
+how many correct implementations it rejected. A gate that caught nothing is named as
+inert, because a gate set is calibrated by its members earning the place, not by the
+union happening to work. `experiments/corpus/b1_fifo_laws` calibrates `lint` the same way
+`toy_counter` calibrates `trace`.
 
 `runner exec` runs the arm's command inside the sandbox started by `up`. `--submit`
 records a submission through the proxy afterwards; the policy has to permit `submit`, or

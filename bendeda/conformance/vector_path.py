@@ -27,6 +27,7 @@ import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from uuid import uuid4
 
 DEFAULT_DRIVER = Path("tools/model_vectors.mjs")
 DEFAULT_SPEC = Path("experiments/fixtures/toy_counter/dut.json")
@@ -455,6 +456,7 @@ def verilator_command(
     cycles: int,
     image: str = DEFAULT_IMAGE,
     docker: str = "docker",
+    name: str | None = None,
 ) -> list[str]:
     """Build the container command that compiles and runs the testbench.
 
@@ -466,13 +468,27 @@ def verilator_command(
         "verilator --binary --timing -Wno-fatal -j 2 --top-module tb_dut "
         f"tb_dut.sv dut.sv && ./obj_dir/Vtb_dut +cycles={cycles}"
     )
-    command = [docker, "run", "--rm", "-v", f"{workdir}:/work", "-w", "/work"]
+    command = [docker, "run", "--rm"]
+    if name:
+        # A name is what makes a hung simulation killable: `subprocess` can stop the
+        # client, and only the daemon can stop the process the client started.
+        command += ["--name", name]
+    command += ["-v", f"{workdir}:/work", "-w", "/work"]
     if hasattr(os, "getuid"):
         command += ["-u", f"{os.getuid()}:{os.getgid()}"]
     # `bash -c`, never `bash -lc`: a login shell sources /etc/profile, which
     # rewrites PATH and loses the image's /opt/oss-cad-suite/bin. The failure is
     # `verilator: command not found` even though the image ships it.
     return command + [image, "bash", "-c", inner]
+
+
+def _remove_container(docker: str, name: str, remove=None) -> None:
+    """Best effort: the container may already be gone, and that is the good case."""
+    remove = remove or subprocess.run
+    try:
+        remove([docker, "rm", "-f", name], capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
 
 
 def simulate_verilator(
@@ -482,6 +498,9 @@ def simulate_verilator(
     image: str = DEFAULT_IMAGE,
     docker: str = "docker",
     timeout: int = 900,
+    *,
+    runner=None,
+    remove=None,
 ) -> list[int]:
     """Run `rtl` against a generated testbench and return the compared output.
 
@@ -500,14 +519,25 @@ def simulate_verilator(
         shutil.copyfile(rtl, workdir / "dut.sv")
         (workdir / "tb_dut.sv").write_text(render_testbench(manifest), encoding="utf-8")
         write_stimulus(workdir / "stim.hex", values, width)
+        name = f"bendeda-dut-{uuid4().hex[:8]}"
         try:
-            done = subprocess.run(
-                verilator_command(workdir, cycles, image=image, docker=docker),
+            done = (runner or subprocess.run)(
+                verilator_command(workdir, cycles, image=image, docker=docker, name=name),
                 capture_output=True,
                 text=True,
                 timeout=timeout,
             )
+        except subprocess.TimeoutExpired as exc:
+            # The client is killed by `subprocess`; the daemon's process is not, and it
+            # would keep the temporary directory busy forever. One hung simulation must
+            # not hold a calibration entry for longer than its timeout.
+            _remove_container(docker, name, remove)
+            raise RuntimeError(
+                f"the simulation did not finish within {timeout}s; "
+                f"its container {name} was removed"
+            ) from exc
         except OSError as exc:
+            _remove_container(docker, name, remove)
             raise RuntimeError(f"cannot run {docker!r}: {exc}") from exc
         if done.returncode != 0:
             detail = (done.stderr or done.stdout).strip()

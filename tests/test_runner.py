@@ -396,5 +396,50 @@ class TestWallClockStopsRealWork(unittest.TestCase):
         self.assertLess(elapsed, 15.0, f"took {elapsed:.1f}s to enforce a 1.2s allowance")
 
 
+class TestTimeouts(unittest.TestCase):
+    """A hung command is a failed step that leaves no container behind.
+
+    Killing the `docker` client stops the client and nothing else: the daemon's process
+    keeps running, and it keeps the bind mount busy. A calibration entry must not be
+    able to sit there for longer than its timeout.
+    """
+
+    def test_a_named_container_is_read_from_the_argv(self) -> None:
+        from bendeda.runner import _named_container
+
+        self.assertEqual(
+            _named_container(["docker", "run", "-d", "--name", "bendeda-agent", "img"]),
+            "bendeda-agent",
+        )
+        self.assertIsNone(_named_container(["docker", "ps"]))
+        self.assertIsNone(_named_container(["docker", "run", "--name"]))
+
+    def test_a_hung_command_is_a_failed_step_that_kills_its_container(self) -> None:
+        from bendeda.runner import _run
+
+        killed: list[str] = []
+        code, output = _run(
+            [sys.executable, "-c", "import time; time.sleep(30)", "--name", "bendeda-hung"],
+            timeout=0.5,
+            kill=killed.append,
+        )
+
+        self.assertEqual(code, 1)
+        self.assertIn("timed out", output)
+        self.assertEqual(killed, ["bendeda-hung"])
+
+    def test_an_unnamed_timeout_kills_nothing(self) -> None:
+        from bendeda.runner import _run
+
+        killed: list[str] = []
+        code, _output = _run(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            timeout=0.5,
+            kill=killed.append,
+        )
+
+        self.assertEqual((code, killed), (1, []))
+
+
 if __name__ == "__main__":
     unittest.main()

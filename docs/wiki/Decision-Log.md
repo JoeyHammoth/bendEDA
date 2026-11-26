@@ -4,6 +4,54 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-26 - `lint` is a gate, and a gate that caught nothing is named
+
+**Decided:** the law linter is the third implemented gate (`gate run lint`). It judges a
+submitted law package: pass only on no finding, fail quoting the rule that fired, and a
+submission with no `laws.manifest.yaml` is a failure that names it — the linter ships
+with the harness, so there is no missing capability to skip for. `gate calibrate` reports
+what each gate decided (caught, caught alone, correct implementations rejected) and names
+a gate that caught nothing as inert. `experiments/corpus/b1_fifo_laws` calibrates `lint`
+over the shipped B1 FIFO package.
+
+**Why:** `PLANNED` said lint "needs a task's law package, not an artifact directory",
+which was a reason to leave it unimplemented only while no corpus could supply one — a
+submission that carries its laws is that package. GS for the set lets one gate carry the
+rest: the corpus is the only place that shows which gate earned its place, and a gate
+that never fires is decoration with an exit code.
+
+**Cost:** a corpus whose entries declare hashes must be byte-exact, so its files are
+written with an explicit `\n` and mean it; and `gate run lint` on a directory without a
+package now exits 1 (a defect in the submission) where it used to exit 3 (not
+implemented).
+
+**Evidence:** `gate calibrate --corpus experiments/corpus/b1_fifo_laws` — GS 1.000
+(mutant 3/3, seeded 3/3), GSp 1.000 (3/3 correct), exit 0, with L001, L002, L003, L011,
+L012 and L014 each catching the defect seeded for it. Tests: `TestLintGate` and
+`TestContribution` in `tests/test_gates.py`.
+
+---
+
+## 2026-11-26 - A timed-out container is removed, because the client is not the process
+
+**Decided:** every simulated container is named, and a timeout runs `docker rm -f` on it
+before reporting; `_run` removes a named container when its command times out, on both
+the direct and the `bash -c` fallback path.
+
+**Why:** killing the `docker` client stops the client and nothing else. The daemon's
+process keeps running, keeps the bind mount busy — so the temporary directory cannot be
+deleted — and keeps the machine doing work nobody is waiting for. A calibration entry
+must time out as a failure, not hang.
+
+**Cost:** one extra `docker rm -f` on a timeout path and on a failed `sby` job; the
+normal path still relies on `--rm` and pays nothing.
+
+**Evidence:** `tests/test_vector_path.py` (a timeout produces exactly one removal, of the
+name taken from the same argv) and `tests/test_runner.py::TestTimeouts` (a really
+sleeping command returns 1 and kills its named container).
+
+---
+
 ## 2026-11-25 - Calibration reads a corpus of one-file variants, and a skipped gate is undecidable
 
 **Decided:** `gate calibrate` reads `corpus.json`: a base submission, the gate set, and

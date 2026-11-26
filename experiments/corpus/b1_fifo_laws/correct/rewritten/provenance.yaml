@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: Apache-2.0
+# B1 FIFO: authoring chain (Appendix J.4).
+#
+# This is a DRAFT chain and it says so. One Freebuff session wrote the model,
+# laws, abstraction map, locked SVA, reference proofs and the C2 pack. Role
+# labels record which artifact belongs to which role; they do not record
+# independence, because there was none. The policy proxy that must log forbidden
+# reads does not exist yet (Phase 2), so `forbidden_reads_attested` is an
+# attestation by the author, not evidence, and `review.independence` is absent
+# rather than filled with a number nobody measured.
+#
+# `locked.by: unlocked` is a placeholder that keeps the sidecar schema-shaped
+# without claiming a Conductor signed anything.
+task: B1_fifo
+artifacts:
+  - path: model.bend
+    sha256: f1e293fb6f118adb427aa17a2e928597f6b3cda33cf2a1023cb71f9db24b1594
+    authored_by: LAA
+    run_id: freebuff-2026-11-24T14-00Z-b1fifo
+    model: {id: deepseek-v4.1-flash, digest: unpublished, family: deepseek}
+    tools_allowed: ["fs-write:model.bend", bend_check]
+    forbidden_reads_attested: ["oracle/**", "PROOF_ref.bend", "PROOF.bend", "bugs/**"]
+  - path: LAWS.bend
+    sha256: d47e2b9fed5f0d18df8d1e30c2241dfea65b8de2ed7bdc8e7101ba8a4d13525c
+    authored_by: LAA
+    run_id: freebuff-2026-11-24T14-00Z-b1fifo
+    model: {id: deepseek-v4.1-flash, digest: unpublished, family: deepseek}
+    tools_allowed: ["fs-write:LAWS.bend", bend_check]
+    forbidden_reads_attested: ["oracle/**", "PROOF_ref.bend", "bugs/**"]
+  - path: abs.yaml
+    sha256: c46a7f9d1019876aea9d6f03d3817d69e8eae1c390ac53e9b9f993e4884c6823
+    authored_by: LAA
+    run_id: freebuff-2026-11-24T14-00Z-b1fifo
+  - path: props_locked.sv
+    sha256: 9a3eff1c912af033f7868708adc2ed69dc988803fbc0113b14c531bf138e81fe
+    authored_by: LAA
+    run_id: freebuff-2026-11-24T14-00Z-b1fifo
+  - path: PROOF_ref.bend
+    sha256: 917a38c6e2ae29b9a5e307bc06bc9ff04ca5ef4f1dfb7259473a1c74c5e1ec06
+    authored_by: RPA
+    run_id: freebuff-2026-11-24T14-00Z-b1fifo
+    model: {id: deepseek-v4.1-flash, digest: unpublished, family: deepseek}
+    forbidden_reads_attested: ["oracle/**", "bugs/**"]
+  - path: props_c2.sv
+    sha256: d714653c8ed08cfeb7d45027a94061055a81e94335a26df40f17015634003d3f
+    authored_by: PA
+    run_id: freebuff-2026-11-24T14-00Z-b1fifo
+    inputs: [spec.md]
+  - path: variants.yaml
+    sha256: 5faa5897a059d1c1694877faf2ddb7144827ce22dac7b3f8fedad0ace9740ac4
+    authored_by: conductor
+    run_id: freebuff-2026-11-24T14-00Z-b1fifo
+review:
+  auditor_run: none
+  gates:
+    LA1: pass
+    LA2: pass
+    LA3: pass
+    LA4: skip
+    LA5: skip
+    LA6: skip
+    LA7: skip
+    LA8: pass
+    LA9: skip
+  human_escalations:
+    - reason: "RPA, PA and AA independence: one session wrote every artifact"
+      owner: repository owner
+locked:
+  by: unlocked
+  at: 2026-11-24T00:00:00Z
+  commit: none

@@ -1,0 +1,63 @@
+{
+  "task": "b1_fifo_laws",
+  "base": "../../../tasks/seq/B1_fifo",
+  "gates": [
+    "lint"
+  ],
+  "entries": [
+    {
+      "id": "as_shipped",
+      "kind": "correct",
+      "artifacts": "correct/as_shipped",
+      "note": "the package as shipped: the reference point GSp is measured against"
+    },
+    {
+      "id": "retiered",
+      "kind": "correct",
+      "artifacts": "correct/retiered",
+      "note": "one law re-tiered core -> extended; the claims are unchanged"
+    },
+    {
+      "id": "rewritten",
+      "kind": "correct",
+      "artifacts": "correct/rewritten",
+      "note": "one law rewritten to an equivalent form, with both hash records updated"
+    },
+    {
+      "id": "m01_priority_dropped",
+      "kind": "mutant",
+      "artifacts": "mutant/m01_priority_dropped",
+      "note": "one law lost its priority tier (L012)"
+    },
+    {
+      "id": "m02_witness_dropped",
+      "kind": "mutant",
+      "artifacts": "mutant/m02_witness_dropped",
+      "note": "a conditional law lost its witness (L001)"
+    },
+    {
+      "id": "m03_translation_dropped",
+      "kind": "mutant",
+      "artifacts": "mutant/m03_translation_dropped",
+      "note": "a transferable law lost its translation (L011)"
+    },
+    {
+      "id": "s01_ghost_law",
+      "kind": "seeded",
+      "artifacts": "seeded/s01_ghost_law",
+      "note": "a manifest entry with no law behind it (L002)"
+    },
+    {
+      "id": "s02_untraceable",
+      "kind": "seeded",
+      "artifacts": "seeded/s02_untraceable",
+      "note": "a law maps to no requirement (L003)"
+    },
+    {
+      "id": "s03_stale_hash",
+      "kind": "seeded",
+      "artifacts": "seeded/s03_stale_hash",
+      "note": "a declared artifact hash no longer matches its file (L014)"
+    }
+  ]
+}

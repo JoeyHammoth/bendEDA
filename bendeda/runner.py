@@ -279,24 +279,55 @@ def down(spec: AgentSpec, run=None) -> list[str]:
     return problems
 
 
-def _run(argv: Sequence[str]) -> tuple[int, str]:
+def _named_container(argv: Sequence[str]) -> str | None:
+    """The container a `docker run` argv declares, if it declares one."""
     argv = list(argv)
+    if "--name" not in argv:
+        return None
+    index = argv.index("--name")
+    return argv[index + 1] if index + 1 < len(argv) else None
+
+
+def _remove_container(name: str) -> None:
+    """Best effort: a container whose client was killed keeps running by design."""
     try:
-        completed = subprocess.run(argv, capture_output=True, text=True, timeout=120)
-        return completed.returncode, completed.stdout + completed.stderr
-    except subprocess.TimeoutExpired:
+        subprocess.run(
+            ["docker", "rm", "-f", name], capture_output=True, text=True, timeout=60
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
+def _run(argv: Sequence[str], timeout: float = 120, *, kill=_remove_container) -> tuple[int, str]:
+    argv = list(argv)
+
+    def timed_out() -> tuple[int, str]:
         # A command that never returns is a failed step, not an exception the caller
         # has to know about: `up` needs a return code so it can tear the sandbox down.
-        return 1, f"{argv[0]} {argv[1] if len(argv) > 1 else ''} timed out after 120s"
+        # The container is removed too, because killing the client leaves the daemon's
+        # process holding a bind mount that the caller then cannot clean up.
+        name = _named_container(argv)
+        if name:
+            kill(name)
+        return 1, f"{argv[0]} {argv[1] if len(argv) > 1 else ''} timed out after {timeout:g}s"
+
+    try:
+        completed = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
+        return completed.returncode, completed.stdout + completed.stderr
+    except subprocess.TimeoutExpired:
+        return timed_out()
     except OSError:
         shell = " ".join(shlex.quote(part) for part in argv)
-        completed = subprocess.run(
-            ["bash", "-c", shell],
-            capture_output=True,
-            text=True,
-            timeout=120,
-            env={**os.environ, "MSYS2_ARG_CONV_EXCL": "*"},
-        )
+        try:
+            completed = subprocess.run(
+                ["bash", "-c", shell],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                env={**os.environ, "MSYS2_ARG_CONV_EXCL": "*"},
+            )
+        except subprocess.TimeoutExpired:
+            return timed_out()
         return completed.returncode, completed.stdout + completed.stderr
 
 
