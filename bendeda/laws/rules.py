@@ -77,7 +77,10 @@ class Finding:
         if self.line is not None:
             where = f"{where}:{self.line}" if where else f"line {self.line}"
         target = f" [{self.law}]" if self.law else ""
-        return f"{self.rule} {where}{target}: {self.message}"
+        # A rule can fire without a file (L006's record names a law, not a line), and
+        # a finding must not render with the gap where the path would have been.
+        head = " ".join(part for part in (self.rule, where) if part)
+        return f"{head}{target}: {self.message}"
 
     def as_json(self) -> dict[str, Any]:
         return {

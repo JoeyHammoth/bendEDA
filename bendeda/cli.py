@@ -442,7 +442,13 @@ def cmd_gate_run(args: argparse.Namespace) -> int:
         return EXIT_NOT_IMPLEMENTED
     try:
         results = run_gates(
-            args.artifacts, runnable, {"image": args.image, "cycles": args.cycles}
+            args.artifacts,
+            runnable,
+            {
+                "image": args.image,
+                "cycles": args.cycles,
+                "sim_timeout": args.sim_timeout,
+            },
         )
     except KeyError as exc:
         print(f"gate run: unknown gate {exc.args[0]}", file=sys.stderr)
@@ -492,7 +498,9 @@ def cmd_gate_calibrate(args: argparse.Namespace) -> int:
         return EXIT_USAGE
 
     calibration = calibrate(
-        corpus, {"image": args.image, "cycles": args.cycles}, gates=names or None
+        corpus,
+        {"image": args.image, "cycles": args.cycles, "sim_timeout": args.sim_timeout},
+        gates=names or None,
     )
     payload = calibration.as_json(args.min_gs, args.min_correct)
 
@@ -751,6 +759,8 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--artifacts", default=".")
     sp.add_argument("--image", default="bendeda/oss-cad:2026-11-20")
     sp.add_argument("--cycles", type=int, default=8)
+    sp.add_argument("--sim-timeout", type=float, default=900,
+                    help="seconds a simulated DUT may run before it is a failure (default 900)")
     sp.add_argument("--out", default=None, help="write the pass/fail map (gates.json) here")
     sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=cmd_gate_run)
@@ -760,6 +770,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="comma-separated gate names; default: the corpus's own set")
     sp.add_argument("--image", default="bendeda/oss-cad:2026-11-20")
     sp.add_argument("--cycles", type=int, default=8)
+    sp.add_argument("--sim-timeout", type=float, default=900,
+                    help="seconds one simulated DUT may run before its entry is a failure (default 900)")
     sp.add_argument("--min-gs", type=float, default=0.95,
                     help="LA4's floor on gate sensitivity (default 0.95)")
     sp.add_argument("--min-correct", type=int, default=3,

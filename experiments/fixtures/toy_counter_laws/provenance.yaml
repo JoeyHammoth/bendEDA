@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+# SAT_counter: authoring chain. One Freebuff session wrote the model (copied from
+# the toy_counter fixture), the laws, the proofs, the manifest and this sidecar.
+# It is a draft
+# chain and says so: role labels record which artifact belongs to which role, not
+# that a second author checked it.
+task: SAT_counter
+artifacts:
+  - path: model.bend
+    sha256: 66f269f5eb30997b5fcd587074b426b190a81a906eab43b5909845535065ca04
+    authored_by: LAA
+    run_id: freebuff-2026-11-26T00-00Z-satcounter
+    forbidden_reads_attested: ["oracle/**", "bugs/**"]
+  - path: LAWS.bend
+    sha256: c95c39337ef22741032dcd9df121b5d8ce42f2bbf9f648374dee86afc3873600
+    authored_by: LAA
+    run_id: freebuff-2026-11-26T00-00Z-satcounter
+    forbidden_reads_attested: ["oracle/**", "bugs/**"]
+  - path: PROOF_ref.bend
+    sha256: e7a7536fdce2646a28df24b61c83501f9371898183e39020f9da4af4348b7677
+    authored_by: LAA
+    run_id: freebuff-2026-11-26T00-00Z-satcounter
+    forbidden_reads_attested: ["oracle/**", "bugs/**"]
+  - path: spec.md
+    sha256: 0e82316709c8da4b1a8ff18a984448865122c5e161034e5dc08f5e054a43921f
+    authored_by: LAA
+    run_id: freebuff-2026-11-26T00-00Z-satcounter
+    forbidden_reads_attested: ["oracle/**", "bugs/**"]
+review:
+  auditor_run: none
+  gates:
+    LA1: pass
+    LA3: not run
+    LA4: pass
+    LA9: skip
+locked:
+  by: unlocked
+  commit: none

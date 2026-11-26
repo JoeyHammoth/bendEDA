@@ -137,6 +137,10 @@ def trace_gate(
                 plan,
                 image=image,
                 docker=str(cfg.get("docker", "docker")),
+                # A hung simulation is a failed entry within a stated limit, not a
+                # calibration that ends when someone notices. The default is the
+                # simulator's own; a corpus can shorten it per run.
+                timeout=float(cfg.get("sim_timeout", 900)),
             )
         except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as exc:
             return _result(
@@ -224,6 +228,11 @@ def formal_gate(
 
 LINT_MANIFEST = "laws.manifest.yaml"
 
+#: The mutation report a package may carry. Without it L006 cannot run at all — the
+#: linter says so in a note rather than passing silently — so a submission that has
+#: one is the only submission where model sensitivity is judged.
+MUTATION_REPORT = "mutation.json"
+
 
 def lint_gate(
     artifacts: str | Path,
@@ -238,6 +247,11 @@ def lint_gate(
     that carries no package is therefore a defect in the submission and is named as one,
     rather than skipped into silence. A finding is a fail that quotes the rule that
     fired, because "lint failed" without L012 is a shrug.
+
+    A `mutation.json` beside the manifest is the report L006 reads: a law that survived
+    every mutant does not constrain the model. A report the linter cannot parse is a
+    failure naming the file, because a submission carrying evidence nobody can read has
+    not been judged on it.
     """
     from bendeda.laws import lint as law_lint
 
@@ -248,7 +262,17 @@ def lint_gate(
             "lint", "fail", started=started,
             reason=f"the submission has no {LINT_MANIFEST}, so no law package was linted",
         )
-    report = (lint or law_lint.run)([str(root)])
+    mutation = None
+    report_path = root / MUTATION_REPORT
+    if report_path.is_file():
+        try:
+            mutation = json.loads(report_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            return _result(
+                "lint", "fail", started=started,
+                reason=f"{MUTATION_REPORT} could not be read: {exc}",
+            )
+    report = (lint or law_lint.run)([str(root)], mutation=mutation)
     if not report.results:
         # The linter was handed a path it could not read as a package. That is not a
         # clean package and not a defect in the design, so it is neither pass nor fail.

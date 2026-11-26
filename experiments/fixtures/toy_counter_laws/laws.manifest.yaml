@@ -1,0 +1,85 @@
+# SPDX-License-Identifier: Apache-2.0
+# SAT_counter: law metadata. The YAML subset the linter reads has no anchors,
+# tags or block scalars on purpose; see bendeda/laws/manifest.py.
+#
+# `translation_reason` is declared rather than a `translation`: this fixture has no
+# SVA pack, and naming a property that does not exist would be a claim nobody can
+# check. L011 accepts either; it must not accept silence.
+task: SAT_counter
+tier: A
+spec: spec.md
+status: fixture
+bend_version: "2.0.40"
+requirements: [R1, R2, R3, R4]
+
+laws:
+  - id: SAT-S-01
+    name: counter_s01_never_above_ceiling
+    class: L-SAFE
+    priority: core
+    requirements: [R1]
+    witness: counter_w01_reaches_ceiling
+    translation_reason: "model-level: this fixture ships no SVA pack"
+    reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
+  - id: SAT-S-02
+    name: counter_s02_ceiling_holds_under_max_increment
+    class: L-SAFE
+    priority: core
+    requirements: [R1]
+    witness: counter_w01_reaches_ceiling
+    translation_reason: "model-level: this fixture ships no SVA pack"
+    reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
+  - id: SAT-F-01
+    name: counter_f01_sum_when_it_fits
+    class: L-FUNC
+    priority: core
+    requirements: [R2]
+    witness: counter_w03_reaches_mid
+    translation_reason: "model-level: this fixture ships no SVA pack"
+    reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
+  - id: SAT-F-02
+    name: counter_f02_exact_fit_reaches_ceiling
+    class: L-FUNC
+    priority: important
+    requirements: [R3]
+    witness: counter_w01_reaches_ceiling
+    translation_reason: "model-level: this fixture ships no SVA pack"
+    reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
+  - id: SAT-F-03
+    name: counter_f03_zero_increment_preserves_count
+    class: L-FUNC
+    priority: important
+    requirements: [R4]
+    witness: counter_w02_reaches_zero
+    translation_reason: "model-level: this fixture ships no SVA pack"
+    reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
+  - id: SAT-W-01
+    name: counter_w01_reaches_ceiling
+    class: L-WIT
+    priority: core
+    requirements: [R1]
+    witness: null
+    translation_reason: "a witness sequence, not a property to translate"
+  - id: SAT-W-02
+    name: counter_w02_reaches_zero
+    class: L-WIT
+    priority: core
+    requirements: [R1]
+    witness: null
+    translation_reason: "a witness sequence, not a property to translate"
+  - id: SAT-W-03
+    name: counter_w03_reaches_mid
+    class: L-WIT
+    priority: core
+    requirements: [R1]
+    witness: null
+    translation_reason: "a witness sequence, not a property to translate"
+
+conformance_only_requirements: []
+oracle_only_requirements: []
+
+hashes:
+  LAWS.bend: "c95c39337ef22741032dcd9df121b5d8ce42f2bbf9f648374dee86afc3873600"
+  model.bend: "66f269f5eb30997b5fcd587074b426b190a81a906eab43b5909845535065ca04"
+  PROOF_ref.bend: "e7a7536fdce2646a28df24b61c83501f9371898183e39020f9da4af4348b7677"
+  spec.md: "0e82316709c8da4b1a8ff18a984448865122c5e161034e5dc08f5e054a43921f"

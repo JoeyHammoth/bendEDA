@@ -1,0 +1,64 @@
+{
+  "task": "toy_counter_laws",
+  "base": "../../fixtures/toy_counter_laws",
+  "gates": [
+    "trace",
+    "lint"
+  ],
+  "entries": [
+    {
+      "id": "as_shipped",
+      "kind": "correct",
+      "artifacts": "correct/as_shipped",
+      "note": "the fixture as shipped: the reference point for both gates"
+    },
+    {
+      "id": "compare",
+      "kind": "correct",
+      "artifacts": "correct/compare",
+      "note": "equivalent RTL: saturates on a five-bit comparison"
+    },
+    {
+      "id": "retiered",
+      "kind": "correct",
+      "artifacts": "correct/retiered",
+      "note": "one law re-tiered important -> extended; the claims are unchanged"
+    },
+    {
+      "id": "m01_adds_one",
+      "kind": "mutant",
+      "artifacts": "mutant/m01_adds_one",
+      "note": "off-by-one in the unsaturated path (trace)"
+    },
+    {
+      "id": "m02_priority_dropped",
+      "kind": "mutant",
+      "artifacts": "mutant/m02_priority_dropped",
+      "note": "one law lost its priority tier (lint L012)"
+    },
+    {
+      "id": "m03_truncates_increment",
+      "kind": "mutant",
+      "artifacts": "mutant/m03_truncates_increment",
+      "note": "the increment width shrank: inc[1:0] (trace)"
+    },
+    {
+      "id": "s01_law_survives",
+      "kind": "seeded",
+      "artifacts": "seeded/s01_law_survives",
+      "note": "a mutation report in which a law killed no mutant (lint L006)"
+    },
+    {
+      "id": "s02_ghost_law",
+      "kind": "seeded",
+      "artifacts": "seeded/s02_ghost_law",
+      "note": "a manifest entry with no law behind it (lint L002)"
+    },
+    {
+      "id": "s03_wraps_at_16",
+      "kind": "seeded",
+      "artifacts": "seeded/s03_wraps_at_16",
+      "note": "no saturation: the count wraps at 16 (trace)"
+    }
+  ]
+}

@@ -254,11 +254,23 @@ without a law package is a failure that names the missing manifest, not a skip.
 `experiments/corpus/b1_fifo_laws` calibrates it over the shipped B1 FIFO package — GS and
 GSp 1.000, each seeded defect caught by the rule it was seeded for.
 
+A submission may carry `mutation.json` beside its manifest; that is the report L006
+reads, and without it the linter says `L006 not evaluated` rather than reporting a clean
+package it never checked for model sensitivity. A report the linter cannot parse is a
+failure naming the file, because a submission that carries evidence nobody can read has
+not been judged on it. `experiments/corpus/toy_counter_laws` is the corpus that names
+both `trace` and `lint`, so the `per gate:` table has two gates answering on the same
+entries — its seeded `s01_law_survives` entry supplies a report in which every law
+survived the mutant, and L006 fails it.
+
 A gate cannot hold a calibration entry forever either. Every simulated container is
 named, and a timeout removes it: killing the `docker` client stops the client, not the
 daemon's process, and that process keeps the bind mount busy. On a timeout, or when the
 client cannot start at all, the harness runs `docker rm -f` before reporting, so a hung
-simulation is a failure that names its limit instead of a hung harness.
+simulation is a failure that names its limit instead of a hung harness. `--sim-timeout`
+sets that limit per run for `gate run` and `gate calibrate` (default 900s); it is the
+gate's own deadline, so the calibration ends when it expires rather than when the
+simulation finally returns.
 
 ## `runner exec`: the arm runs inside the sandbox
 

@@ -10,10 +10,14 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
+from bendeda.conformance.vector_path import simulate_verilator
 from bendeda.gates import (
     GATES,
     calibrate,
@@ -188,7 +192,9 @@ def make_corpus(root: Path, entries: list[tuple[str, str, str]]) -> None:
             {
                 "top": "dut",
                 "clock": {"port": "clk"},
-                "inputs": [],
+                # One input, because `validate_spec` refuses a design with nothing to
+                # drive and the trace gate would fail before reaching a simulator.
+                "inputs": [{"port": "inc", "width": 4}],
                 "outputs": [{"port": "y"}],
                 "compare": "y",
             }
@@ -458,10 +464,129 @@ class TestLintGate(unittest.TestCase):
     def test_a_path_the_linter_cannot_read_is_a_skip_with_a_reason(self) -> None:
         from bendeda.laws.lint import Report
 
-        result = lint_gate(self.root, lint=lambda paths: Report())
+        result = lint_gate(self.root, lint=lambda paths, mutation=None: Report())
 
         self.assertEqual(result.status, "skip")
         self.assertIn("no package", result.reason)
+
+    def test_a_mutation_report_reaches_the_linter_and_L006_decides(self) -> None:
+        # The report is the only thing that makes L006 run at all, so a gate that
+        # drops it reports a clean package it never checked for sensitivity.
+        (self.root / "mutation.json").write_text(
+            json.dumps(
+                {
+                    "laws": {
+                        "fifo_f12_idle_preserves_head": {"killed_by": 0, "total": 4},
+                        "fifo_s01_count_within_depth": {"killed_by": 3, "total": 4},
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = lint_gate(self.root)
+
+        self.assertEqual(result.status, "fail")
+        self.assertIn("L006", result.reason)
+        self.assertIn("fifo_f12_idle_preserves_head", result.reason)
+
+    def test_an_unreadable_mutation_report_is_a_failure_naming_the_file(self) -> None:
+        (self.root / "mutation.json").write_text("{not json", encoding="utf-8")
+
+        result = lint_gate(self.root)
+
+        self.assertEqual(result.status, "fail")
+        self.assertIn("mutation.json", result.reason)
+
+
+class TestSimulationTimeouts(unittest.TestCase):
+    """A hung simulator is a decided entry, and the run ends when the limit does.
+
+    The hang here is a real child process that sleeps, and the deadline is a real
+    `subprocess.run(timeout=...)`: what is substituted is the container command, not
+    the clock. The model is not compiled, because a timeout says nothing about it.
+    """
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+
+    def hung(self, argv, **kwargs):
+        """Stand in for a container that never returns, with the real deadline."""
+        return subprocess.run(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            capture_output=True,
+            text=True,
+            timeout=kwargs.get("timeout"),
+        )
+
+    def test_the_configured_timeout_reaches_the_simulator(self) -> None:
+        submissions(self.root)
+        seen: dict = {}
+
+        def simulate(rtl, manifest, plan, **kwargs):
+            seen.update(kwargs)
+            return [1, 2]
+
+        trace_gate(
+            self.root,
+            {"sim_timeout": 3},
+            toolchain=toolchain,
+            available=lambda *_: True,
+            compile_fn=lambda *a, **k: Compile(),
+            vectors=lambda *a, **k: {"steps": [{"out": 1}, {"out": 2}]},
+            simulate=simulate,
+        )
+
+        self.assertEqual(seen.get("timeout"), 3.0)
+
+    def test_a_hung_simulation_fails_its_entry_and_the_calibration_exits_1(self) -> None:
+        standard(self.root)
+        removed: list[list[str]] = []
+        simulate = simulate_verilator
+
+        def remove(argv, **kwargs):
+            removed.append(list(argv))
+            return subprocess.CompletedProcess(argv, 0, "", "")
+
+        def run(artifacts, names, cfg):
+            return {
+                name: trace_gate(
+                    artifacts,
+                    cfg,
+                    toolchain=toolchain,
+                    available=lambda *_: True,
+                    compile_fn=lambda *a, **k: Compile(),
+                    vectors=lambda *a, **k: {"steps": [{"out": 1}]},
+                    # The real simulator, with the container command replaced by
+                    # something that hangs and the real removal hook recorded.
+                    simulate=lambda rtl, manifest, plan, **kwargs: simulate(
+                        rtl,
+                        manifest,
+                        plan,
+                        runner=self.hung,
+                        remove=remove,
+                        **kwargs,
+                    ),
+                )
+                for name in names
+            }
+
+        started = time.monotonic()
+        report = calibrate(load_corpus(self.root), {"sim_timeout": 0.2}, run=run)
+        elapsed = time.monotonic() - started
+
+        self.assertLess(elapsed, 30, "a hung entry must not hold the calibration until it sleeps out")
+        self.assertEqual(report.exit_code(), 1, "the gates ran and failed; that is not 'uncalibrated'")
+        self.assertEqual(report.undecidable(), [], "a timeout is decided, not undecidable")
+        self.assertTrue(all(entry.verdict == "rejected" for entry in report.entries))
+        self.assertIn("did not finish within", report.entries[0].reason or "")
+        self.assertTrue(
+            any(argv[:3] == ["docker", "rm", "-f"] and argv[3].startswith("bendeda-dut-")
+                for argv in removed),
+            "the simulated container is removed, because killing the client is not enough",
+        )
 
 
 class TestRegistry(unittest.TestCase):

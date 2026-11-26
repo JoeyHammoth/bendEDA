@@ -1,0 +1,81 @@
+{
+  "model": "experiments/fixtures/toy_counter_laws/model.bend",
+  "checker": "bun .bend-cache/bend-2.0.40/bend2/main.ts (pinned 2.0.40)",
+  "laws": {
+    "counter_s01_never_above_ceiling": {
+      "killed_by": 0,
+      "total": 1
+    },
+    "counter_s02_ceiling_holds_under_max_increment": {
+      "killed_by": 0,
+      "total": 1
+    },
+    "counter_f01_sum_when_it_fits": {
+      "killed_by": 0,
+      "total": 1
+    },
+    "counter_f02_exact_fit_reaches_ceiling": {
+      "killed_by": 0,
+      "total": 1
+    },
+    "counter_f03_zero_increment_preserves_count": {
+      "killed_by": 0,
+      "total": 1
+    },
+    "counter_w01_reaches_ceiling": {
+      "killed_by": 0,
+      "total": 1
+    },
+    "counter_w02_reaches_zero": {
+      "killed_by": 0,
+      "total": 1
+    },
+    "counter_w03_reaches_mid": {
+      "killed_by": 0,
+      "total": 1
+    }
+  },
+  "mutants": [
+    {
+      "id": "m001",
+      "description": "literal 15 -> 16",
+      "line": 16,
+      "killed": [],
+      "survived": [
+        "counter_s01_never_above_ceiling",
+        "counter_s02_ceiling_holds_under_max_increment",
+        "counter_f01_sum_when_it_fits",
+        "counter_f02_exact_fit_reaches_ceiling",
+        "counter_f03_zero_increment_preserves_count",
+        "counter_w01_reaches_ceiling",
+        "counter_w02_reaches_zero",
+        "counter_w03_reaches_mid"
+      ],
+      "errors": []
+    }
+  ],
+  "summary": {
+    "mutants": 1,
+    "mutants_killed": 0,
+    "kill_rate": 0.0,
+    "min_mutants": 20,
+    "min_kill": 0.9,
+    "survivors": [
+      "counter_s01_never_above_ceiling",
+      "counter_s02_ceiling_holds_under_max_increment",
+      "counter_f01_sum_when_it_fits",
+      "counter_f02_exact_fit_reaches_ceiling",
+      "counter_f03_zero_increment_preserves_count",
+      "counter_w01_reaches_ceiling",
+      "counter_w02_reaches_zero",
+      "counter_w03_reaches_mid"
+    ],
+    "notes": [],
+    "ok": false
+  },
+  "environment": {
+    "checker": "bun C:/Users/joeha/Desktop/physics-projects/bendEDA/.bend-cache/bunenv/node_modules/.bin/bun main.ts",
+    "mode": "default",
+    "image": "none (local source pin)"
+  }
+}
