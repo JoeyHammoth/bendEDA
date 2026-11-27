@@ -1,7 +1,7 @@
 # toy_counter_laws corpus — `trace`, `formal` and `lint` over one submission (LA4)
 
-The other two corpora name one gate each, so `per gate:` could only ever print one
-line. This one names three, over the base submission
+The other corpora name one gate or two, so this is the one where `per gate:` has
+three gates to compare. This one names three, over the base submission
 `experiments/fixtures/toy_counter_laws` — the counter's model and RTL, an SVA pack and
 a law package over that same model — so a mutant can fail `trace`, a design that is
 right inside the simulated window can fail `formal`, and a seeded defect can fail
@@ -100,16 +100,37 @@ law) and why the 0.75 rate understates the set.
 Only this entry carries a report. A report on a `correct` entry would be judged too,
 and this catalogue fails L006, so a correct entry carrying it would be a false reject.
 
+## Calibrated
+
+`bendeda gate calibrate` ran on this corpus with Docker up, the OSS CAD image present,
+and the pinned Bun and compiler exported:
+
+```console
+$ export BENDEDA_BUN=.bend-cache/bunenv/node_modules/.bin/bun
+$ export BENDEDA_BEND_CLI=.bend-cache/bend-2.0.40/bend2/main.ts
+$ python -m bendeda gate calibrate --corpus experiments/corpus/toy_counter_laws
+...
+  per gate:
+    trace      caught 4 bug(s), 1 of them alone; rejected 0 correct implementation(s)
+    formal     caught 4 bug(s), 1 of them alone; rejected 0 correct implementation(s)
+    lint       caught 3 bug(s), 3 of them alone; rejected 0 correct implementation(s)
+gate calibrate: GS 1.000 (mutant 1.000 3/3, seeded 1.000 5/5), GSp 1.000 (3/3 correct)
+$ echo $?
+0
+```
+
+Every bug is rejected by at least one gate and no correct implementation is rejected.
+`trace` and `formal` each catch four of the eight, and each catches exactly one that
+the other does not — `s05` for `trace`, `s04` for `formal` — which is the reason this
+corpus names both. `lint` catches its three alone, because neither behavioural gate
+reads the metadata it judges.
+
 ## What this corpus does not do
 
-- **It was not calibrated by `bendeda gate calibrate` in this revision.** The Docker
-  engine on the authoring host would not start, so no GS/GSp and no `per gate:`
-  contribution table is claimed here. The formal verdicts above are the verdicts of
-  the job the gate runs; `bendeda gate run formal` adds the pinned container and the
-  `PASS` marker read, which is what the gate's unit tests pin. The `trace` verdicts for
-  the nine earlier entries are the ones recorded in the previous revision of this file,
-  whose base RTL, model and plan are unchanged; `s04` and `s05` differ from the base
-  only in `reset`/`inc`, and the `trace` argument for each is stated above.
+- **Calibration needs the pinned toolchain.** Without `BENDEDA_BUN` and
+  `BENDEDA_BEND_CLI`, `trace` skips, the correct entries become undecidable, and the
+  command exits 3 without a GSp; the first attempt on this host did exactly that and
+  is not the run recorded above. The verdicts above are from one run, on one host.
 - It is a fixture, not a study task: 4 requirements, 5 laws, and laws closed over
   literals because a symbolic `U32` needs an arithmetic induction the checker does not
   close for free. A study task's corpus adds the MCY mutant set for that task.

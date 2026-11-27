@@ -121,10 +121,9 @@ rejected entry with that reason, not a calibration that runs until someone notic
 
 The fourth corpus is the study-task shape: `corpus.json` names the B1 package and a
 `submission/` directory as two bases, staged in order, so `rtl/*.sv` stays the agent's
-(§4.1) while the laws, model and locked SVA pack stay the task's. Its table in
-`corpus/b1_fifo_rtl/README.md` was measured by running the task's `.sby` job and the
-linter directly, because Docker is not running on this host; that is evidence the two
-gates separate the nine entries, not a `calibrate` result, and the README says so.
+(§4.1) while the laws, model and locked SVA pack stay the task's. It calibrates at
+GS 1.000 and GSp 1.000 over `lint` and `formal`, each gate catching its three entries
+and nothing else.
 
 All four are fixture-scale. A study task's corpus adds the MCY mutant set for that
 task. What `b1_fifo_rtl` cannot yet show is `trace`: the L1 vector driver speaks only

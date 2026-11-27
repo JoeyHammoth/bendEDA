@@ -28,11 +28,25 @@ the `.sby` job does not read.
 
 ## Measured
 
-Each entry was staged with `bendeda.gates.stage` in a directory of its own; `lint`
-was run through `lint_gate`, and `formal` by running the task's own
-`props_locked.sby` (`smtbmc z3`, BMC depth 12) on the staged files with SymbiYosys.
-The container path was not used — Docker was not running — so these are the same
-files and the same job, not the same gate.
+`bendeda gate calibrate` ran on this corpus with Docker up, the OSS CAD image present,
+and the pinned Bun and compiler exported:
+
+```console
+$ export BENDEDA_BUN=.bend-cache/bunenv/node_modules/.bin/bun
+$ export BENDEDA_BEND_CLI=.bend-cache/bend-2.0.40/bend2/main.ts
+$ python -m bendeda gate calibrate --corpus experiments/corpus/b1_fifo_rtl
+...
+  per gate:
+    lint       caught 3 bug(s), 3 of them alone; rejected 0 correct implementation(s)
+    formal     caught 3 bug(s), 3 of them alone; rejected 0 correct implementation(s)
+gate calibrate: GS 1.000 (mutant 1.000 3/3, seeded 1.000 3/3), GSp 1.000 (3/3 correct)
+$ echo $?
+0
+```
+
+The table below names the assertion that fired for each mutant. The gate's own reason
+quotes the failing task (`props_locked.sby exited 2`), not the assertion, so those
+names come from the same job's log.
 
 | Entry | Kind | `lint` | `formal` | What decided it |
 |---|---|---|---|---|
@@ -54,11 +68,10 @@ rather than 2. The pack caught a real defect in an implementation written to be
 correct, which is the reason to keep the corrected one as an entry rather than to
 quietly fix it.
 
-GS and GSp are **not** reported as calibration results. `gate calibrate` needs the
-OSS CAD image and Docker is not running on this host (the Linux engine pipe is
-absent), so the numbers a calibration would print were not measured: this table
-alone would imply GS 1.000 (mutant 3/3, seeded 3/3) and GSp 1.000 (3/3 correct), and
-that implication is local evidence, not a `calibrate` run.
+Each gate catches its three entries alone and rejects no correct implementation, so
+neither gate is decorative here: drop either one and three entries stop being decided
+by it. The correct entries are accepted at BMC depth 12, which is exactly what that
+acceptance means — not a proof for all depths.
 
 ## What this does not cover
 
