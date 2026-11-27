@@ -1,0 +1,47 @@
+{
+  "top": "b1_fifo",
+  "clock": {
+    "port": "clk",
+    "period_ns": 10
+  },
+  "reset": {
+    "port": "rst_n",
+    "active_high": false,
+    "cycles": 1
+  },
+  "inputs": [
+    {
+      "port": "push",
+      "width": 1,
+      "stimulus": "plan",
+      "key": "push"
+    },
+    {
+      "port": "pop",
+      "width": 1,
+      "stimulus": "plan",
+      "key": "pop"
+    },
+    {
+      "port": "din",
+      "width": 32,
+      "stimulus": "plan",
+      "key": "din"
+    }
+  ],
+  "outputs": [
+    {
+      "port": "dout",
+      "width": 32
+    },
+    {
+      "port": "full",
+      "width": 1
+    },
+    {
+      "port": "empty",
+      "width": 1
+    }
+  ],
+  "compare": "dout"
+}

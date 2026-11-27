@@ -1,0 +1,27 @@
+{
+  "ops": [
+    {"op": "Push", "din": 11},
+    {"op": "Push", "din": 22},
+    {"op": "Pop"},
+    {"op": "Push", "din": 33},
+    {"op": "PushPop", "din": 44},
+    {"op": "Pop"},
+    {"op": "Push", "din": 55},
+    {"op": "Pop"},
+    {"op": "Pop"},
+    {"op": "Push", "din": 66},
+    {"op": "Push", "din": 77},
+    {"op": "Idle"},
+    {"op": "Pop"},
+    {"op": "PushPop", "din": 88},
+    {"op": "Pop"},
+    {"op": "Push", "din": 99}
+  ],
+  "init": "empty_fifo",
+  "observe": "dout",
+  "stimulus": {
+    "push": [1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1],
+    "pop":  [0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0],
+    "din":  [11, 22, 0, 33, 44, 0, 55, 0, 0, 66, 77, 0, 0, 88, 0, 99]
+  }
+}

@@ -82,6 +82,23 @@ bendeda conformance trace --module .bend-cache/out/model.mjs \
   --plan path/to/plan.json
 ```
 
+A design whose input is an ADT — a FIFO's push/pop, not a counter increment — uses
+`ops` instead of `incs`: one model constructor per cycle, a model function for the
+initial state, and a model function sampled after each step.
+
+```json
+{
+  "ops": [{"op": "Push", "din": 11}, {"op": "Pop"}],
+  "init": "empty_fifo",
+  "observe": "dout",
+  "stimulus": {"push": [1, 0], "pop": [0, 1], "din": [11, 0]}
+}
+```
+
+The driver records `observe`'s value as `out`, so the same comparator and the same
+generated testbench judge both kinds of plan; `dut.json` maps the cycles to ports.
+`experiments/corpus/b1_fifo_rtl/submission/plan.json` is a worked example.
+
 ## The checker canary suite
 
 ```bash

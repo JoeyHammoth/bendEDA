@@ -5,6 +5,7 @@
     "submission"
   ],
   "gates": [
+    "trace",
     "lint",
     "formal"
   ],
