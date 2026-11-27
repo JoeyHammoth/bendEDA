@@ -96,7 +96,7 @@ defects — so a bug reads as a diff rather than a second copy of the task.
 | `corpus/toy_counter/` | `fixtures/toy_counter` | `trace` | model and RTL agree on a submitted artifact directory |
 | `corpus/b1_fifo_laws/` | `tasks/seq/B1_fifo` | `lint` | a law package passes rules L001-L015 |
 | `corpus/toy_counter_laws/` | `fixtures/toy_counter_laws` | `trace`, `formal`, `lint` | one submission judged by all three gates |
-| `corpus/b1_fifo_rtl/` | `tasks/seq/B1_fifo` + `submission` | `lint`, `formal` | a study task's laws and a submitted RTL, staged from two bases |
+| `corpus/b1_fifo_rtl/` | `tasks/seq/B1_fifo` + `submission` | `trace`, `lint`, `formal` | a study task's laws and a submitted RTL, staged from two bases |
 
 ```bash
 bendeda gate calibrate --corpus experiments/corpus/toy_counter --out .bend-cache/calibrate.json
@@ -122,14 +122,15 @@ rejected entry with that reason, not a calibration that runs until someone notic
 The fourth corpus is the study-task shape: `corpus.json` names the B1 package and a
 `submission/` directory as two bases, staged in order, so `rtl/*.sv` stays the agent's
 (§4.1) while the laws, model and locked SVA pack stay the task's. It calibrates at
-GS 1.000 and GSp 1.000 over `lint` and `formal`, each gate catching its three entries
-and nothing else.
+GS 1.000 and GSp 1.000 over three gates: the submission's algebraic `plan.json`
+drives `trace`, `lint` reads the package, and the task's `.sby` job proves the pack.
 
 All four are fixture-scale. A study task's corpus adds the MCY mutant set for that
-task. What `b1_fifo_rtl` cannot yet show is `trace`: the L1 vector driver speaks only
-`step(U32, U32)`, and `tasks/seq/B1_fifo`'s `step(Fifo, Op)` has no driver, so the
-corpus names `lint` and `formal`. The missing piece is a driver for an algebraic
-input, not a staging problem.
+task. The vector path now carries two plan kinds: `incs` for a counter-shaped input
+and `ops` for an ADT input, with `init`/`observe` naming the model functions that
+produce the initial state and the sampled value. That is what lets `trace` drive B1's
+`step(Fifo, Op)` at all; the plan, not the driver, decides how much of the design is
+exercised, and `b1_fifo_rtl`'s README records what it misses.
 
 ## Planned matrices
 

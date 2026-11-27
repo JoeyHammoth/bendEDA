@@ -356,27 +356,45 @@ def load_plan(plan) -> dict:
 def validate_plan(plan) -> dict:
     """Check a stimulus plan and return it with `stimulus` normalised.
 
-    `incs` stays because it is the model's stimulus: the driver walks it one
-    entry per cycle. `stimulus` maps an input name to its own sequence, which is
-    how a design with two or three inputs is driven without inventing a second
-    plan format.
+    `incs` is the counter-shaped stimulus: the driver walks it one entry per
+    cycle. `ops` is the algebraic spelling — one model constructor per cycle — for
+    a design whose input is an ADT (a FIFO's push/pop, say); the two are exclusive
+    and `cycles` is whichever list the plan carries. `stimulus` maps an input name
+    to its own sequence, which is how a design with two or three inputs is driven
+    without inventing a second plan format.
     """
     if not isinstance(plan, dict):
         raise ValueError("plan must be a JSON object")
-    incs = plan.get("incs")
-    if not isinstance(incs, list) or not incs:
-        raise ValueError("plan.incs must be a non-empty list")
-    if not all(isinstance(value, int) and value >= 0 for value in incs):
-        raise ValueError("plan.incs values must be non-negative integers")
+    ops = plan.get("ops")
+    if ops is not None:
+        # Algebraic stimulus: one model constructor per cycle. `incs` is the
+        # counter-shaped spelling; an ops plan does not have one, and inventing a
+        # zero list would misstate what drove the DUT.
+        if not isinstance(ops, list) or not ops:
+            raise ValueError("plan.ops must be a non-empty list")
+        for index, item in enumerate(ops):
+            if not isinstance(item, dict) or not isinstance(item.get("op"), str) or not item["op"]:
+                raise ValueError(f"plan.ops[{index}] must be an object with an 'op' name")
+        cycles = len(ops)
+        observe = plan.get("observe", "dout")
+        if not isinstance(observe, str) or not observe:
+            raise ValueError("plan.observe must be a model function name")
+    else:
+        incs = plan.get("incs")
+        if not isinstance(incs, list) or not incs:
+            raise ValueError("plan.incs must be a non-empty list")
+        if not all(isinstance(value, int) and value >= 0 for value in incs):
+            raise ValueError("plan.incs values must be non-negative integers")
+        cycles = len(incs)
     stimulus = plan.get("stimulus") or {}
     if not isinstance(stimulus, dict):
         raise ValueError("plan.stimulus must be an object of name -> sequence")
     for key, values in stimulus.items():
         if not isinstance(values, list):
             raise ValueError(f"plan.stimulus.{key} must be a list")
-        if len(values) < len(incs):
+        if len(values) < cycles:
             raise ValueError(
-                f"plan.stimulus.{key} has {len(values)} values for {len(incs)} cycles"
+                f"plan.stimulus.{key} has {len(values)} values for {cycles} cycles"
             )
     count0 = plan.get("count0", 0)
     if not isinstance(count0, int) or count0 < 0:
@@ -396,7 +414,7 @@ def build_stimulus(spec, plan) -> tuple[list[int], int]:
     """
     spec = validate_spec(spec)
     plan = validate_plan(plan)
-    cycles = len(plan["incs"])
+    cycles = len(plan["ops"]) if plan.get("ops") else len(plan["incs"])
     width = sum(item["width"] for item in spec["inputs"])
     words: list[int] = []
     for index in range(cycles):
@@ -406,6 +424,10 @@ def build_stimulus(spec, plan) -> tuple[list[int], int]:
             if item["stimulus"] == "const":
                 value = item["value"]
             elif item["stimulus"] == "incs":
+                if not plan.get("incs"):
+                    raise ValueError(
+                        f"input {item['port']!r} wants plan.incs, which an ops plan does not define"
+                    )
                 value = plan["incs"][index]
             else:
                 if item["key"] not in plan["stimulus"]:
@@ -510,7 +532,7 @@ def simulate_verilator(
     if not rtl.exists():
         raise FileNotFoundError(f"no RTL at {rtl}")
     plan = validate_plan(plan)
-    cycles = len(plan["incs"])
+    cycles = len(plan["ops"]) if plan.get("ops") else len(plan["incs"])
     manifest = validate_spec(spec)
     values, width = build_stimulus(manifest, plan)
 

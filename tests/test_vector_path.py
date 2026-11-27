@@ -12,6 +12,7 @@ Two layers, deliberately separate:
 
 from __future__ import annotations
 
+import json
 import shutil
 import tempfile
 import unittest
@@ -346,6 +347,80 @@ class TestRealDut(unittest.TestCase):
             fixture / "dut.json",
             {"incs": incs, "stimulus": {"inc": list(incs)}},
         )
+        comparison = vp.compare(payload["steps"], dut_trace=trace)
+        self.assertTrue(comparison.matches, msg=comparison.explain())
+
+
+class TestAlgebraicStimulus(unittest.TestCase):
+    """A plan of operations, not increments: an ADT input is still driveable."""
+
+    SPEC = {
+        "top": "fifo",
+        "clock": {"port": "clk"},
+        "reset": {"port": "rst_n", "active_high": False, "cycles": 1},
+        "inputs": [
+            {"port": "push", "width": 1, "stimulus": "plan", "key": "push"},
+            {"port": "din", "width": 8, "stimulus": "plan", "key": "din"},
+        ],
+        "outputs": [{"port": "dout", "width": 8}],
+        "compare": "dout",
+    }
+
+    def test_an_ops_plan_is_accepted_with_its_length_as_the_cycle_count(self) -> None:
+        plan = vp.validate_plan({"ops": [{"op": "Push", "din": 1}, {"op": "Pop"}]})
+        self.assertEqual(len(plan["ops"]), 2)
+        self.assertNotIn("incs", plan, "an ops plan has no increment list to invent")
+
+    def test_an_operation_without_a_name_is_refused(self) -> None:
+        with self.assertRaises(ValueError) as caught:
+            vp.validate_plan({"ops": [{"din": 1}]})
+        self.assertIn("ops[0]", str(caught.exception))
+
+    def test_stimulus_for_an_ops_plan_is_packed_in_port_order(self) -> None:
+        plan = {
+            "ops": [{"op": "Push", "din": 5}],
+            "stimulus": {"push": [1], "din": [5]},
+        }
+        words, width = vp.build_stimulus(self.SPEC, plan)
+        self.assertEqual(width, 9)
+        self.assertEqual(words, [1 | (5 << 1)])
+
+    def test_an_input_that_wants_incs_is_refused_on_an_ops_plan(self) -> None:
+        spec = {**self.SPEC, "inputs": [
+            {"port": "push", "width": 1, "stimulus": "incs"},
+        ]}
+        with self.assertRaises(ValueError) as caught:
+            vp.build_stimulus(spec, {"ops": [{"op": "Push", "din": 1}]})
+        self.assertIn("ops plan does not define", str(caught.exception))
+
+
+class TestAlgebraicEndToEnd(unittest.TestCase):
+    """Compile B1's model, run its plan through the driver, simulate the RTL."""
+
+    def setUp(self) -> None:
+        if shutil.which("docker") is None:
+            raise unittest.SkipTest(
+                "no docker: the Verilator DUT runs in the pinned image, and CI covers it"
+            )
+        if not vp.image_available():
+            raise unittest.SkipTest(
+                f"image {vp.DEFAULT_IMAGE} is not present; the oss-cad-image job builds it and runs this test"
+            )
+        bun, cli = vp.find_bend_toolchain()
+        if bun is None or cli is None:
+            raise unittest.SkipTest("no pinned Bend source (BENDEDA_BEND_CLI); CI supplies it")
+        self.bun, self.cli = bun, cli
+
+    def test_an_ops_plan_agrees_with_the_fifo(self) -> None:
+        model = ROOT / "tasks" / "seq" / "B1_fifo" / "model.bend"
+        submission = ROOT / "experiments" / "corpus" / "b1_fifo_rtl" / "submission"
+        plan = json.loads((submission / "plan.json").read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as raw:
+            module = Path(raw) / "model.mjs"
+            compiled = vp.compile_model(model, module, Path(self.cli), self.bun)
+            self.assertTrue(compiled.ok, msg=(compiled.stderr or compiled.stdout)[:1500])
+            payload = vp.run_vectors(module, plan)
+        trace = vp.simulate_verilator(submission / "dut.sv", submission / "dut.json", plan)
         comparison = vp.compare(payload["steps"], dut_trace=trace)
         self.assertTrue(comparison.matches, msg=comparison.explain())
 

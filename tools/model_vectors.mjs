@@ -10,8 +10,13 @@
 // Usage:
 //   node tools/model_vectors.mjs <model.mjs> <plan.json> [--out vectors.json]
 //
-// Plan shape:
+// Plan shape, counter-shaped (the original):
 //   { "count0": 0, "incs": [1, 2, ...], "entries": ["step", "run"] }
+//
+// Plan shape, algebraic: one model constructor per cycle, observed through a
+// model function, so a design whose input is an ADT is executable too:
+//   { "ops": [{ "op": "Push", "din": 7 }, { "op": "Pop" }, ...],
+//     "init": "empty_fifo", "observe": "dout" }
 //
 // Output shape:
 //   { "model": "<path>", "count0": 0, "steps": [{ "inc": 1, "out": 1 }, ...],
@@ -36,7 +41,9 @@ const outPath = outIndex >= 0 ? rest[outIndex + 1] : null;
 const plan = JSON.parse(readFileSync(planPath, "utf8"));
 const count0 = plan.count0 ?? 0;
 const incs = plan.incs ?? [];
-const wanted = plan.entries ?? ["step", "run"];
+// An ops plan needs `step` only: `run` folds the counter's input list and has no
+// meaning for an operation sequence, so requiring it would reject a valid model.
+const wanted = plan.ops ? ["step"] : plan.entries ?? ["step", "run"];
 
 // A Bend constructor crosses as {$: "Name", field: value}, and the field names
 // are the *compiled* ones, not the names used in the source pattern: the model
@@ -115,29 +122,66 @@ function run(name, args) {
   return result.value;
 }
 
-// `run` folds the whole input list in one call; `step` is walked cycle by cycle
-// so a one-cycle offset in the DUT is visible rather than smoothed out.
-const steps = [];
-let count = count0;
-for (const inc of incs) {
-  count = run("step", [count, inc]);
-  steps.push({ inc, out: count });
-}
+let result;
+if (plan.ops) {
+  // Algebraic stimulus: the state is opaque to this driver and is threaded through
+  // `step` exactly as the model defines it. The constructor field names are the
+  // ones the model writes (`din`, not a renamed field), so a spec carries them as
+  // written; the list case above is the one where the compiler renames fields.
+  const observe = plan.observe ?? "dout";
+  const init = plan.init ?? "empty_fifo";
+  for (const name of [init, observe]) {
+    if (typeof mod[name] !== "function") {
+      console.error(`model_vectors: plan needs ${name}(), which the module does not export`);
+      console.error(`model_vectors: module exports ${exportsSeen.join(", ") || "(none)"}`);
+      process.exit(4);
+    }
+  }
+  const steps = [];
+  let state = run(init, []);
+  for (const spec of plan.ops) {
+    const { op, ...fields } = spec;
+    state = run("step", [state, { $: op, ...fields }]);
+    const value = run(observe, [state]);
+    if (typeof value !== "number") {
+      console.error(`model_vectors: ${observe}() answered a value this driver cannot compare`);
+      process.exit(3);
+    }
+    steps.push({ op, out: value });
+  }
+  result = {
+    model: modulePath,
+    ops: plan.ops.length,
+    steps,
+    exports: exportsSeen,
+    convention,
+    runtime: `node ${process.version}`,
+  };
+} else {
+  // `run` folds the whole input list in one call; `step` is walked cycle by cycle
+  // so a one-cycle offset in the DUT is visible rather than smoothed out.
+  const steps = [];
+  let count = count0;
+  for (const inc of incs) {
+    count = run("step", [count, inc]);
+    steps.push({ inc, out: count });
+  }
 
-const result = {
-  model: modulePath,
-  count0,
-  steps,
-  exports: exportsSeen,
-  convention,
-  runtime: `node ${process.version}`,
-};
+  result = {
+    model: modulePath,
+    count0,
+    steps,
+    exports: exportsSeen,
+    convention,
+    runtime: `node ${process.version}`,
+  };
 
-if (wanted.includes("run")) {
-  result.run = run("run", [listOf(incs), count0]);
-}
-if (typeof mod.limb === "function") {
-  result.limb = run("limb", []);
+  if (wanted.includes("run")) {
+    result.run = run("run", [listOf(incs), count0]);
+  }
+  if (typeof mod.limb === "function") {
+    result.limb = run("limb", []);
+  }
 }
 
 const text = JSON.stringify(result, null, 2);
