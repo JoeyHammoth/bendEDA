@@ -55,8 +55,8 @@ values.
 | **LA1** typing and proof | **pass** | 22/22 laws closed; `ALL PROOFS CHECK` on the composed book |
 | **LA2** witnesses | **pass (model level)** | the 3 witnesses are closed laws: reaches full, reaches empty, reaches half |
 | **LA3** model sensitivity | **pass** | 51 mutants, 51 killed, kill rate 1.00 against a 0.9 bar; the ten survivors of the previous run are killed by three post-state laws (below) |
-| **LA4** design discrimination | skip | no seeded-bug corpus and no RTL |
-| **LA5** implementation neutrality | skip | no three implementations |
+| **LA4** design discrimination | **pass (corpus)** | `experiments/corpus/b1_fifo_rtl`: GS 1.000 (mutant 3/3, seeded 3/3), GSp 1.000 (3/3 correct) |
+| **LA5** implementation neutrality | partial | three structurally different FIFOs are accepted by the same `lint` and `formal`, but one session wrote all three |
 | **LA6** coverage and parity | skip | C2 is provisional; parity would be confounded |
 | **LA7** translation fidelity | skip | the pack elaborates and its BMC passes, but no TF traces are computed |
 | **LA8** provability cap | **pass** | longest reference proof is 8 lines; no law needs induction |
