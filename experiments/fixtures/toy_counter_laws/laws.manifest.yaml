@@ -2,9 +2,9 @@
 # SAT_counter: law metadata. The YAML subset the linter reads has no anchors,
 # tags or block scalars on purpose; see bendeda/laws/manifest.py.
 #
-# `translation_reason` is declared rather than a `translation`: this fixture has no
-# SVA pack, and naming a property that does not exist would be a claim nobody can
-# check. L011 accepts either; it must not accept silence.
+# Every transferable law names its assertion in `props.sv`, which `counter.sby`
+# checks against the DUT. A law with no property would have to declare
+# `translation_reason` instead; L011 accepts either, and must not accept silence.
 task: SAT_counter
 tier: A
 spec: spec.md
@@ -19,7 +19,7 @@ laws:
     priority: core
     requirements: [R1]
     witness: counter_w01_reaches_ceiling
-    translation_reason: "model-level: this fixture ships no SVA pack"
+    translation: {sva: a_never_above_ceiling}
     reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
   - id: SAT-S-02
     name: counter_s02_ceiling_holds_under_max_increment
@@ -27,7 +27,7 @@ laws:
     priority: core
     requirements: [R1]
     witness: counter_w01_reaches_ceiling
-    translation_reason: "model-level: this fixture ships no SVA pack"
+    translation: {sva: a_ceiling_under_max_increment}
     reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
   - id: SAT-F-01
     name: counter_f01_sum_when_it_fits
@@ -35,7 +35,7 @@ laws:
     priority: core
     requirements: [R2]
     witness: counter_w03_reaches_mid
-    translation_reason: "model-level: this fixture ships no SVA pack"
+    translation: {sva: a_sum_when_it_fits}
     reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
   - id: SAT-F-02
     name: counter_f02_exact_fit_reaches_ceiling
@@ -43,7 +43,7 @@ laws:
     priority: important
     requirements: [R3]
     witness: counter_w01_reaches_ceiling
-    translation_reason: "model-level: this fixture ships no SVA pack"
+    translation: {sva: a_exact_fit}
     reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
   - id: SAT-F-03
     name: counter_f03_zero_increment_preserves_count
@@ -51,7 +51,7 @@ laws:
     priority: important
     requirements: [R4]
     witness: counter_w02_reaches_zero
-    translation_reason: "model-level: this fixture ships no SVA pack"
+    translation: {sva: a_zero_increment}
     reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
   - id: SAT-W-01
     name: counter_w01_reaches_ceiling

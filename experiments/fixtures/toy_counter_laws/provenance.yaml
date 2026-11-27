@@ -30,7 +30,7 @@ review:
   auditor_run: none
   gates:
     LA1: pass
-    LA3: not run
+    LA3: "fail - 4 mutants and a 0.75 kill rate, below the 20-mutant and 0.9 bars"
     LA4: pass
     LA9: skip
 locked:

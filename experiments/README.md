@@ -87,15 +87,15 @@ for both made the trace gate report a fail, because the harness image has no Ver
 
 ## Corpus
 
-Three gate-calibration corpora (LA4). Each is a base plus nine one- or two-file
-variants — three correct implementations, three mutants and three seeded defects — so a
+Three gate-calibration corpora (LA4). Each is a base plus one- or two-file variants —
+three correct implementations, three mutants and three to five seeded defects — so a
 bug reads as a diff rather than a second copy of the task.
 
 | Corpus | Base | Gates | What it measures |
 |---|---|---|---|
 | `corpus/toy_counter/` | `fixtures/toy_counter` | `trace` | model and RTL agree on a submitted artifact directory |
 | `corpus/b1_fifo_laws/` | `tasks/seq/B1_fifo` | `lint` | a law package passes rules L001-L015 |
-| `corpus/toy_counter_laws/` | `fixtures/toy_counter_laws` | `trace`, `lint` | one submission judged by both gates |
+| `corpus/toy_counter_laws/` | `fixtures/toy_counter_laws` | `trace`, `formal`, `lint` | one submission judged by all three gates |
 
 ```bash
 bendeda gate calibrate --corpus experiments/corpus/toy_counter --out .bend-cache/calibrate.json
@@ -108,16 +108,24 @@ bugs a gate caught, how many it caught alone, and how many correct implementatio
 rejected, and the summary names any gate that caught nothing.
 
 The third corpus exists because the first two exercise one gate each, and `per gate:`
-is only worth reading when two gates answer on the same entries. Its base is the one
-fixture that carries RTL and a law package together, so a mutant can fail `trace` and a
-seeded defect can fail `lint` on the same corpus and the contribution table shows each
-gate earning its place. `--sim-timeout` bounds a hung simulation: an entry whose DUT
-never returns is a rejected entry with that reason, not a calibration that runs until
-someone notices.
+is only worth reading when the gates answer on the same entries. Its base is the one
+fixture that carries RTL, an SVA pack and a law package together, so a mutant can fail
+`trace`, a design that is right inside the simulated window can fail `formal`, and a
+seeded defect can fail `lint` on the same corpus; the contribution table then shows
+each gate earning its place. The `formal` entry is the one the plan cannot reach: every
+value in `plan.json` is 4 or less, and `props.sv` asks for an increment of 8.
+`--sim-timeout` bounds a hung simulation: an entry whose DUT never returns is a
+rejected entry with that reason, not a calibration that runs until someone notices.
 
-All three are fixture-scale: nine entries in one task. A study task's corpus adds the
-MCY mutant set for that task, and `formal` when the task has proofs. No *study* task
-carries both RTL and a law package yet; the dual corpus uses a fixture for that reason.
+All three are fixture-scale. A study task's corpus adds the MCY mutant set for that
+task. A corpus over a *study* task with RTL is open work, and the blocker is concrete
+rather than editorial: the design gives `rtl/*.sv` to the agent (§4.1), so a task
+package cannot commit a reference implementation without handing the agent the answer,
+and a corpus would have to take the RTL from a submission while the laws come from the
+task. `load_corpus` stages one base directory, and the L1 vector driver speaks only
+`step(U32, U32)`, which is why `tasks/seq/B1_fifo`'s `step(Fifo, Op)` cannot be driven.
+Either a multi-directory base or a driver for an algebraic input is the prerequisite;
+neither is built.
 
 ## Planned matrices
 
