@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+# The first SymbiYosys job for the B1 locked pack. The submission supplies
+# `dut.sv` and instantiates `b1_fifo_props` under FORMAL, connecting the
+# occupancy and head registers that `abs.yaml` names; the pack is this task's.
+#
+# `smtbmc z3` names the solver explicitly: the engine's default is yices, and a
+# missing solver is an engine error, not a failed proof.
+[tasks]
+prove
+
+[options]
+prove: mode bmc
+prove: depth 12
+
+[engines]
+smtbmc z3
+
+[script]
+read_verilog -formal -sv dut.sv props_locked.sv
+prep -top b1_fifo
+
+[files]
+dut.sv
+props_locked.sv
