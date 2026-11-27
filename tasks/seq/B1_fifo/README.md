@@ -14,7 +14,8 @@ against this package would be a rehearsal, not a result.
 | `PROOF_ref.bend` | reference proofs, one per law | complete, `ALL PROOFS CHECK` |
 | `laws.manifest.yaml` | ids, classes, priorities, requirements, witnesses, translations | complete |
 | `abs.yaml` | RTL-to-model abstraction map, assumptions, reduced parameters | complete |
-| `props_locked.sv` | SVA translation of the laws, plus covers for the witnesses | written, **not elaborated** |
+| `props_locked.sv` | SVA translation of the laws, plus covers for the witnesses | complete, Yosys-elaborated, BMC pass |
+| `props_locked.sby` | SymbiYosys job over that pack on the reference FIFO | complete, BMC depth 12 with z3, PASS |
 | `props_c2.sv` | control pack written from the spec alone | provisional, see below |
 | `provenance.yaml` | authoring chain | draft, single session |
 | `variants.yaml` | seeded-variant declaration | declared, generator not implemented |
@@ -57,7 +58,7 @@ values.
 | **LA4** design discrimination | skip | no seeded-bug corpus and no RTL |
 | **LA5** implementation neutrality | skip | no three implementations |
 | **LA6** coverage and parity | skip | C2 is provisional; parity would be confounded |
-| **LA7** translation fidelity | skip | no SVA toolchain, so no TF traces |
+| **LA7** translation fidelity | skip | the pack elaborates and its BMC passes, but no TF traces are computed |
 | **LA8** provability cap | **pass** | longest reference proof is 8 lines; no law needs induction |
 | **LA9** independence | skip | one session wrote every artifact |
 
@@ -153,8 +154,11 @@ close by evaluation here.
 - **The oracle pack and the seeded-bug corpus.** No OAA artifact exists, so
   LA4/LA5 cannot run and `variants.yaml` declares its generator rather than
   implementing it.
-- **SVA elaboration.** No SystemVerilog toolchain is installed locally; the OSS
-  CAD image has not been asked to elaborate `props_locked.sv` or `props_c2.sv`.
+- **SVA coverage.** `props_locked.sv` is now written in the subset the pinned Yosys
+  parses, elaborates, and its BMC job passes on a reference FIFO; `props_c2.sv` is
+  still unelaborated. Elaboration is not LA7: no TF traces are computed, so translation
+  fidelity remains unmeasured, and the `.sby` job is run against a scratch reference,
+  not against a scored submission.
 - **An independent LA3 result.** The gate passes at 1.00 on this catalogue, but the
   laws and their proofs came from one session, so the number says the law set
   constrains the model — not that a second author would have written these laws.

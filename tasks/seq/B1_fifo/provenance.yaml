@@ -32,7 +32,7 @@ artifacts:
     authored_by: LAA
     run_id: freebuff-2026-11-24T14-00Z-b1fifo
   - path: props_locked.sv
-    sha256: 9a3eff1c912af033f7868708adc2ed69dc988803fbc0113b14c531bf138e81fe
+    sha256: 598d0caf51d999e15e7d5201a6422418776729e80f3cbc9754cb3abff5fa7697
     authored_by: LAA
     run_id: freebuff-2026-11-24T14-00Z-b1fifo
   - path: PROOF_ref.bend
