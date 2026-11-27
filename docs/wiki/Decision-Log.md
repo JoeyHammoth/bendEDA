@@ -4,6 +4,34 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-28 - Seven variant entries, and the eighth tag says why it has none
+
+**Decided:** seven of B1's eight declared variants are corpus entries
+(`experiments/corpus/b1_fifo_rtl/seeded/v01..v07`), each derived from the submission by
+one edit marked `VARIANT`; `variants.yaml` records the measured outcome per tag, and the
+eighth, `M_RESET_ASYNC_ONLY`, carries `entry: null` with the reason it cannot be
+measured. The plan grew two cycles at the tail — a pure push into a full queue and a
+push/pop pair on an empty queue — because those guard cases were the difference between
+a variant being caught and a variant passing. Calibration: GS 1.000 (mutant 3/3, seeded
+10/10), GSp 1.000 (3/3 correct). `tests/test_gates.py::TestB1VariantCollateral` keeps the
+tags and the entries in step.
+
+**Why:** a variant that exists only as a declaration is an unmeasured claim about the
+law set, and the corpus could not distinguish "the laws kill it" from "nothing ran it".
+Two of the seven pass the locked SVA pack: its ordering laws are a miter against the
+implementation's own second-element register, so a design that reorders the queue stays
+inside the pack by assumption, and `trace` is the only gate that catches them. The reset
+tag is not a corpus gap better RTL would close — a synchronous and an asynchronous clear
+are the same sample when reset is driven for whole cycles — so it needs a between-edge
+property, and recording that is more useful than an entry that can never be rejected.
+
+**Cost:** the corpus is 16 entries and a calibration takes about twenty minutes; adding a
+variant means deriving an RTL file by hand until the Phase 2 generator exists. The plan's
+two new edges apply to every entry, so a later plan change still moves every cycle number
+in the README.
+
+---
+
 ## 2026-11-26 - `lint` is a gate, and a gate that caught nothing is named
 
 **Decided:** the law linter is the third implemented gate (`gate run lint`). It judges a

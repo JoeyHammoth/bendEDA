@@ -63,6 +63,48 @@
       "kind": "seeded",
       "artifacts": "seeded/s03_stale_hash",
       "note": "a declared artifact hash no longer matches its file (lint L014)"
+    },
+    {
+      "id": "v01_count_off_by_one",
+      "kind": "seeded",
+      "artifacts": "seeded/v01_count_off_by_one",
+      "note": "M_COUNT_OFF_BY_ONE: the first push lands at occupancy two (trace, formal)"
+    },
+    {
+      "id": "v02_no_full_guard",
+      "kind": "seeded",
+      "artifacts": "seeded/v02_no_full_guard",
+      "note": "M_NO_FULL_GUARD: a push into a full queue is accepted (trace, formal)"
+    },
+    {
+      "id": "v03_no_empty_guard",
+      "kind": "seeded",
+      "artifacts": "seeded/v03_no_empty_guard",
+      "note": "M_NO_EMPTY_GUARD: a pop from an empty queue underflows the occupancy (trace, formal)"
+    },
+    {
+      "id": "v04_push_wins_when_full",
+      "kind": "seeded",
+      "artifacts": "seeded/v04_push_wins_when_full",
+      "note": "M_PUSH_WINS_WHEN_FULL: at full the push is granted and the pop dropped (trace, formal)"
+    },
+    {
+      "id": "v05_pop_wins_when_empty",
+      "kind": "seeded",
+      "artifacts": "seeded/v05_pop_wins_when_empty",
+      "note": "M_POP_WINS_WHEN_EMPTY: at empty the pop drops the push (trace, formal)"
+    },
+    {
+      "id": "v06_lifo_shift",
+      "kind": "seeded",
+      "artifacts": "seeded/v06_lifo_shift",
+      "note": "M_LIFO_SHIFT: the newest element reaches the head (trace, formal)"
+    },
+    {
+      "id": "v07_flag_latency",
+      "kind": "seeded",
+      "artifacts": "seeded/v07_flag_latency",
+      "note": "M_FLAG_LATENCY: full and empty lag the occupancy by a cycle (formal only)"
     }
   ]
 }
