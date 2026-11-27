@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # B1 FIFO: the variant declaration (Appendix G, J). A variant is a pure
 # function of (task, seed); the generator itself is Phase 2 work and is not
-# implemented here, so `implemented` is false rather than implied by the file's
-# presence.
+# implemented here, so `implemented` is false even though seven of the eight
+# tags now have a hand-derived RTL entry and a measured result in
+# `experiments/corpus/b1_fifo_rtl`. A tag with no entry says so and says why.
 task: B1_fifo
 implemented: false
 generator: "variants: f(task=B1_fifo, seed) -> {rtl_parameters, context_hash, mutant_tags}"
@@ -17,31 +18,51 @@ rtl_parameters:
   storage: ["registers", "regfile", "memory_macro"]
   pointer_encoding: ["binary", "gray", "one_hot"]
 
+# `killed_by` is the law set's claim about a tag. `observed` is what the corpus
+# measured on the derived entry: `trace` drives the submission's `plan.json`
+# through the generated bench, `formal` runs `props_locked.sby`, and a cycle
+# number is the first divergence from the model.
 seeded_bugs:
   - tag: M_COUNT_OFF_BY_ONE
     site: "occupancy increment or decrement"
     killed_by: [FIFO-S-01, FIFO-S-02, FIFO-F-06]
+    entry: experiments/corpus/b1_fifo_rtl/seeded/v01_count_off_by_one
+    observed: "trace cycle 2; formal rejects"
   - tag: M_NO_FULL_GUARD
     site: "push accepted while full"
     killed_by: [FIFO-F-04, FIFO-S-01]
+    entry: experiments/corpus/b1_fifo_rtl/seeded/v02_no_full_guard
+    observed: "trace cycle 17; formal passes (see the corpus README: the pack's ordering laws read the implementation's own registers)"
   - tag: M_NO_EMPTY_GUARD
     site: "pop accepted while empty"
     killed_by: [FIFO-F-05, FIFO-S-03]
+    entry: experiments/corpus/b1_fifo_rtl/seeded/v03_no_empty_guard
+    observed: "trace cycle 9; formal rejects"
   - tag: M_PUSH_WINS_WHEN_FULL
     site: "simultaneous push and pop when full"
     killed_by: [FIFO-F-10, FIFO-F-07]
+    entry: experiments/corpus/b1_fifo_rtl/seeded/v04_push_wins_when_full
+    observed: "trace cycle 5; formal rejects"
   - tag: M_POP_WINS_WHEN_EMPTY
     site: "simultaneous push and pop when empty"
     killed_by: [FIFO-F-13]
+    entry: experiments/corpus/b1_fifo_rtl/seeded/v05_pop_wins_when_empty
+    observed: "trace cycle 20; formal rejects"
   - tag: M_LIFO_SHIFT
     site: "second element promoted on pop instead of the head leaving"
     killed_by: [FIFO-F-07, FIFO-F-10]
+    entry: experiments/corpus/b1_fifo_rtl/seeded/v06_lifo_shift
+    observed: "trace cycle 1; formal passes (the pack's laws hold under a stack order)"
   - tag: M_RESET_ASYNC_ONLY
     site: "state not cleared by a synchronous reset edge"
     killed_by: [FIFO-F-11, FIFO-S-03]
+    entry: null
+    reason: "not observable at the trace abstraction: the bench drives reset for whole cycles and samples one cycle after each clock edge, so an asynchronous clear and a synchronous one produce identical samples. The job also assumes reset at its first cycle only, so `props_locked.sby` never asserts reset mid-run either. Killing this tag needs a property about the interval between edges, which is a different harness, not a different variant."
   - tag: M_FLAG_LATENCY
     site: "full/empty registered one cycle late"
     killed_by: [FIFO-S-02, FIFO-S-03]
+    entry: experiments/corpus/b1_fifo_rtl/seeded/v07_flag_latency
+    observed: "formal rejects; trace passes (the plan compares `dout`, so a flag that lags the occupancy is invisible to it)"
 
 oracle:
   commitment: "none yet: the oracle pack is not authored, so no sealed commitment exists"

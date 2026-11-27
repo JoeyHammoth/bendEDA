@@ -88,7 +88,7 @@ for both made the trace gate report a fail, because the harness image has no Ver
 ## Corpus
 
 Four gate-calibration corpora (LA4). Each is one or more bases plus one- or two-file
-variants — three correct implementations, three mutants and three to five seeded
+variants — three correct implementations, three mutants and three to ten seeded
 defects — so a bug reads as a diff rather than a second copy of the task.
 
 | Corpus | Bases | Gates | What it measures |
@@ -122,8 +122,12 @@ rejected entry with that reason, not a calibration that runs until someone notic
 The fourth corpus is the study-task shape: `corpus.json` names the B1 package and a
 `submission/` directory as two bases, staged in order, so `rtl/*.sv` stays the agent's
 (§4.1) while the laws, model and locked SVA pack stay the task's. It calibrates at
-GS 1.000 and GSp 1.000 over three gates: the submission's algebraic `plan.json`
-drives `trace`, `lint` reads the package, and the task's `.sby` job proves the pack.
+GS 1.000 (mutant 3/3, seeded 10/10) and GSp 1.000 over three gates: the submission's
+algebraic `plan.json` drives `trace`, `lint` reads the package, and the task's `.sby` job
+proves the pack. Seven of its seeded entries are the declared variants of
+`tasks/seq/B1_fifo/variants.yaml`, derived from the submission by one marked edit each:
+`trace` catches six and `formal` the seventh, and the eighth tag has no entry because a
+synchronous and an asynchronous reset are the same sample at this abstraction.
 
 All four are fixture-scale. A study task's corpus adds the MCY mutant set for that
 task. The vector path now carries two plan kinds: `incs` for a counter-shaped input

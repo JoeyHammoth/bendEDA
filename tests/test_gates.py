@@ -655,6 +655,70 @@ class TestCorpusFixtureCollateral(unittest.TestCase):
         self.assertIn("prep -top toy_counter_props", job)
 
 
+class TestB1VariantCollateral(unittest.TestCase):
+    """The declared B1 variants and the corpus entries that measure them.
+
+    `variants.yaml` declares eight seeded bugs. LA4 is measured against the corpus,
+    not against the declaration, so a tag with no entry is an unmeasured claim and
+    an entry whose tag was renamed is a bug nobody declared. Neither shows up as a
+    gate failure — the corpus would still calibrate — which is why the two lists
+    are checked against each other here.
+    """
+
+    root = Path(__file__).resolve().parents[1]
+    corpus = root / "experiments" / "corpus" / "b1_fifo_rtl"
+    variants = root / "tasks" / "seq" / "B1_fifo" / "variants.yaml"
+
+    def _declared(self) -> dict[str, str]:
+        """Tag -> entry directory, or "" when the tag has no entry.
+
+        Line-based on purpose: `variants.yaml` is read by people and by this test,
+        not by a manifest loader, so pulling in a YAML parser would test the parser.
+        """
+        tags: dict[str, str] = {}
+        current: str | None = None
+        for line in self.variants.read_text(encoding="utf-8").splitlines():
+            text = line.strip()
+            if text.startswith("- tag: "):
+                current = text[len("- tag: "):]
+                tags[current] = ""
+            elif current and text.startswith("entry: "):
+                value = text[len("entry: "):]
+                tags[current] = "" if value in ("null", "~") else value
+        return tags
+
+    def test_the_declared_tags_and_the_entries_agree(self) -> None:
+        declared = self._declared()
+        self.assertEqual(len(declared), 8, "the eight tags Appendix G lists")
+        entries = {value for value in declared.values() if value}
+        corpus = json.loads((self.corpus / "corpus.json").read_text(encoding="utf-8"))
+        staged = {
+            entry["artifacts"]
+            for entry in corpus["entries"]
+            if entry["id"].startswith("v")
+        }
+        self.assertEqual(
+            {Path(value).as_posix() for value in entries},
+            {Path(f"experiments/corpus/b1_fifo_rtl/{name}").as_posix() for name in staged},
+        )
+
+    def test_each_variant_entry_marks_its_own_edit(self) -> None:
+        for tag, entry in self._declared().items():
+            if not entry:
+                continue
+            text = (self.root / entry / "dut.sv").read_text(encoding="utf-8")
+            self.assertIn(f"VARIANT {tag}", text, f"{entry} does not say it is {tag}")
+            self.assertIn("module b1_fifo", text)
+
+    def test_a_tag_without_an_entry_records_why(self) -> None:
+        text = self.variants.read_text(encoding="utf-8")
+        missing = [tag for tag, entry in self._declared().items() if not entry]
+        for tag in missing:
+            self.assertIn(f"tag: {tag}", text)
+        self.assertIn("entry: null", text, "an unmeasured tag says so rather than being dropped")
+        self.assertIn("reason:", text, "and gives the reason it cannot be measured")
+
+
 class TestRegistry(unittest.TestCase):
     def test_the_registry_names_the_gates_that_execute(self) -> None:
         self.assertEqual(sorted(GATES), ["formal", "lint", "trace"])

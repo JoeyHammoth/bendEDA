@@ -47,7 +47,7 @@ artifacts:
     run_id: freebuff-2026-11-24T14-00Z-b1fifo
     inputs: [spec.md]
   - path: variants.yaml
-    sha256: 5faa5897a059d1c1694877faf2ddb7144827ce22dac7b3f8fedad0ace9740ac4
+    sha256: c4752f24a253837b57346072bd9921c881a773a1608af19ba09c2e200a61b218
     authored_by: conductor
     run_id: freebuff-2026-11-24T14-00Z-b1fifo
 review:
