@@ -331,6 +331,35 @@ class TestCalibration(unittest.TestCase):
             "the entry's file wins over the base's",
         )
 
+    def test_a_corpus_can_stage_a_task_package_and_a_submission(self) -> None:
+        standard(self.root)
+        submission = self.root / "submission"
+        submission.mkdir()
+        (submission / "submission.txt").write_text("submitted\n", encoding="utf-8")
+        (submission / "model.bend").write_text("// submission model\n", encoding="utf-8")
+        manifest = json.loads((self.root / "corpus.json").read_text(encoding="utf-8"))
+        manifest["bases"] = [manifest.pop("base"), "submission"]
+        (self.root / "corpus.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+        corpus = load_corpus(self.root)
+        self.assertEqual(len(corpus.bases), 2)
+        staged = self.root / "staged-two"
+        staged.mkdir()
+        stage(corpus, corpus.entries[0], staged)
+
+        self.assertTrue((staged / "dut.json").is_file(), "the task base is staged")
+        self.assertTrue((staged / "submission.txt").is_file(), "the submission is staged")
+        self.assertEqual(
+            (staged / "model.bend").read_text(encoding="utf-8"),
+            "// submission model\n",
+            "a later base wins over an earlier one",
+        )
+        self.assertEqual(
+            (staged / "dut.sv").read_text(encoding="utf-8"),
+            "// ok\n",
+            "the entry wins over every base",
+        )
+
     def test_a_manifest_without_a_correct_entry_is_refused(self) -> None:
         make_corpus(self.root, [("m1", "mutant", "// REJECT\n")])
         with self.assertRaises(ValueError) as caught:

@@ -360,16 +360,24 @@ class CorpusEntry:
 class Corpus:
     """A reference submission plus variants of it.
 
-    An entry replaces the base's files, so a bug is a diff of one file against a
+    An entry replaces the bases' files, so a bug is a diff of one file against a
     submission that already passes, and every variant is judged with the same reference
-    model, manifest and plan.
+    model, manifest and plan. A corpus may name more than one base and they are staged
+    in order: that is how a study task's package (laws, model, proofs, locked SVA) is
+    combined with a submission directory holding the RTL, without copying the package
+    into the corpus.
     """
 
     root: Path
     task: str
-    base: Path
+    bases: tuple[Path, ...]
     gates: tuple[str, ...]
     entries: tuple[CorpusEntry, ...]
+
+    @property
+    def base(self) -> Path:
+        """The first base, for the corpora that name one."""
+        return self.bases[0]
 
 
 def load_corpus(root: str | Path) -> Corpus:
@@ -388,9 +396,21 @@ def load_corpus(root: str | Path) -> Corpus:
         raise ValueError(f"{manifest_path}: the manifest must be an object")
 
     task = str(manifest.get("task") or root.name)
-    base = (root / str(manifest.get("base") or ".")).resolve()
-    if not base.is_dir():
-        raise ValueError(f"{manifest_path}: base {base} is not a directory")
+    raw_bases = manifest.get("bases")
+    if raw_bases is None:
+        # `base` is the one-base spelling every earlier corpus uses; `bases` is the
+        # ordered form, and a corpus that names one still has a first base.
+        raw_bases = [manifest.get("base") or "."]
+    if not isinstance(raw_bases, list) or not raw_bases:
+        raise ValueError(f"{manifest_path}: 'bases' must be a non-empty list")
+    bases: list[Path] = []
+    for index, item in enumerate(raw_bases):
+        if not isinstance(item, str) or not item.strip():
+            raise ValueError(f"{manifest_path}: base {index} is not a path")
+        resolved = (root / item).resolve()
+        if not resolved.is_dir():
+            raise ValueError(f"{manifest_path}: base {resolved} is not a directory")
+        bases.append(resolved)
 
     gates = tuple(str(name) for name in manifest.get("gates") or ())
     unknown = [name for name in gates if name not in GATES]
@@ -435,13 +455,16 @@ def load_corpus(root: str | Path) -> Corpus:
             raise ValueError(
                 f"{manifest_path}: no {needed} entry, so that rate could not be computed"
             )
-    return Corpus(root, task, base, gates or tuple(sorted(GATES)), tuple(entries))
+    return Corpus(root, task, tuple(bases), gates or tuple(sorted(GATES)), tuple(entries))
 
 
 def stage(corpus: Corpus, entry: CorpusEntry, target: str | Path) -> None:
-    """Copy the base submission, then the entry's overrides over it."""
+    """Copy the bases in order, then the entry's overrides over them.
+
+    A later base wins over an earlier one, and an entry wins over every base.
+    """
     target = Path(target)
-    for source in (corpus.base, entry.artifacts):
+    for source in (*corpus.bases, entry.artifacts):
         for item in sorted(source.iterdir()):
             if item.is_file():
                 shutil.copyfile(item, target / item.name)

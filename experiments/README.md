@@ -87,20 +87,22 @@ for both made the trace gate report a fail, because the harness image has no Ver
 
 ## Corpus
 
-Three gate-calibration corpora (LA4). Each is a base plus one- or two-file variants —
-three correct implementations, three mutants and three to five seeded defects — so a
-bug reads as a diff rather than a second copy of the task.
+Four gate-calibration corpora (LA4). Each is one or more bases plus one- or two-file
+variants — three correct implementations, three mutants and three to five seeded
+defects — so a bug reads as a diff rather than a second copy of the task.
 
-| Corpus | Base | Gates | What it measures |
+| Corpus | Bases | Gates | What it measures |
 |---|---|---|---|
 | `corpus/toy_counter/` | `fixtures/toy_counter` | `trace` | model and RTL agree on a submitted artifact directory |
 | `corpus/b1_fifo_laws/` | `tasks/seq/B1_fifo` | `lint` | a law package passes rules L001-L015 |
 | `corpus/toy_counter_laws/` | `fixtures/toy_counter_laws` | `trace`, `formal`, `lint` | one submission judged by all three gates |
+| `corpus/b1_fifo_rtl/` | `tasks/seq/B1_fifo` + `submission` | `lint`, `formal` | a study task's laws and a submitted RTL, staged from two bases |
 
 ```bash
 bendeda gate calibrate --corpus experiments/corpus/toy_counter --out .bend-cache/calibrate.json
 bendeda gate calibrate --corpus experiments/corpus/b1_fifo_laws
 bendeda gate calibrate --corpus experiments/corpus/toy_counter_laws --sim-timeout 600
+bendeda gate calibrate --corpus experiments/corpus/b1_fifo_rtl
 ```
 
 The output says what each gate decided, not only what the set did: `per gate:` lists the
@@ -117,15 +119,17 @@ value in `plan.json` is 4 or less, and `props.sv` asks for an increment of 8.
 `--sim-timeout` bounds a hung simulation: an entry whose DUT never returns is a
 rejected entry with that reason, not a calibration that runs until someone notices.
 
-All three are fixture-scale. A study task's corpus adds the MCY mutant set for that
-task. A corpus over a *study* task with RTL is open work, and the blocker is concrete
-rather than editorial: the design gives `rtl/*.sv` to the agent (§4.1), so a task
-package cannot commit a reference implementation without handing the agent the answer,
-and a corpus would have to take the RTL from a submission while the laws come from the
-task. `load_corpus` stages one base directory, and the L1 vector driver speaks only
-`step(U32, U32)`, which is why `tasks/seq/B1_fifo`'s `step(Fifo, Op)` cannot be driven.
-Either a multi-directory base or a driver for an algebraic input is the prerequisite;
-neither is built.
+The fourth corpus is the study-task shape: `corpus.json` names the B1 package and a
+`submission/` directory as two bases, staged in order, so `rtl/*.sv` stays the agent's
+(§4.1) while the laws, model and locked SVA pack stay the task's. It calibrates at
+GS 1.000 and GSp 1.000 over `lint` and `formal`, each gate catching its three entries
+and nothing else.
+
+All four are fixture-scale. A study task's corpus adds the MCY mutant set for that
+task. What `b1_fifo_rtl` cannot yet show is `trace`: the L1 vector driver speaks only
+`step(U32, U32)`, and `tasks/seq/B1_fifo`'s `step(Fifo, Op)` has no driver, so the
+corpus names `lint` and `formal`. The missing piece is a driver for an algebraic
+input, not a staging problem.
 
 ## Planned matrices
 
