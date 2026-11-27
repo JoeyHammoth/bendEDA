@@ -113,8 +113,8 @@ jobs:
     name: L1 vector path
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - uses: oven-sh/setup-bun@v2
@@ -169,7 +169,7 @@ jobs:
     name: bend image (pinned)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Stage the release archive the build will use
         run: |
           name=bend-2.0.40-linux-x64.tar.gz
@@ -193,7 +193,7 @@ jobs:
           docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" -w /work bendeda/bend:2.0.40 \
             experiments/fixtures/toy_counter/model.bend -o .bend-cache/out/model.mjs
           test -s .bend-cache/out/model.mjs
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
       - name: The binary's module passes the same trace gate as the source build
