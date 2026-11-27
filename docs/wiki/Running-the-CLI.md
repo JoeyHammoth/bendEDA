@@ -314,9 +314,10 @@ than a skip.
 
 `gate calibrate` runs the gate set over a corpus and reports gate sensitivity (GS: the
 share of bugs some gate rejected) and gate specificity (GSp: the share of correct
-implementations accepted). A corpus declares a base submission, its gate set and one
-entry per variant; an entry holds only the files it replaces, so a bug is a one-file
-diff. `mutant` and `seeded` are reported apart. An entry whose gates skipped is
+implementations accepted). A corpus declares its bases (one or more directories, staged in
+order), its gate set and one entry per variant; an entry holds only the files it
+replaces, so a bug is a one-file diff. A second base is how a study task's law package
+is staged together with the RTL a submission supplies. `mutant` and `seeded` are reported apart. An entry whose gates skipped is
 *undecidable* — excluded from the rate and listed — so a machine without a simulator
 exits 3 rather than reporting a sensitivity it never measured. Exit 0 calibrated, 1
 calibrated and failing, 3 not calibrated.

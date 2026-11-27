@@ -1,0 +1,67 @@
+{
+  "task": "b1_fifo_rtl",
+  "bases": [
+    "../../../tasks/seq/B1_fifo",
+    "submission"
+  ],
+  "gates": [
+    "lint",
+    "formal"
+  ],
+  "entries": [
+    {
+      "id": "as_shipped",
+      "kind": "correct",
+      "artifacts": "correct/as_shipped",
+      "note": "the submitted reference FIFO, staged with the task package"
+    },
+    {
+      "id": "shift_register",
+      "kind": "correct",
+      "artifacts": "correct/shift",
+      "note": "equivalent RTL: the queue is a shift register, not a head and a second register"
+    },
+    {
+      "id": "presence_flags",
+      "kind": "correct",
+      "artifacts": "correct/flags",
+      "note": "equivalent RTL: the occupancy is two presence flags, and the count is decoded from them"
+    },
+    {
+      "id": "m01_pop_keeps_count",
+      "kind": "mutant",
+      "artifacts": "mutant/m01_pop_keeps_count",
+      "note": "a pop from full promotes the second element but leaves the occupancy at depth (formal)"
+    },
+    {
+      "id": "m02_pushpop_full_push_wins",
+      "kind": "mutant",
+      "artifacts": "mutant/m02_pushpop_full_push_wins",
+      "note": "at full a simultaneous push is granted and the pop dropped (formal)"
+    },
+    {
+      "id": "m03_pushpop_half_wrong_head",
+      "kind": "mutant",
+      "artifacts": "mutant/m03_pushpop_half_wrong_head",
+      "note": "at occupancy one a push/pop pair keeps the popped head instead of the pushed datum (formal)"
+    },
+    {
+      "id": "s01_ghost_law",
+      "kind": "seeded",
+      "artifacts": "seeded/s01_ghost_law",
+      "note": "a manifest entry with no law behind it (lint L002)"
+    },
+    {
+      "id": "s02_untraceable",
+      "kind": "seeded",
+      "artifacts": "seeded/s02_untraceable",
+      "note": "a law maps to no requirement (lint L003)"
+    },
+    {
+      "id": "s03_stale_hash",
+      "kind": "seeded",
+      "artifacts": "seeded/s03_stale_hash",
+      "note": "a declared artifact hash no longer matches its file (lint L014)"
+    }
+  ]
+}

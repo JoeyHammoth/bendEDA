@@ -227,10 +227,12 @@ $ echo $?
 0
 ```
 
-A corpus is a `corpus.json` naming a base submission, a gate set and one entry per
-variant; each entry directory holds only the files it replaces, so a bug is a one-file
-diff against a design that already passes, and `calibrate` stages base-then-overlay in a
-temporary directory. `mutant` and `seeded` are reported apart because the design reports
+A corpus is a `corpus.json` naming one or more base directories, a gate set and one entry
+per variant; each entry directory holds only the files it replaces, so a bug is a one-file
+diff against a design that already passes, and `calibrate` stages the bases in order and
+then the entry over them in a temporary directory. More than one base is how a study
+task's package is combined with a submitted RTL directory: the laws come from the task
+and the implementation from the submission. `mutant` and `seeded` are reported apart because the design reports
 them apart: a gate that catches only the hand-written half is not calibrated.
 
 An entry whose gate skipped is *undecidable*: excluded from the rate and listed.
