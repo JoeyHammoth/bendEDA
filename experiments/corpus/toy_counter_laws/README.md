@@ -35,14 +35,21 @@ SBY ... DONE (PASS, rc=0)
 | `correct/as_shipped` | **PASS** | every translated law holds on the reference RTL |
 | `correct/compare` | **PASS** | different RTL (a five-bit comparison), same properties |
 | `mutant/m01_adds_one` | **FAIL** | `a_sum_when_it_fits`: `3 + 4` came out as 8 |
-| `mutant/m03_truncates_increment` | **FAIL** | `a_eight_from_zero` and the sum property fire; `inc[1:0]` lost the value |
-| `seeded/s03_wraps_at_16` | **FAIL** | `a_never_above_ceiling`: no saturation |
-| `seeded/s04_drops_inc_msb` | **FAIL** | `a_eight_from_zero` at step 2, `props.sv:79` |
+| `mutant/m03_truncates_increment` | **FAIL** | `a_eight_from_zero`: `inc[1:0]` lost the value |
+| `seeded/s03_wraps_at_16` | **FAIL** | `a_ceiling_under_max_increment`: 15 + 15 wrapped to 14 |
+| `seeded/s04_drops_inc_msb` | **FAIL** | `a_eight_from_zero` at step 2 |
 | `seeded/s05_resets_to_one` | **PASS** | no property mentions reset, so nothing forbids it |
 
 The entries not listed (`correct/retiered`, `mutant/m02_priority_dropped`,
 `seeded/s01_law_survives`) replace no RTL file, so the base's PASS applies to the
 design they submit.
+
+`a_never_above_ceiling` is not what rejects the wrapping counter, and that is worth
+saying: a 4-bit register cannot hold a value above 15, so the ceiling assertion is
+true by construction and no 4-bit RTL can falsify it. It is a faithful translation of
+R1 and it is vacuous on this implementation; the transition assertions are what make
+the pack non-vacuous. The weak assertion is not removed, because removing it would
+remove the law's only RTL claim; the corpus records which assertion does the work.
 
 Two verdicts are the reason the corpus names more than one behavioural gate:
 
@@ -52,7 +59,7 @@ Two verdicts are the reason the corpus names more than one behavioural gate:
 - **`s05` is trace-only.** Reset loads 1 instead of 0. The model has no reset state,
   so there is no law to translate and the pack says nothing about reset; every
   transition property still holds from an arbitrary state, so `formal` accepts it.
-  `trace` rejects it at the first cycle, and the same defect is the mutant
+  `trace` rejects it at the first compared cycle, and the same defect is the mutant
   `corpus/toy_counter/mutant/m02_resets_to_one`, which that corpus's calibration
   rejects.
 

@@ -52,6 +52,11 @@ module toy_counter_props (
   reg       started = 1'b0;
 
   // counter_s01_never_above_ceiling / R1: the count never exceeds its ceiling.
+  //
+  // On a 4-bit register this is true by construction — no value of `c` can exceed
+  // 15 — so it can never fire. It is kept because it is the translation of the
+  // law, and the corpus records that the transition assertions, not this one, are
+  // what reject a wrapping implementation.
   always @(posedge clk)
     if (!rst)
       a_never_above_ceiling: assert (c <= 4'd15);
