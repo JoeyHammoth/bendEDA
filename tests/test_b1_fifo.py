@@ -15,10 +15,12 @@ Tested properties:
   seeded fixture elsewhere proves the rules fire when they should;
 * the manifest and the law file describe the same set of laws, every witness it
   names exists, every requirement is covered or explicitly exempt, and every
-  translated law names a property that is in `props_locked.sv`.
+  translated law names an assertion or cover that is in `props_locked.sv`.
 """
 
 from __future__ import annotations
+
+import re
 
 import os
 import shlex
@@ -90,7 +92,15 @@ class TestPackageFiles(unittest.TestCase):
         for entry in self.manifest.laws:
             translation = entry.translation or {}
             if translation.get("sva"):
-                self.assertIn(f"property {translation['sva']};", props, entry.name)
+                name = translation["sva"]
+                # The pack is labelled immediate assertions, not named `property`
+                # blocks: the pinned Yosys front end rejects those. The label is what
+                # the manifest and L011 name, so that is what has to exist.
+                self.assertRegex(
+                    props,
+                    rf"(?m)^\s*{re.escape(name)}:\s*(assert|cover)\b",
+                    entry.name,
+                )
 
     def test_no_escape_hatch_appears_in_the_law_or_model_files(self) -> None:
         findings = [f.render() for f in run([str(TASK)]).findings]
