@@ -3,6 +3,7 @@
   "base": "../../fixtures/toy_counter_laws",
   "gates": [
     "trace",
+    "formal",
     "lint"
   ],
   "entries": [
@@ -59,6 +60,18 @@
       "kind": "seeded",
       "artifacts": "seeded/s03_wraps_at_16",
       "note": "no saturation: the count wraps at 16 (trace)"
+    },
+    {
+      "id": "s04_drops_inc_msb",
+      "kind": "seeded",
+      "artifacts": "seeded/s04_drops_inc_msb",
+      "note": "the increment loses bit 3, which no plan value exercises (formal)"
+    },
+    {
+      "id": "s05_resets_to_one",
+      "kind": "seeded",
+      "artifacts": "seeded/s05_resets_to_one",
+      "note": "reset loads one, which no SVA property states (trace)"
     }
   ]
 }

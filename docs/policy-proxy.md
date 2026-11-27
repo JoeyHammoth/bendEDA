@@ -188,6 +188,7 @@ and a skip is never written to `gates.json`.
 |---|---|---|
 | `trace` | the model compiles, the submitted RTL simulates, and every cycle agrees | a required file is missing, the model does not compile, the DUT errors, or any cycle disagrees |
 | `formal` | every `*.sby` job writes a PASS marker | there is no `.sby` job, a job exits non-zero, or it finishes without PASS |
+| `lint` | the law package passes rules L001-L015 and carries no finding | the package is missing, the linter reports a finding, or a `mutation.json` it was given cannot be read |
 
 ```console
 $ bendeda gate run trace --artifacts experiments/fixtures/toy_counter --out gates.json

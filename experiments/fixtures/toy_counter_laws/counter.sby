@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: Apache-2.0
+# SymbiYosys job for the fixture's DUT and its SVA pack. `-formal` is what makes
+# the `assert property` statements compile in; `prep -top` names the wrapper, not
+# the DUT, because the wrapper is what holds the properties.
+#
+# BMC depth 12 is enough for the three properties: each constrains at most two
+# cycles, and the ceiling is inductive over the transition. A `prove` task would
+# be stronger; this job is bounded on purpose, and the README says so.
+[tasks]
+prove
+
+[options]
+prove: mode bmc
+prove: depth 12
+
+[engines]
+smtbmc z3
+
+[script]
+read_verilog -formal -sv dut.sv props.sv
+prep -top toy_counter_props
+
+[files]
+dut.sv
+props.sv

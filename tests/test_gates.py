@@ -589,6 +589,43 @@ class TestSimulationTimeouts(unittest.TestCase):
         )
 
 
+class TestCorpusFixtureCollateral(unittest.TestCase):
+    """The fixture's SVA pack must stay attached to the law package it translates.
+
+    L011 accepts a `translation` on its presence alone, so a renamed assertion, a
+    pack that stops declaring it, or a job that stops reading the pack would leave
+    `lint` clean and `formal` proving nothing. This is the link the linter cannot
+    check and the gate would report as a vacuous pass.
+    """
+
+    root = (
+        Path(__file__).resolve().parents[1]
+        / "experiments"
+        / "fixtures"
+        / "toy_counter_laws"
+    )
+
+    def test_every_declared_translation_names_a_label_in_the_pack(self) -> None:
+        from bendeda.laws.manifest import Manifest
+
+        manifest = Manifest.load(self.root / "laws.manifest.yaml")
+        pack = (self.root / "props.sv").read_text(encoding="utf-8")
+        declared = [
+            (entry.translation or {}).get("sva") for entry in manifest.laws
+        ]
+        declared = [name for name in declared if name]
+        self.assertGreaterEqual(len(declared), 5, "every transferable law names one")
+        for name in declared:
+            self.assertIn(f"{name}:", pack, f"{name} is declared but not asserted")
+
+    def test_the_job_reads_the_dut_and_the_pack(self) -> None:
+        job = (self.root / "counter.sby").read_text(encoding="utf-8")
+        self.assertIn("read_verilog", job)
+        self.assertIn("dut.sv", job)
+        self.assertIn("props.sv", job)
+        self.assertIn("prep -top toy_counter_props", job)
+
+
 class TestRegistry(unittest.TestCase):
     def test_the_registry_names_the_gates_that_execute(self) -> None:
         self.assertEqual(sorted(GATES), ["formal", "lint", "trace"])
