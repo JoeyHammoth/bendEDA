@@ -58,7 +58,7 @@ values.
 | **LA4** design discrimination | **pass (corpus)** | `experiments/corpus/b1_fifo_rtl`: GS 1.000 (mutant 3/3, seeded 10/10), GSp 1.000 (3/3 correct); seven of the eight declared variants have entries, the eighth is recorded as unobservable |
 | **LA5** implementation neutrality | partial | three structurally different FIFOs are accepted by the same `lint` and `formal`, but one session wrote all three |
 | **LA6** coverage and parity | skip | C2 is provisional; parity would be confounded |
-| **LA7** translation fidelity | skip | the model side runs: 19 rows, every law exercised over 1,000 traces x 8 cycles, zero disagreements (`bendeda/tf.py`), and a broken pop-from-full is caught by FIFO-F-07 alone. The SVA side does not exist, so TF is still not a number; design and remaining steps are `docs/research/2026-11-28-tf-run-design.md` |
+| **LA7** translation fidelity | skip | both sides now run separately: the model side is 19 rows over 1,000 traces x 8 cycles with zero disagreements (`bendeda/tf.py`), and the RTL side is an assertion-observing Verilator bench (`bendeda/tf_rtl.py`) that is clean on the reference and fires `p_pop_full_count` / `p_pop_full_next_head` at cycle 2 on `m01` / `v06`. They are not joined, so TF is still not a number; design and remaining steps are `docs/research/2026-11-28-tf-run-design.md` |
 | **LA8** provability cap | **pass** | longest reference proof is 8 lines; no law needs induction |
 | **LA9** independence | skip | one session wrote every artifact |
 

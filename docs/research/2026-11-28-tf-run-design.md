@@ -204,5 +204,22 @@ evaluated on every pre-state, because `reset` is a model function and not a trac
 operation; the RTL side will need `rst_n` actually asserted to observe it (step 3).
 
 Steps 1 and 2 produce no TF number, because a number computed from one side is agreement
-with itself. Step 3 (assertion-enabled Verilator) is next, and `tf run` still exits 3
-until step 4 joins the two.
+with itself.
+
+**Step 3 (2026-11-28).** `bendeda/tf_rtl.py` compiles the pack with Verilator's
+`--assert -DFORMAL` in the pinned `oss-cad` image and runs one trace per process,
+reporting the assertion Verilator names and the cycle the pack judged. Against the
+corpus: `as_shipped` is clean over an eight-cycle trace, `m01_pop_keeps_count` fires
+`p_pop_full_count` at trace cycle 2, and `v06_lifo_shift` fires
+`p_pop_full_next_head` at cycle 2 — the assertions the corpus already names, read
+from the simulator's own message rather than from a second statement of the pack.
+`tests/test_tf_rtl.py` holds that, and its Docker-backed test skips with the reason
+where the image is absent.
+
+Two limits carry into step 4. A failed assertion stops the simulation, so a trace
+yields at most its first `(assertion, cycle)` pair; separate processes keep each
+trace's first failure its own. And `p_reset_empty` needs `rst_n` asserted mid-run,
+which the trace alphabet does not yet produce, so FIFO-F-11 would be an unexercised
+row — a `null`, not agreement — until a reset is part of the stimulus.
+
+`tf run` still exits 3 until step 4 joins the two sides.
