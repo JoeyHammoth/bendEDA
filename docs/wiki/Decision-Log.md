@@ -4,6 +4,31 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-28 - `tf run` is designed before it is implemented
+
+**Decided:** translation fidelity is computed per law, not per pack; each translated
+law carries a declared `translation.fidelity_plan` (state class, operations, observed
+output, window, binders that must differ); the model-side verdict is the compiled model
+evaluating the law's ground instance, not a prover run once per trace; the RTL-side
+verdict is an assertion-enabled simulation of the pack on the same trace; and a law no
+trace exercises reports `null`, not 1.0. The design is
+`docs/research/2026-11-28-tf-run-design.md`. `tf run` still exits 3.
+
+**Why:** the stub's one-line plan ("10k traces per law, verdict agreement") leaves three
+things undeclared — where the model's verdict comes from, how the SVA is observed per
+trace, and which stimulus exercises each law — and each of them silently decides the
+number. A prover per trace would be 190,000 checker invocations to recompute what LA1
+already proved symbolically; uniform random stimulus at a deeper queue would leave laws
+unexercised and report agreement where nothing happened. Both would have been recorded
+as LA7 passing.
+
+**Cost:** nothing runs yet, and the note is a commitment: the plan's fields, the report's
+fields and the null-for-unexercised rule are what a later implementation has to match or
+amend with a reason. It also fixes a boundary in public — the multi-cycle half waits on
+BendBV's FSM helpers (`run`, `trace_equal`, #8), which `bv/OPEN.md` defers to Phase 1.
+
+---
+
 ## 2026-11-28 - The ordering laws miter the model, not the design's own register
 
 **Decided:** `props_locked.sv` carries a transcription of `model.bend`'s `step`
