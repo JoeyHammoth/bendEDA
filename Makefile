@@ -30,6 +30,7 @@ hygiene:
 	$(PY) tools/check_secrets.py .
 	$(PY) tools/check_license_headers.py .
 	$(PY) tools/check_whitespace.py .
+	$(PY) tools/check_links.py .
 	$(PY) tools/check_oracle_absence.py .
 
 validate:
