@@ -14,7 +14,7 @@ against this package would be a rehearsal, not a result.
 | `PROOF_ref.bend` | reference proofs, one per law | complete, `ALL PROOFS CHECK` |
 | `laws.manifest.yaml` | ids, classes, priorities, requirements, witnesses, translations | complete |
 | `abs.yaml` | RTL-to-model abstraction map, assumptions, reduced parameters | complete |
-| `props_locked.sv` | SVA translation of the laws, plus covers for the witnesses | complete, Yosys-elaborated, BMC pass |
+| `props_locked.sv` | SVA translation of the laws, plus covers for the witnesses; the two `L-REFN` ordering laws miter a transcription of `model.bend`'s `step` | complete, Yosys-elaborated, BMC pass |
 | `props_locked.sby` | SymbiYosys job over that pack on the reference FIFO | complete, BMC depth 12 with z3, PASS |
 | `props_c2.sv` | control pack written from the spec alone | provisional, see below |
 | `provenance.yaml` | authoring chain | draft, single session |
@@ -58,7 +58,7 @@ values.
 | **LA4** design discrimination | **pass (corpus)** | `experiments/corpus/b1_fifo_rtl`: GS 1.000 (mutant 3/3, seeded 10/10), GSp 1.000 (3/3 correct); seven of the eight declared variants have entries, the eighth is recorded as unobservable |
 | **LA5** implementation neutrality | partial | three structurally different FIFOs are accepted by the same `lint` and `formal`, but one session wrote all three |
 | **LA6** coverage and parity | skip | C2 is provisional; parity would be confounded |
-| **LA7** translation fidelity | skip | the pack elaborates and its BMC passes, but no TF traces are computed |
+| **LA7** translation fidelity | skip | the pack elaborates and its BMC passes, but no TF traces are computed; the metric's design is `docs/research/2026-11-28-tf-run-design.md` |
 | **LA8** provability cap | **pass** | longest reference proof is 8 lines; no law needs induction |
 | **LA9** independence | skip | one session wrote every artifact |
 
@@ -158,7 +158,12 @@ close by evaluation here.
   parses, elaborates, and its BMC job passes on a reference FIFO; `props_c2.sv` is
   still unelaborated. Elaboration is not LA7: no TF traces are computed, so translation
   fidelity remains unmeasured, and the `.sby` job is run against a scratch reference,
-  not against a scored submission.
+  not against a scored submission. One translation defect found by the corpus is fixed:
+  the two ordering laws used to compare `dout` with the implementation's own `second_q`,
+  which is the abstraction map's `b` under another name, so a design that stored the
+  wrong datum there satisfied its own law. They now miter a shadow transcription of
+  `model.bend`, and both variants that used to pass the pack fail it
+  (`experiments/corpus/b1_fifo_rtl`, LA4 row).
 - **An independent LA3 result.** The gate passes at 1.00 on this catalogue, but the
   laws and their proofs came from one session, so the number says the law set
   constrains the model — not that a second author would have written these laws.

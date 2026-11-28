@@ -45,3 +45,18 @@ rewrites a law to an equivalent form and updates both hash records — the manif
   host only — which is how the first run of this corpus scored GSp 0.333.
 - The mutants are hand-written. `law mutate` mutates the model, not the manifest, so it
   cannot generate these.
+
+## Correction (2026-11-28)
+
+The figure above was copied forward while it was false. `props_locked.sv` was rewritten
+in #59 and `variants.yaml` changed in #62, and the entries' copies of
+`laws.manifest.yaml` and of `correct/rewritten/provenance.yaml` kept the old digests, so
+L014 and L015 fired on packages that had no defect: the three correct entries were
+rejected and GSp was 0.333 for both merges. Every copy now carries its base file's
+digest and the run above was re-executed.
+
+This is the cost of declaring a hash in a copy of a package: nothing in the harness
+checks that a copy tracks its base, and a declaration that moves while a quotation of it
+does not is exactly the stale-hash defect `s03` seeds — arriving through maintenance
+instead of through a mistake. A corpus whose correct entries are quotations of each
+other's base should re-run itself in CI; it does not yet.

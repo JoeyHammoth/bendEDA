@@ -58,9 +58,9 @@ $ export BENDEDA_BEND_CLI=.bend-cache/bend-2.0.40/bend2/main.ts
 $ python -m bendeda gate calibrate --corpus experiments/corpus/b1_fifo_rtl
 ...
   per gate:
-    trace      caught 9 bug(s), 2 of them alone; rejected 0 correct implementation(s)
+    trace      caught 9 bug(s), 0 of them alone; rejected 0 correct implementation(s)
     lint       caught 3 bug(s), 3 of them alone; rejected 0 correct implementation(s)
-    formal     caught 8 bug(s), 1 of them alone; rejected 0 correct implementation(s)
+    formal     caught 10 bug(s), 1 of them alone; rejected 0 correct implementation(s)
 gate calibrate: GS 1.000 (mutant 1.000 3/3, seeded 1.000 10/10), GSp 1.000 (3/3 correct)
 $ echo $?
 0
@@ -78,33 +78,57 @@ $ echo $?
 | `s02_untraceable` | seeded | pass | fail | pass | L003 |
 | `s03_stale_hash` | seeded | pass | fail | pass | L014 |
 | `v01_count_off_by_one` | seeded | fail | pass | fail | `trace` cycle 2; `formal` |
-| `v02_no_full_guard` | seeded | fail | pass | pass | `trace` cycle 17 |
+| `v02_no_full_guard` | seeded | fail | pass | fail | `trace` cycle 17; `p_pop_full_next_head` |
 | `v03_no_empty_guard` | seeded | fail | pass | fail | `trace` cycle 9; `formal` |
 | `v04_push_wins_when_full` | seeded | fail | pass | fail | `trace` cycle 5; `formal` |
 | `v05_pop_wins_when_empty` | seeded | fail | pass | fail | `trace` cycle 20; `formal` |
-| `v06_lifo_shift` | seeded | fail | pass | pass | `trace` cycle 1 |
+| `v06_lifo_shift` | seeded | fail | pass | fail | `trace` cycle 1; `p_pop_full_next_head` |
 | `v07_flag_latency` | seeded | pass | pass | fail | `formal` (the flags lag the occupancy) |
 
 `trace` and `formal` each reject all three mutants, from the same submitted file and
-against independent claims — a 21-cycle simulation and a 12-step proof. Neither
-subsumes the other: of the ten behaviourally broken entries `trace` rejects nine
-(`v07` passes it) and `formal` eight (`v02` and `v06` pass it), so `trace` is alone on
-two and `formal` alone on one. `lint` reads the metadata nothing else reads and catches
-its three alone. No gate rejects a correct implementation.
+against independent claims — a 21-cycle simulation and a 12-step proof. `formal` also
+rejects all seven behavioural variants; `trace` rejects six, `v07` excepted, because the
+plan compares `dout` and a flag that lags the occupancy is invisible to it. So `formal`
+is alone on one entry, `trace` on none, and `lint` — which reads the metadata neither
+behavioural gate reads — is alone on its three. No gate rejects a correct implementation.
 
-### Two variants the locked pack accepts
+That `trace` now decides nothing alone is a fact about this pack, not a verdict on the
+gate. `formal` is the stronger of the two here because a transcribed model at depth 2
+is cheap; `trace` needs no solver, it is what a submission is iterated against, and it
+is the only one of the two that says which *cycle* the design and the model part company.
 
-`v02` and `v06` pass `props_locked.sby` and it is worth saying why, because that is a
-hole in the pack rather than a bad variant. The pack's ordering laws are a miter
-against the implementation's own `second_q`, which `abs.yaml` names as the second
-element: at full they state what a pop leaves relative to `second_q`, not that
-`second_q` is the datum pushed *second*. So a design that accepts a push into a full
-queue (`v02`), or that promotes the newest element to the head (`v06`), keeps every
-assertion satisfied while disagreeing with the model about the queue's contents. Both
-are caught by `trace`, at cycles 17 and 1. That is the point of running two behavioural
-gates: the pack's ordering claim is relative to the abstraction map's registers, so a
-variant that redefines the ordering leaves the pack's claims intact — it is outside the
-pack by assumption, not by proof.
+### The pack used to accept two of them
+
+The first version of this table had `v02` and `v06` passing `props_locked.sby`, and that
+was a hole in the pack rather than a property of the variants. Its two ordering laws
+were a miter against the implementation's own `second_q` — the register `abs.yaml` names
+as the model's `b` — so on a full queue they stated what a pop leaves relative to
+whatever the design had put there, not that it is the datum pushed second. A design that
+accepted a push into a full queue (`v02`), or that promoted the newest element to the
+head (`v06`), satisfied its own law while disagreeing with the model about the queue's
+contents.
+
+The pack now carries a transcription of `model.bend`'s `step` (`m_a`, `m_b`, `m_level`)
+and both ordering laws miter that:
+
+```console
+$ sby -f props_locked.sby -d out    # v02_no_full_guard
+SBY  summary: failed assertion b1_fifo.u_props.p_pop_full_next_head at props_locked.sv:150.11-150.53 step 6
+$ sby -f props_locked.sby -d out    # v06_lifo_shift
+SBY  summary: failed assertion b1_fifo.u_props.p_pop_full_next_head at props_locked.sv:150.11-150.53 step 5
+```
+
+`v06` fails as soon as a full queue is popped: the model's second element is the first
+datum pushed and the design's is the newest. `v02` needs the push *and* the pop after
+it — a push into a full queue leaves the occupancy at depth, which `FIFO-F-04` allows,
+and only the next pop's head shows that the lane has shifted. Both are still caught by
+`trace`, at cycles 17 and 1; the difference is that `formal` catches them too.
+
+The alternative was to add a law ("a push into a full queue leaves the head alone").
+It is a true claim about the model, but it is not a claim the manifest declares, and the
+two ordering laws are already declared `miter_ref_model_v1`. Transcribing the model is
+what that template says; a stronger law set is a different change, and it would need its
+own LA1 and LA3 evidence before a pack could lean on it.
 
 The first run of `presence_flags` failed `p_count_within_depth` and `p_full_iff_depth`,
 and it was the RTL that was wrong: the occupancy was the two flags concatenated, so
@@ -119,8 +143,14 @@ than a quiet fix.
   cases exist because that is exactly what happened to `m02` on the shorter plan.
 - **Reset is not a stimulus.** `rst_n` is driven for whole cycles before the plan starts
   and is not one of the plan's inputs, so the declared tag `M_RESET_ASYNC_ONLY` has no
-  entry: an asynchronous and a synchronous clear give identical samples when reset is
-  held across an edge. `variants.yaml` records that, with the harness a kill would need.
+  entry. Formal does not separate the two either: the job leaves `rst_n` free after its
+  first cycle, so `p_reset_empty` does constrain a reset that arrives mid-run, but a
+  synthesizable design that clears on `posedge clk or negedge rst_n` behaves exactly
+  like the synchronous reference at every edge, and a design that ignores a low `rst_n`
+  at an edge is a broken reset that both behavioural gates already reject. Separating
+  the two needs a property about the interval between edges — a reset pulse shorter
+  than a clock period — which is a different harness, not a different variant.
+  `variants.yaml` records that, with the harness a kill would need.
 - **Deep proofs.** `props_locked.sby` is BMC at depth 12. A correct implementation is
   accepted only to that depth; the mutants fail inside it.
 - **A scored submission.** The submission here is a reference the corpus author wrote

@@ -32,7 +32,7 @@ seeded_bugs:
     site: "push accepted while full"
     killed_by: [FIFO-F-04, FIFO-S-01]
     entry: experiments/corpus/b1_fifo_rtl/seeded/v02_no_full_guard
-    observed: "trace cycle 17; formal passes (see the corpus README: the pack's ordering laws read the implementation's own registers)"
+    observed: "trace cycle 17; formal rejects (p_pop_full_next_head, the model's second element is not the one the extra push displaced)"
   - tag: M_NO_EMPTY_GUARD
     site: "pop accepted while empty"
     killed_by: [FIFO-F-05, FIFO-S-03]
@@ -52,12 +52,12 @@ seeded_bugs:
     site: "second element promoted on pop instead of the head leaving"
     killed_by: [FIFO-F-07, FIFO-F-10]
     entry: experiments/corpus/b1_fifo_rtl/seeded/v06_lifo_shift
-    observed: "trace cycle 1; formal passes (the pack's laws hold under a stack order)"
+    observed: "trace cycle 1; formal rejects (p_pop_full_next_head: the model's second element is the first pushed datum, not the newest)"
   - tag: M_RESET_ASYNC_ONLY
     site: "state not cleared by a synchronous reset edge"
     killed_by: [FIFO-F-11, FIFO-S-03]
     entry: null
-    reason: "not observable at the trace abstraction: the bench drives reset for whole cycles and samples one cycle after each clock edge, so an asynchronous clear and a synchronous one produce identical samples. The job also assumes reset at its first cycle only, so `props_locked.sby` never asserts reset mid-run either. Killing this tag needs a property about the interval between edges, which is a different harness, not a different variant."
+    reason: "not observable at the trace abstraction: the bench drives reset for whole cycles and samples one cycle after each clock edge, so an asynchronous clear and a synchronous one produce identical samples. Formal does not separate them either: `rst_n` is a free input after the job's first cycle, so `p_reset_empty` does constrain a reset that arrives mid-run, but a synthesizable design whose state resets on `posedge clk or negedge rst_n` behaves exactly like the synchronous reference at every edge, and one that ignores a low `rst_n` at an edge is a broken reset that `trace` and `formal` both already reject. Separating the two needs a property about the interval between edges — a reset pulse shorter than a clock period — which is a different harness, not a different variant."
   - tag: M_FLAG_LATENCY
     site: "full/empty registered one cycle late"
     killed_by: [FIFO-S-02, FIFO-S-03]

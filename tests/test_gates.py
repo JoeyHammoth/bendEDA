@@ -719,6 +719,50 @@ class TestB1VariantCollateral(unittest.TestCase):
         self.assertIn("reason:", text, "and gives the reason it cannot be measured")
 
 
+class TestLockedPackOrdering(unittest.TestCase):
+    """The two ordering laws miter the model, not the design's own register.
+
+    A corpus variant can only show the pack was weak after a twenty-minute
+    calibration, so the guard is textual: the assertions that state FIFO-F-07 and
+    FIFO-F-10 compare `dout` with the transcribed model's second element (`m_b`) and
+    do not read the register the design happens to keep it in. The pack is read by
+    Yosys; this test says which shape it must have.
+    """
+
+    pack = (
+        Path(__file__).resolve().parents[1]
+        / "tasks" / "seq" / "B1_fifo" / "props_locked.sv"
+    )
+
+    def _ordering_assertions(self) -> dict[str, str]:
+        found: dict[str, str] = {}
+        for line in self.pack.read_text(encoding="utf-8").splitlines():
+            text = line.strip()
+            for name in ("p_pop_full_next_head", "p_pushpop_full_head"):
+                if text.startswith(name):
+                    found[name] = text
+        return found
+
+    def test_both_ordering_assertions_compare_against_the_model(self) -> None:
+        lines = self._ordering_assertions()
+        self.assertEqual(
+            sorted(lines),
+            ["p_pop_full_next_head", "p_pushpop_full_head"],
+            "both ordering laws are asserted",
+        )
+        for name, text in lines.items():
+            self.assertIn("dout == m_b", text, f"{name} does not name the model's element")
+            self.assertNotIn("second_d", text, f"{name} reads the design's own register")
+
+    def test_the_pack_carries_the_transcribed_model(self) -> None:
+        text = self.pack.read_text(encoding="utf-8")
+        for signal in ("m_a", "m_b", "m_level"):
+            self.assertIn(f" {signal};", text, f"the shadow declares no {signal}")
+        self.assertNotIn(
+            "second_d", text, "the register the old ordering claim read is gone"
+        )
+
+
 class TestRegistry(unittest.TestCase):
     def test_the_registry_names_the_gates_that_execute(self) -> None:
         self.assertEqual(sorted(GATES), ["formal", "lint", "trace"])
