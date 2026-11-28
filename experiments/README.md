@@ -126,8 +126,12 @@ GS 1.000 (mutant 3/3, seeded 10/10) and GSp 1.000 over three gates: the submissi
 algebraic `plan.json` drives `trace`, `lint` reads the package, and the task's `.sby` job
 proves the pack. Seven of its seeded entries are the declared variants of
 `tasks/seq/B1_fifo/variants.yaml`, derived from the submission by one marked edit each:
-`trace` catches six and `formal` the seventh, and the eighth tag has no entry because a
+`formal` catches all seven and `trace` six, and the eighth tag has no entry because a
 synchronous and an asynchronous reset are the same sample at this abstraction.
+That `formal` catches all seven is a property of the pack as it stands; its ordering laws
+miter a transcription of `model.bend` rather than the design's own second-element
+register, and both variants that slipped through before now fail it — see the corpus
+README and the 2026-11-28 decision-log entry.
 
 All four are fixture-scale. A study task's corpus adds the MCY mutant set for that
 task. The vector path now carries two plan kinds: `incs` for a counter-shaped input

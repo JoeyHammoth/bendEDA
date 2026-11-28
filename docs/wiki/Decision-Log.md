@@ -4,6 +4,46 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-28 - The ordering laws miter the model, not the design's own register
+
+**Decided:** `props_locked.sv` carries a transcription of `model.bend`'s `step`
+(`m_a`, `m_b`, `m_level`), and the two `L-REFN` ordering laws (FIFO-F-07, FIFO-F-10)
+assert against the model's second element instead of the implementation's `second_q`.
+Both variants that used to pass the pack — `v02_no_full_guard`, `v06_lifo_shift` —
+now fail it, on `p_pop_full_next_head`. The eighth tag, `M_RESET_ASYNC_ONLY`, stays
+unmeasured and its reason is corrected: formal does constrain a reset that arrives
+mid-run, so the reason is not that the job only assumes reset at its first cycle; it is
+that every synthesizable asynchronous-clear design is edge-identical to the synchronous
+reference.
+
+**Why:** the ordering laws are the only place the law set says anything about the
+queue's *order*, and they were reading the register the abstraction map names as the
+answer. A miter that reads the implementation's own state is satisfied by a design that
+keeps its state consistently wrong, which is exactly what a seeded variant is. The
+corpus had already paid for this twice — two variants passing `formal`, and the claim
+that the two behavioural gates each catch something the other misses. Transcribing the
+model is what the manifest's `miter_ref_model_v1` template says; adding a law ("a push
+into a full queue leaves the head alone") would have been a claim the manifest does not
+declare and would need its own LA1/LA3 evidence.
+
+**Cost:** the pack grows by the model's transition table, which now has to be kept in
+step with `model.bend` by hand — nothing checks that the shadow is the model, so a
+change to one is a change to two files. On this corpus the gate story inverts: `formal`
+rejects all ten behaviourally broken entries and `trace` nine, so `trace` is alone on
+nothing while `formal` is alone on `v07`. That is reported rather than smoothed over,
+and it is an argument for keeping `trace` for the reasons it actually has — no solver,
+per-cycle diagnosis, the gate a submission iterates against — not for its exclusivity.
+The same change repaired the laws corpus, whose entry copies had been pinning digests
+from before #59 and #62 and rejecting correct packages since.
+
+**Evidence:** `v02` fails `p_pop_full_next_head` at step 6, `v06` at step 5, and
+`as_shipped` passes; `gate calibrate --corpus experiments/corpus/b1_fifo_rtl` reports GS
+1.000 (mutant 3/3, seeded 10/10) and GSp 1.000 (3/3), with `formal` catching 10 (1 alone)
+and `trace` 9 (0 alone). `tests/test_gates.py::TestLockedPackOrdering` keeps the two
+assertions reading `m_b`.
+
+---
+
 ## 2026-11-28 - Seven variant entries, and the eighth tag says why it has none
 
 **Decided:** seven of B1's eight declared variants are corpus entries
@@ -24,6 +64,12 @@ inside the pack by assumption, and `trace` is the only gate that catches them. T
 tag is not a corpus gap better RTL would close — a synchronous and an asynchronous clear
 are the same sample when reset is driven for whole cycles — so it needs a between-edge
 property, and recording that is more useful than an entry that can never be rejected.
+
+**Superseded in part (2026-11-28):** the pack no longer accepts `v02` or `v06`. Its two
+ordering laws now miter a transcription of `model.bend` rather than the design's own
+second-element register, so both variants fail `formal` as well as `trace`. The variant
+entries, the plan's two tail cycles and the reset disposition stand; the entry at the top
+of this log has the pack change and what it cost.
 
 **Cost:** the corpus is 16 entries and a calibration takes about twenty minutes; adding a
 variant means deriving an RTL file by hand until the Phase 2 generator exists. The plan's
