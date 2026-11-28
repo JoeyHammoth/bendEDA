@@ -101,8 +101,10 @@ uses.
    Merge Danger honestly — the merge-danger section exists because some changes
    (locking a law set, publishing an oracle commitment, changing a threshold)
    are one-way doors.
-6. **Squash on merge** is disabled; use merge commits so the review history
-   survives. Branch deletion on merge is enabled.
+6. **Pull requests are squash-merged**, so a merged branch is one commit on
+   `main` and its individual commits do not survive. Branch deletion on merge is
+   enabled. The review history lives in the pull request, so put the reasoning
+   there rather than in commit-by-commit messages.
 
 ## What gets a pull request closed
 

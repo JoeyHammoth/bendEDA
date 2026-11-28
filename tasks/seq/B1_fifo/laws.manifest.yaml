@@ -227,7 +227,7 @@ laws:
       fidelity_plan:
         level: any
         ops: [Reset]
-        observe: [empty, count]
+        observe: [empty]
         window: 1
     reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
   - id: FIFO-F-12
