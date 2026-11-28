@@ -12,7 +12,7 @@ against this package would be a rehearsal, not a result.
 | `model.bend` | reference model: `count`, `is_full`, `is_empty`, `dout`, `step`, `reset` | complete |
 | `LAWS.bend` | 19 laws: 3 safety, 13 functional/refinement, 3 witnesses | complete, lint-clean |
 | `PROOF_ref.bend` | reference proofs, one per law | complete, `ALL PROOFS CHECK` |
-| `laws.manifest.yaml` | ids, classes, priorities, requirements, witnesses, translations | complete |
+| `laws.manifest.yaml` | ids, classes, priorities, requirements, witnesses, translations, per-law `fidelity_plan` | complete |
 | `abs.yaml` | RTL-to-model abstraction map, assumptions, reduced parameters | complete |
 | `props_locked.sv` | SVA translation of the laws, plus covers for the witnesses; the two `L-REFN` ordering laws miter a transcription of `model.bend`'s `step` | complete, Yosys-elaborated, BMC pass |
 | `props_locked.sby` | SymbiYosys job over that pack on the reference FIFO | complete, BMC depth 12 with z3, PASS |
@@ -58,7 +58,7 @@ values.
 | **LA4** design discrimination | **pass (corpus)** | `experiments/corpus/b1_fifo_rtl`: GS 1.000 (mutant 3/3, seeded 10/10), GSp 1.000 (3/3 correct); seven of the eight declared variants have entries, the eighth is recorded as unobservable |
 | **LA5** implementation neutrality | partial | three structurally different FIFOs are accepted by the same `lint` and `formal`, but one session wrote all three |
 | **LA6** coverage and parity | skip | C2 is provisional; parity would be confounded |
-| **LA7** translation fidelity | skip | the pack elaborates and its BMC passes, but no TF traces are computed; the metric's design is `docs/research/2026-11-28-tf-run-design.md` |
+| **LA7** translation fidelity | skip | the pack elaborates and its BMC passes, and every translated law now declares the trace that exercises it (its `fidelity_plan`), but no TF traces are computed, so fidelity stays unmeasured; design and remaining steps are `docs/research/2026-11-28-tf-run-design.md` |
 | **LA8** provability cap | **pass** | longest reference proof is 8 lines; no law needs induction |
 | **LA9** independence | skip | one session wrote every artifact |
 

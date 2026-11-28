@@ -16,8 +16,8 @@ import unittest
 from pathlib import Path
 
 from bendeda.laws import RULES, discover, run
-from bendeda.laws.manifest import ManifestError, parse_text
-from bendeda.laws.rules import expected_name
+from bendeda.laws.manifest import Manifest, ManifestError, parse_text
+from bendeda.laws.rules import expected_name, fidelity_plan_problems
 from bendeda.laws.source import parse
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -163,6 +163,102 @@ class TestCleanPackage(unittest.TestCase):
             self.assertEqual(report.exit_code(), 3)
             self.assertEqual(report.findings, [])
             self.assertTrue(report.skipped)
+
+
+class TestFidelityPlan(unittest.TestCase):
+    """L011 reads `translation.fidelity_plan` where a law declares one.
+
+    The plan is a declaration, so it is refused while it is still text. A plan naming a
+    state, an operation or a signal the harness has no recipe for would otherwise be
+    discovered after a TF number had been computed from a trace that never exercised the
+    law, and the number would look like a measurement.
+    """
+
+    OLD = "    translation: {sva: p_count, template: invariant_v1}"
+
+    def findings(self, plan_lines: list[str]) -> list[str]:
+        package = NL.join(
+            ["    translation:", "      sva: p_count", "      template: invariant_v1",
+             "      fidelity_plan:"]
+            + [f"        {line}" for line in plan_lines]
+        )
+        return self._l011(package)
+
+    def _l011(self, replacement: str) -> list[str]:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "clean"
+            root.mkdir()
+            write_clean_package(root)
+            manifest_path = root / "laws.manifest.yaml"
+            text = manifest_path.read_text(encoding="utf-8")
+            self.assertIn(self.OLD, text)
+            manifest_path.write_text(text.replace(self.OLD, replacement), encoding="utf-8", newline="")
+            report = run([str(root)], mutation=MUTATION)
+            return [f.render() for f in report.findings if f.rule == "L011"]
+
+    def test_a_well_formed_plan_passes(self) -> None:
+        self.assertEqual(
+            self.findings(
+                ["level: Half", "ops: [Push, Pop]", "observe: [count]", "window: 2",
+                 "distinct: [a, b]"]
+            ),
+            [],
+        )
+
+    def test_an_unknown_key_is_named(self) -> None:
+        messages = self.findings(
+            ["level: Half", "ops: [Push]", "observe: [count]", "window: 1", "wndow: 1"]
+        )
+        self.assertTrue(any("unknown key(s) ['wndow']" in message for message in messages), messages)
+
+    def test_empty_ops_is_refused(self) -> None:
+        messages = self.findings(["level: Half", "ops: []", "observe: [count]", "window: 1"])
+        self.assertTrue(
+            any("fidelity_plan.ops must be a non-empty list" in message for message in messages),
+            messages,
+        )
+
+    def test_a_zero_window_is_refused(self) -> None:
+        messages = self.findings(["level: Half", "ops: [Push]", "observe: [count]", "window: 0"])
+        self.assertTrue(any("window is 0" in message for message in messages), messages)
+
+    def test_an_operation_the_harness_cannot_decode_is_refused(self) -> None:
+        messages = self.findings(["level: Half", "ops: [Flush]", "observe: [count]", "window: 1"])
+        self.assertTrue(any("names ['Flush']" in message for message in messages), messages)
+
+    def test_a_plan_that_is_not_a_mapping_is_refused(self) -> None:
+        messages = self._l011(
+            NL.join(["    translation:", "      sva: p_count", "      fidelity_plan: []"])
+        )
+        self.assertTrue(any("expected a mapping" in message for message in messages), messages)
+
+
+class TestB1FidelityPlans(unittest.TestCase):
+    """The B1 package's declared plans, not just their shape."""
+
+    def setUp(self) -> None:
+        self.manifest = Manifest.load(ROOT / "tasks" / "seq" / "B1_fifo" / "laws.manifest.yaml")
+
+    def test_every_translated_law_declares_a_well_formed_plan(self) -> None:
+        translated = [e for e in self.manifest.laws if e.translation and e.translation.get("sva")]
+        self.assertEqual(len(translated), 19)
+        for entry in translated:
+            self.assertIn("fidelity_plan", entry.translation, msg=entry.name)
+            self.assertEqual(
+                fidelity_plan_problems(entry.translation["fidelity_plan"]), [], msg=entry.name
+            )
+
+    def test_the_plan_says_what_the_law_is_about(self) -> None:
+        by_name = self.manifest.by_name
+        pop_empty = by_name["fifo_f05_pop_empty_noop"].translation["fidelity_plan"]
+        self.assertEqual((pop_empty["level"], pop_empty["ops"]), ("Empty", ["Pop"]))
+        # Pop-from-full keeps whichever element was second: a plan with one head would
+        # check the assertion on a bucket where the two candidates coincide.
+        pop_full = by_name["fifo_f07_pop_full_next_head"].translation["fidelity_plan"]
+        self.assertEqual(pop_full["distinct"], ["a", "b"])
+        # Reset is not one of the four decoded operations, so the plan names it separately.
+        reset = by_name["fifo_f11_reset_empty"].translation["fidelity_plan"]
+        self.assertEqual(reset["ops"], ["Reset"])
 
 
 class TestDiscovery(unittest.TestCase):

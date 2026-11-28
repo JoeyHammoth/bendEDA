@@ -173,8 +173,9 @@ nothing to read that it did not invent.
 ## Order of work
 
 1. `laws.manifest.yaml` gains `translation.fidelity_plan` for B1's 19 transferable
-   laws, and lint L011 checks its shape (sva name, non-empty `ops`, `window ≥ 1`). This
-   is documentation plus one rule, and it can land before any simulator runs.
+   laws, and lint L011 checks its shape (known level, operation and signal vocabulary,
+   non-empty `ops` and `observe`, `window ≥ 1`). This is documentation plus one rule, and
+   it can land before any simulator runs.
 2. A per-trace model evaluator: one `model.mjs` compile, N evaluations, a row per
    (law, trace) with the verdict and the binders it used. Testable without Docker.
 3. An assertion-observing bench over the pack: Verilator with assertions enabled,
@@ -187,3 +188,9 @@ nothing to read that it did not invent.
 Steps 1 and 2 do not need Verilator or Docker; step 3 does. That split is deliberate:
 the metric's definition should be pinned and lintable before a container is involved, so
 that a disagreement found later is about a translation and not about a build.
+
+**Status (2026-11-28).** Step 1 is in: `tasks/seq/B1_fifo/laws.manifest.yaml` declares a
+`fidelity_plan` for all 19 translated laws, and L011 validates the shape of any plan a
+package declares (it does not require one yet, because nothing reads a plan and the
+corpora carry copies of the manifest). Step 2, the per-trace model evaluator, is next;
+until it exists `tf run` still exits 3.

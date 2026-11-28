@@ -1,6 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 # B1 FIFO: law metadata (Appendix G.7). The YAML subset the linter reads has no
 # anchors, tags or block scalars on purpose; see bendeda/laws/manifest.py.
+#
+# Every translated law carries a `fidelity_plan`: the model state class, the decoded
+# operations, the observed signal, the window and the binders that must differ for the
+# law to be exercised at all. It is declared rather than derived, because the map from a
+# law to its assertion is what it is checking; `bendeda tf run` consumes it and `law lint`
+# (L011) refuses a vocabulary the harness does not know. Presence is not required yet:
+# nothing reads a plan, and every corpus that carries a copy of this manifest would have
+# to change for a check no consumer uses.
 task: B1_fifo
 tier: A
 spec: spec.md
@@ -16,7 +24,14 @@ laws:
     priority: core
     requirements: [R1]
     witness: fifo_w01_reaches_full
-    translation: {sva: p_count_within_depth, template: invariant_v1}
+    translation:
+      sva: p_count_within_depth
+      template: invariant_v1
+      fidelity_plan:
+        level: any
+        ops: [Push, Pop, PushPop, Idle]
+        observe: [count]
+        window: 1
     reference_proof: {file: PROOF_ref.bend, lines: 8, effort_minutes: 5}
   - id: FIFO-S-02
     name: fifo_s02_full_iff_count_depth
@@ -24,7 +39,14 @@ laws:
     priority: core
     requirements: [R6]
     witness: fifo_w01_reaches_full
-    translation: {sva: p_full_iff_depth, template: invariant_v1}
+    translation:
+      sva: p_full_iff_depth
+      template: invariant_v1
+      fidelity_plan:
+        level: any
+        ops: [Push, Pop, PushPop, Idle]
+        observe: [full, count]
+        window: 1
     reference_proof: {file: PROOF_ref.bend, lines: 8, effort_minutes: 5}
   - id: FIFO-S-03
     name: fifo_s03_empty_iff_count_zero
@@ -32,7 +54,14 @@ laws:
     priority: core
     requirements: [R7]
     witness: fifo_w02_reaches_empty
-    translation: {sva: p_empty_iff_zero, template: invariant_v1}
+    translation:
+      sva: p_empty_iff_zero
+      template: invariant_v1
+      fidelity_plan:
+        level: any
+        ops: [Push, Pop, PushPop, Idle]
+        observe: [empty, count]
+        window: 1
     reference_proof: {file: PROOF_ref.bend, lines: 8, effort_minutes: 5}
   - id: FIFO-F-01
     name: fifo_f01_push_empty_count
@@ -40,7 +69,14 @@ laws:
     priority: core
     requirements: [R11]
     witness: fifo_w03_reaches_half
-    translation: {sva: p_push_empty_count, template: implication_v1}
+    translation:
+      sva: p_push_empty_count
+      template: implication_v1
+      fidelity_plan:
+        level: Empty
+        ops: [Push]
+        observe: [count]
+        window: 1
     reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
   - id: FIFO-F-02
     name: fifo_f02_push_empty_head
@@ -48,7 +84,14 @@ laws:
     priority: core
     requirements: [R9, R11]
     witness: fifo_w03_reaches_half
-    translation: {sva: p_push_empty_head, template: implication_v1}
+    translation:
+      sva: p_push_empty_head
+      template: implication_v1
+      fidelity_plan:
+        level: Empty
+        ops: [Push]
+        observe: [dout]
+        window: 1
     reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
   - id: FIFO-F-03
     name: fifo_f03_push_half_full
@@ -56,7 +99,14 @@ laws:
     priority: important
     requirements: [R6]
     witness: fifo_w03_reaches_half
-    translation: {sva: p_push_half_full, template: implication_v1}
+    translation:
+      sva: p_push_half_full
+      template: implication_v1
+      fidelity_plan:
+        level: Half
+        ops: [Push]
+        observe: [full]
+        window: 1
     reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
   - id: FIFO-F-04
     name: fifo_f04_push_full_noop
@@ -64,7 +114,14 @@ laws:
     priority: core
     requirements: [R2]
     witness: fifo_w01_reaches_full
-    translation: {sva: p_push_full_noop, template: implication_v1}
+    translation:
+      sva: p_push_full_noop
+      template: implication_v1
+      fidelity_plan:
+        level: Full
+        ops: [Push]
+        observe: [count]
+        window: 1
     reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
   - id: FIFO-F-05
     name: fifo_f05_pop_empty_noop
@@ -72,7 +129,14 @@ laws:
     priority: core
     requirements: [R3]
     witness: fifo_w02_reaches_empty
-    translation: {sva: p_pop_empty_noop, template: implication_v1}
+    translation:
+      sva: p_pop_empty_noop
+      template: implication_v1
+      fidelity_plan:
+        level: Empty
+        ops: [Pop]
+        observe: [count]
+        window: 1
     reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
   - id: FIFO-F-06
     name: fifo_f06_pop_full_count
@@ -80,7 +144,14 @@ laws:
     priority: important
     requirements: [R10]
     witness: fifo_w01_reaches_full
-    translation: {sva: p_pop_full_count, template: implication_v1}
+    translation:
+      sva: p_pop_full_count
+      template: implication_v1
+      fidelity_plan:
+        level: Full
+        ops: [Pop]
+        observe: [count]
+        window: 1
     reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
   - id: FIFO-F-07
     name: fifo_f07_pop_full_next_head
@@ -88,7 +159,15 @@ laws:
     priority: core
     requirements: [R5, R9]
     witness: fifo_w01_reaches_full
-    translation: {sva: p_pop_full_next_head, template: miter_ref_model_v1}
+    translation:
+      sva: p_pop_full_next_head
+      template: miter_ref_model_v1
+      fidelity_plan:
+        level: Full
+        ops: [Pop]
+        observe: [dout]
+        window: 1
+        distinct: [a, b]
     reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 3}
   - id: FIFO-F-08
     name: fifo_f08_pushpop_half_count
@@ -96,7 +175,14 @@ laws:
     priority: core
     requirements: [R4]
     witness: fifo_w03_reaches_half
-    translation: {sva: p_pushpop_half_count, template: implication_v1}
+    translation:
+      sva: p_pushpop_half_count
+      template: implication_v1
+      fidelity_plan:
+        level: Half
+        ops: [PushPop]
+        observe: [count]
+        window: 1
     reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
   - id: FIFO-F-09
     name: fifo_f09_pushpop_half_head
@@ -104,7 +190,14 @@ laws:
     priority: core
     requirements: [R4, R9]
     witness: fifo_w03_reaches_half
-    translation: {sva: p_pushpop_half_head, template: implication_v1}
+    translation:
+      sva: p_pushpop_half_head
+      template: implication_v1
+      fidelity_plan:
+        level: Half
+        ops: [PushPop]
+        observe: [dout]
+        window: 1
     reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
   - id: FIFO-F-10
     name: fifo_f10_pushpop_full_head
@@ -112,7 +205,15 @@ laws:
     priority: important
     requirements: [R5, R10]
     witness: fifo_w01_reaches_full
-    translation: {sva: p_pushpop_full_head, template: miter_ref_model_v1}
+    translation:
+      sva: p_pushpop_full_head
+      template: miter_ref_model_v1
+      fidelity_plan:
+        level: Full
+        ops: [PushPop]
+        observe: [dout]
+        window: 1
+        distinct: [a, b]
     reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 3}
   - id: FIFO-F-11
     name: fifo_f11_reset_empty
@@ -120,7 +221,14 @@ laws:
     priority: core
     requirements: [R8]
     witness: fifo_w02_reaches_empty
-    translation: {sva: p_reset_empty, template: implication_v1}
+    translation:
+      sva: p_reset_empty
+      template: implication_v1
+      fidelity_plan:
+        level: any
+        ops: [Reset]
+        observe: [empty, count]
+        window: 1
     reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
   - id: FIFO-F-12
     name: fifo_f12_idle_preserves_head
@@ -128,7 +236,14 @@ laws:
     priority: extended
     requirements: [R9]
     witness: fifo_w01_reaches_full
-    translation: {sva: p_idle_preserves_head, template: implication_v1}
+    translation:
+      sva: p_idle_preserves_head
+      template: implication_v1
+      fidelity_plan:
+        level: Full
+        ops: [Idle]
+        observe: [dout]
+        window: 1
     reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
   - id: FIFO-F-13
     name: fifo_f13_pushpop_empty_head
@@ -136,7 +251,14 @@ laws:
     priority: important
     requirements: [R11, R9]
     witness: fifo_w03_reaches_half
-    translation: {sva: p_pushpop_empty_head, template: implication_v1}
+    translation:
+      sva: p_pushpop_empty_head
+      template: implication_v1
+      fidelity_plan:
+        level: Empty
+        ops: [PushPop]
+        observe: [dout]
+        window: 1
     reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
   - id: FIFO-F-14
     name: fifo_f14_idle_preserves_count
@@ -144,7 +266,14 @@ laws:
     priority: core
     requirements: [R13]
     witness: fifo_w01_reaches_full
-    translation: {sva: p_idle_preserves_count, template: implication_v1}
+    translation:
+      sva: p_idle_preserves_count
+      template: implication_v1
+      fidelity_plan:
+        level: any
+        ops: [Idle]
+        observe: [count]
+        window: 1
     reference_proof: {file: PROOF_ref.bend, lines: 8, effort_minutes: 4}
   - id: FIFO-F-15
     name: fifo_f15_pushpop_empty_count
@@ -152,7 +281,14 @@ laws:
     priority: important
     requirements: [R11]
     witness: fifo_w03_reaches_half
-    translation: {sva: p_pushpop_empty_count, template: implication_v1}
+    translation:
+      sva: p_pushpop_empty_count
+      template: implication_v1
+      fidelity_plan:
+        level: Empty
+        ops: [PushPop]
+        observe: [count]
+        window: 1
     reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
   - id: FIFO-F-16
     name: fifo_f16_pushpop_full_count
@@ -160,7 +296,14 @@ laws:
     priority: important
     requirements: [R10]
     witness: fifo_w01_reaches_full
-    translation: {sva: p_pushpop_full_count, template: implication_v1}
+    translation:
+      sva: p_pushpop_full_count
+      template: implication_v1
+      fidelity_plan:
+        level: Full
+        ops: [PushPop]
+        observe: [count]
+        window: 1
     reference_proof: {file: PROOF_ref.bend, lines: 2, effort_minutes: 2}
   - id: FIFO-W-01
     name: fifo_w01_reaches_full
