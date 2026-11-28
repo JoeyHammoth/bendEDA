@@ -336,7 +336,12 @@ so the order is reproducible without an RNG and interleaves arms.
 ## What does not exist yet
 
 - **Model calls and tool results in the replay.** `replay` covers proxy decisions; the
-  design's full RF needs the tool results replayed too.
+  design's full RF needs the tool results replayed too. The decision — record and
+  replay, not re-execute — and the record format are
+  `docs/research/2026-11-28-tool-replay-design.md`, which also names the first defect
+  to fix: `bendeda/schemas/event.schema.json` promises an event log with
+  `args_sha256`/`result_sha256`, while the proxy writes a line the schema does not
+  describe.
 - **Running the oracle pack here.** `run` cannot compute `O`; it stays absent until the
   scoring host's answer is recorded. `oracle score` now does that on the host that holds
   the decrypted pack — it verifies the pack against the commitment, runs the pack's
