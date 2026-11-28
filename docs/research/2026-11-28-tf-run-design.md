@@ -189,8 +189,20 @@ Steps 1 and 2 do not need Verilator or Docker; step 3 does. That split is delibe
 the metric's definition should be pinned and lintable before a container is involved, so
 that a disagreement found later is about a translation and not about a build.
 
-**Status (2026-11-28).** Step 1 is in: `tasks/seq/B1_fifo/laws.manifest.yaml` declares a
-`fidelity_plan` for all 19 translated laws, and L011 validates the shape of any plan a
-package declares (it does not require one yet, because nothing reads a plan and the
-corpora carry copies of the manifest). Step 2, the per-trace model evaluator, is next;
-until it exists `tf run` still exits 3.
+**Status (2026-11-28).** Steps 1 and 2 are in. Step 1:
+`tasks/seq/B1_fifo/laws.manifest.yaml` declares a `fidelity_plan` for all 19 translated
+laws, and L011 validates the shape of any plan a package declares (it does not require
+one yet, because nothing reads a plan and the corpora carry copies of the manifest).
+
+Step 2: `bendeda/tf.py` renders one judge per law from the law's own claim, compiles the
+module once, and evaluates it per cycle through `tools/law_eval.mjs`. The plan gates the
+rows, so an invariant is checked at every cycle while `fifo_f04` is checked only on `Full`
+with a push (287 of 8,000 cycles in the recorded run). Against the reference model every
+law is exercised and none disagrees; a model whose pop-from-full returns the design's head
+instead of the second element is caught by FIFO-F-07 and by no other law. FIFO-F-11 is
+evaluated on every pre-state, because `reset` is a model function and not a trace
+operation; the RTL side will need `rst_n` actually asserted to observe it (step 3).
+
+Steps 1 and 2 produce no TF number, because a number computed from one side is agreement
+with itself. Step 3 (assertion-enabled Verilator) is next, and `tf run` still exits 3
+until step 4 joins the two.

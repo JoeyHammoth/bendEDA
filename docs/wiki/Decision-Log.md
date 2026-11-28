@@ -4,6 +4,33 @@ Newest first. Every entry says what was decided, what it costs, and where the au
 
 ---
 
+## 2026-11-28 - The model-side TF verdict is generated from each law's claim
+
+**Decided:** `bendeda/tf.py` renders one function per translated law from that law's own
+claim: the quantified state becomes the trace's pre-state, the `d` binder becomes the
+trace's `din`, the element binders become the model's own field projections, and the
+equality is specialised by the claim's type (`U32.is_eq`, `Nat.is_eq`, and for `Bool` the
+expression itself or `Bool.not(Bool.xor(l, r))`). The module compiles once and
+`tools/law_eval.mjs` evaluates it per cycle. Bend bindings are affine, so each use of the
+pre-state or the input becomes its own parameter and the driver passes the same value to
+each.
+
+**Why:** the alternative is a hand-written judge per law, which is a second statement of
+the law — the translation and its judge could then be wrong together, and the fidelity
+check would be a check on itself. Generating from the claim keeps one text. The
+parameter-per-use shape is the compiler's affine discipline made visible: `dup` in the
+surface syntax swallowed the rest of the block at this pin, and sharing one binding is
+rejected outright.
+
+**Cost:** the generator understands one law shape (a top-level equality over a constructed
+pre-state) and refuses `window` other than 1, so a law it cannot read is a problem in the
+report rather than a silently absent row. Evidence: 19 rows, every law exercised over
+1,000 traces x 8 cycles, zero disagreements against the reference model, and a model whose
+pop-from-full keeps the design's head instead of the second element is caught by FIFO-F-07
+and by no other law. No TF number exists yet: the SVA side is step 3.
+
+---
+
 ## 2026-11-28 - `tf run` is designed before it is implemented
 
 **Decided:** translation fidelity is computed per law, not per pack; each translated
