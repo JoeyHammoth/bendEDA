@@ -4,26 +4,16 @@
 
 from __future__ import annotations
 
-import os
 import re
 import sys
 from pathlib import Path
 
-SKIP_DIRS = {".git", ".venv", ".bend-cache", "node_modules", "__pycache__"}
-INLINE_LINK = re.compile(r"!?\[[^\]]*\]\(([^)\r\n]+)\)")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from tools._files import resolve  # noqa: E402
+
+SKIP_DIRS = {".git", ".venv", "venv", ".bend-cache", "node_modules", "__pycache__", ".mypy_cache", ".ruff_cache"}
+LINK_TARGET = re.compile(r"\]\(([^)\r\n]+)\)")
 SKIP_PREFIXES = ("http://", "https://", "mailto:")
-
-
-def iter_markdown_files(root: Path) -> list[Path]:
-    if root.is_file():
-        return [root] if root.suffix.lower() == ".md" else []
-    files: list[Path] = []
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
-        for name in sorted(filenames):
-            if name.endswith(".md"):
-                files.append(Path(dirpath) / name)
-    return files
 
 
 def extract_target(raw: str) -> str:
@@ -35,6 +25,11 @@ def extract_target(raw: str) -> str:
     return parts[0] if parts else ""
 
 
+def is_docs_wiki_page(path: Path) -> bool:
+    resolved = path.resolve()
+    return resolved.parent.name == "wiki" and resolved.parent.parent.name == "docs"
+
+
 def check_file(path: Path) -> list[tuple[int, str]]:
     try:
         text = path.read_text(encoding="utf-8", errors="ignore")
@@ -43,6 +38,7 @@ def check_file(path: Path) -> list[tuple[int, str]]:
 
     findings: list[tuple[int, str]] = []
     in_fence = False
+    wiki_page = is_docs_wiki_page(path)
     for line_no, line in enumerate(text.splitlines(), start=1):
         stripped = line.lstrip()
         if stripped.startswith(("```", "~~~")):
@@ -53,26 +49,34 @@ def check_file(path: Path) -> list[tuple[int, str]]:
 
         # Ignore inline code spans so example syntax like `[text](target)` is not checked.
         cleaned = re.sub(r"`[^`]*`", "", line)
-        for match in INLINE_LINK.finditer(cleaned):
+        for match in LINK_TARGET.finditer(cleaned):
             target = extract_target(match.group(1))
             if not target or target.startswith("#") or target.startswith(SKIP_PREFIXES):
                 continue
             rel = target.split("#", 1)[0].split("?", 1)[0]
             if not rel:
                 continue
+            if rel.startswith("/"):
+                findings.append((line_no, target))
+                continue
             resolved = (path.parent / rel).resolve()
             if resolved.exists():
                 continue
             # GitHub Wiki pages under docs/wiki/ link to sibling pages without ".md".
-            if "wiki" in path.parts and not resolved.suffix and resolved.with_suffix(".md").exists():
+            if wiki_page and not resolved.suffix and resolved.with_suffix(".md").exists():
                 continue
             findings.append((line_no, target))
     return findings
 
 
 def main(argv: list[str]) -> int:
-    root = Path(argv[1] if len(argv) > 1 else ".")
-    files = iter_markdown_files(root)
+    files = sorted(
+        {
+            p
+            for p in resolve(argv[1:])
+            if p.suffix.lower() == ".md" and not any(part in SKIP_DIRS for part in p.parts)
+        }
+    )
 
     problems: list[str] = []
     for md_file in files:

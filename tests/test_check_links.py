@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -26,12 +27,12 @@ class TestCheckLinks(unittest.TestCase):
         path.write_text(content, encoding="utf-8")
         return path
 
-    def run_check(self, target: Path | None = None) -> tuple[int, str, str]:
+    def run_check(self, *targets: str | Path) -> tuple[int, str, str]:
         out = io.StringIO()
         err = io.StringIO()
-        arg = str(target or self.root)
+        args = [str(t) for t in targets] if targets else [str(self.root)]
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            code = main(["check_links.py", arg])
+            code = main(["check_links.py", *args])
         return code, out.getvalue(), err.getvalue()
 
     def test_valid_relative_links_and_ignored_targets_pass(self) -> None:
@@ -72,12 +73,67 @@ class TestCheckLinks(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("docs/index.md:2: missing_note.md#part", err)
 
-    def test_wiki_extensionless_link_resolves_to_markdown(self) -> None:
+    def test_badge_wrapped_links_are_checked(self) -> None:
+        self.write("LICENSES/CC-BY-4.0.txt", "CC BY 4.0\n")
+        readme = self.write(
+            "README.md",
+            "[![Docs: CC BY 4.0](https://img.shields.io/badge/docs.svg)](LICENSES/CC-BY-4.0.txt)\n",
+        )
+        code, _out, err = self.run_check(readme)
+        self.assertEqual(code, 0, msg=err)
+
+        self.write(
+            "README.md",
+            "[![badge](https://img.shields.io/x.svg)](missing/license.txt)\n",
+        )
+        code, _out, err = self.run_check(readme)
+        self.assertEqual(code, 1)
+        self.assertIn("README.md:1: missing/license.txt", err)
+
+    def test_wiki_extensionless_link_only_resolves_under_docs_wiki(self) -> None:
         self.write("docs/wiki/Phase-0-Plan.md", "# Phase 0\n")
         self.write("docs/wiki/Home.md", "[Plan](Phase-0-Plan)\n")
+        self.write("other/wiki/Page.md", "# Page\n")
+        other = self.write("other/wiki/Home.md", "[Page](Page)\n")
 
-        code, _out, err = self.run_check()
+        code, _out, err = self.run_check(self.root / "docs/wiki/Home.md")
         self.assertEqual(code, 0, msg=err)
+
+        code, _out, err = self.run_check(other)
+        self.assertEqual(code, 1)
+        self.assertIn("other/wiki/Home.md:1: Page", err)
+
+    def test_root_relative_target_is_reported_as_broken(self) -> None:
+        self.write("docs/target.md", "# Target\n")
+        index = self.write("docs/index.md", "[root](/docs/target.md)\n")
+
+        code, _out, err = self.run_check(index)
+        self.assertEqual(code, 1)
+        self.assertIn("docs/index.md:1: /docs/target.md", err)
+
+    def test_multiple_explicit_paths_and_git_tracked_filtering(self) -> None:
+        subprocess.run(["git", "init", "-b", "main"], cwd=self.root, check=True, capture_output=True)
+        subprocess.run(["git", "config", "user.email", "agent@example.com"], cwd=self.root, check=True, capture_output=True)
+        subprocess.run(["git", "config", "user.name", "Test Agent"], cwd=self.root, check=True, capture_output=True)
+
+        good_a = self.write("a.MD", "[b](b.md)\n")
+        good_b = self.write("b.md", "# B\n")
+        subprocess.run(["git", "add", "a.MD", "b.md"], cwd=self.root, check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "base"], cwd=self.root, check=True, capture_output=True)
+
+        # Untracked local notes (e.g. .agents/ or scratch markdown) must be ignored for `.`.
+        self.write(".agents/skill.md", "[broken](does_not_exist.md)\n")
+        self.write("scratch.md", "[broken](does_not_exist.md)\n")
+
+        with contextlib.chdir(self.root):
+            code, out, err = self.run_check(".")
+        self.assertEqual(code, 0, msg=err)
+        self.assertIn("2 markdown files scanned", out)
+
+        bad_c = self.write("c.md", "[missing](nope.md)\n")
+        code, _out, err = self.run_check(good_a, good_b, bad_c)
+        self.assertEqual(code, 1)
+        self.assertIn("c.md:1: nope.md", err)
 
 
 if __name__ == "__main__":
