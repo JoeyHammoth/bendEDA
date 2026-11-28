@@ -26,6 +26,56 @@ Two rules sit above all others:
 | **Bug fix / docs / site** | A failing test or a sentence that is wrong | One maintainer |
 | **Protocol change** | An entry in `amendments/` and a new tag; see [GOVERNANCE.md](GOVERNANCE.md) | All groups + human release approver |
 
+## A first contribution
+
+Issues labelled [`good first issue`](https://github.com/JoeyHammoth/bendEDA/labels/good%20first%20issue)
+are scoped to be finished in an afternoon by someone who has not read the protocol:
+each names the files to touch, the command that proves the change, and what is out
+of scope. [`help wanted`](https://github.com/JoeyHammoth/bendEDA/labels/help%20wanted)
+is the same for work that needs a particular environment or more context.
+
+- Comment on the issue to claim it, and the maintainer assigns it to you so nobody
+  solves it twice.
+- A typo, a broken link or a sentence that is wrong needs no issue first — open the
+  pull request.
+- Anything that changes a law, model, abstraction map, threshold or oracle component
+  is not a first contribution: those go through the role separation in Appendix J,
+  because a reviewer has to be able to tell the author from the implementer. See
+  [SUPPORT.md](SUPPORT.md) if you are unsure which surface you are on.
+
+There is one maintainer. Every issue is read; no response time is promised, because
+a promise that is not kept is worse evidence than no promise at all.
+
+## Development setup
+
+The README's quickstart, verbatim on a clean clone:
+
+```bash
+git clone https://github.com/JoeyHammoth/bendEDA
+cd bendEDA
+python -m venv .venv
+. .venv/bin/activate            # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+```
+
+That is enough for the whole suite: nothing in it needs a network connection after
+the install, a GPU, a Bend install or Docker. Gates that do need an image report
+`skipped` with the reason, and a skip is never counted as a pass.
+
+| What | Command |
+|---|---|
+| Every test (what CI runs) | `python -m unittest discover -s tests -v` |
+| One test file or class | `python -m unittest tests.test_gates.TestLockedPackOrdering -v` |
+| Schemas and task packages | `python -m bendeda validate --all` |
+| Secrets, licence headers, whitespace, oracle absence | `python tools/check_secrets.py .` (and the other `tools/check_*.py`) |
+| Formatting and types, if installed | `ruff check .`, `mypy bendeda` |
+
+`make test`, `make hygiene` and `make validate` wrap the same commands where `make`
+is installed. CI calls the Python commands directly, so a machine without `make` is
+not a machine that cannot contribute. `.devcontainer/devcontainer.json` installs the
+package and runs the suite when the workspace is created, which is what Codespaces
+uses.
+
 ## Workflow
 
 1. **Open an issue first** for anything larger than a typo, using the templates.

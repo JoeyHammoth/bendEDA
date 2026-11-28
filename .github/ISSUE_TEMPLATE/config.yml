@@ -9,3 +9,6 @@ contact_links:
   - name: Project wiki
     url: https://github.com/JoeyHammoth/bendEDA/wiki
     about: Decision log, phase plans and the running project log.
+  - name: Support and questions
+    url: https://github.com/JoeyHammoth/bendEDA/blob/main/SUPPORT.md
+    about: Where to ask a question, what to include, and what this project cannot help with.

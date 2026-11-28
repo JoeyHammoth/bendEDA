@@ -1,0 +1,63 @@
+name: Feature or design proposal
+description: A change to the harness, the protocol or the tooling that is not a defect report.
+title: "[proposal] "
+labels: ["type: feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A proposal is judged by whether it makes the protocol more trustworthy or the harness
+        more reproducible — not by whether the feature sounds useful on its own. If it touches
+        a law, a model, an abstraction map, a threshold or an oracle component, the role
+        separation in Appendix J applies and a reviewer has to be able to tell the author from
+        the implementer.
+  - type: textarea
+    id: gap
+    attributes:
+      label: What the repository cannot do today
+      description: State the gap as a command you cannot run or a claim you cannot make.
+      placeholder: "`bendeda gate run` cannot be re-run from a released bundle, so a published number cannot be re-checked without the author's machine."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you propose
+      description: The smallest change that closes the gap. A command line and an expected output beats a paragraph.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives, including doing nothing
+      description: What else you considered, and why leaving the gap open is worse.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - harness
+        - tasks
+        - oracle
+        - ci
+        - docs
+        - governance
+    validations:
+      required: true
+  - type: checkboxes
+    id: protected
+    attributes:
+      label: Does this touch a protected artifact?
+      options:
+        - label: This changes a law, model, abstraction map, threshold or oracle component, so it needs an amendment and the role separation in Appendix J
+        - label: This changes a metric definition or a gate threshold, so it changes the meaning of results already collected
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: How a reviewer would know it worked
+      description: A command, a test name or an observable output — the same standard the issue templates ask for.
+  - type: textarea
+    id: pointers
+    attributes:
+      label: Pointers
+      description: Design-document sections, research notes, prior art. Pointers, not duplicated text.

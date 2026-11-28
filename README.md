@@ -76,7 +76,9 @@ bendeda init --dry-run
 python -m unittest discover -s tests -v
 ```
 
-Nothing here needs a GPU, a network connection, or a Bend install to run the tests. Anything that needs the pinned Bend or OSS CAD Suite image runs in a container and is skipped with a recorded reason when the image is absent — never silently reported as passing.
+Nothing here needs a GPU, a network connection after the install, or a Bend install to run the tests. Anything that needs the pinned Bend or OSS CAD Suite image runs in a container and is skipped with a recorded reason when the image is absent — never silently reported as passing.
+
+`.devcontainer/devcontainer.json` runs the same install and the same suite when a Codespaces or Dev Containers workspace is created, so the block above is the manual equivalent rather than a second, divergent path. [`CONTRIBUTING.md`](CONTRIBUTING.md) has the shorter version for contributors — which single test to run, and what CI checks that a laptop does not.
 
 ## CLI
 
@@ -84,6 +86,7 @@ Nothing here needs a GPU, a network connection, or a Bend install to run the tes
 |---|---|
 | `bendeda init` | Scaffold an experiment or task repository |
 | `bendeda task new <name> --tier B` | Create a task package skeleton |
+| `bendeda validate --all` | Validate the shipped schemas and every task package |
 | `bendeda law lint <task-dir>` | Apply law rules L001-L015; exit 3 if no package was linted |
 | `bendeda law mutate <task-dir>` | Mutate the model; 20 mutants and 0.9 kill rate by default (LA3) |
 | `bendeda law translate ... --to sva` | Translate laws to SVA, emit a TF plan |
@@ -92,13 +95,18 @@ Nothing here needs a GPU, a network connection, or a Bend install to run the tes
 | `bendeda canary` | Checker negative-control suite: 32 controls, one false accept blocks the Bend arms |
 | `bendeda gate run <name> --artifacts <dir>` | Run one gate standalone |
 | `bendeda gate calibrate --corpus <dir>` | Gate sensitivity and specificity over a corpus (LA4) |
+| `bendeda conformance compile\|trace` | L1 vector path: compile a model, compare its traces, optionally against a DUT |
+| `bendeda runner plan\|check\|classify\|up\|exec\|down` | Plan, start, inspect and tear down the agent sandbox |
+| `bendeda proxy serve\|decide` | Deny-by-default egress proxy, and one decision without a server |
 | `bendeda run <experiment.yaml>` | Execute a run matrix |
 | `bendeda replay <run_id>` | Replay a run from its event log |
+| `bendeda score --bundle <dir>` | Compute S, V and O for a recorded run |
 | `bendeda oracle seal <dir> --recipient <key>` | Deterministic archive plus a Merkle commitment; never writes plaintext |
 | `bendeda oracle verify-commitment <dir> --commitment <file>` | Recompute the root without a key; names the changed component |
 | `bendeda oracle score <run_dir>` | Hidden scoring (scoring host only) |
 | `bendeda report <experiment>` | Tables, plots, results bundle |
 | `bendeda bundle verify <dir>` | Re-check a proof-carrying design bundle |
+| `bendeda serve [--mcp\|--rest]` | Expose the tools to an agent over MCP or REST |
 
 Commands are wired but several are deliberately unimplemented stubs: they print what they will do and exit non-zero, so nothing silently pretends to work. See the [documentation site](https://joeyhammoth.github.io/bendEDA/) for usage and the [wiki](https://github.com/JoeyHammoth/bendEDA/wiki) for the running log.
 
@@ -118,9 +126,11 @@ There is **no human author for the Bend 2 laws** in this project. Every artifact
 
 The protocol is frozen only at the signed `prereg-v1` tag. Before then, everything is a draft and changes are reviewable as diffs.
 
-## Contributing, security, citation
+## Contributing, support, security, citation
 
-- [CONTRIBUTING.md](CONTRIBUTING.md) — contribution types, DCO sign-off, the law-authoring gates a task must pass.
+- [CONTRIBUTING.md](CONTRIBUTING.md) — contribution types, development setup, DCO sign-off, the law-authoring gates a task must pass.
+- [`good first issue`](https://github.com/JoeyHammoth/bendEDA/labels/good%20first%20issue) and [`help wanted`](https://github.com/JoeyHammoth/bendEDA/labels/help%20wanted) — scoped work that names the files, the command that proves the change and what is out of scope.
+- [SUPPORT.md](SUPPORT.md) — where to ask a question, and what to include.
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — Contributor Covenant 2.1.
 - [SECURITY.md](SECURITY.md) — private reporting for sandbox escapes and harness defects.
 - [GOVERNANCE.md](GOVERNANCE.md) — who decides what, including the agent-role groups in `CODEOWNERS`.
