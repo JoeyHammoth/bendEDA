@@ -41,7 +41,7 @@ RULES: dict[str, str] = {
     "L008": "a law name does not follow the id convention",
     "L009": "two laws are duplicate or alpha-equivalent",
     "L010": "a law references a symbol outside the package and Base",
-    "L011": "a transferable law has no translation and no declared reason",
+    "L011": "a transferable law has no translation or no declared reason, or its fidelity plan is malformed",
     "L012": "a law has no priority tier",
     "L013": "a law conjoins more than one claim",
     "L014": "a declared artifact hash does not match the file",
@@ -52,6 +52,17 @@ NEGATIVE_CLASS = "L-NEG"
 CONDITIONAL_CLASSES = {"L-FUNC", "L-REFN"}
 TRANSFERABLE_CLASSES = {"L-SAFE", "L-FUNC", "L-REFN"}
 PRIORITIES = {"core", "important", "extended"}
+
+#: The vocabulary a `translation.fidelity_plan` may use. It is deliberately small and
+#: closed: `tf run` has to turn a plan into a stimulus recipe, and a plan naming a
+#: state, an operation or a signal the harness does not know is a plan that cannot be
+#: honoured. `Reset` is the model's `reset`, not one of the four decoded operations,
+#: because FIFO-F-11 is about reset and the abstraction map treats it separately.
+FIDELITY_KEYS = {"level", "ops", "observe", "window", "distinct"}
+FIDELITY_LEVELS = {"Empty", "Half", "Full", "any"}
+FIDELITY_OPS = {"Push", "Pop", "PushPop", "Idle", "Reset"}
+FIDELITY_OBSERVES = {"dout", "count", "full", "empty"}
+FIDELITY_BINDERS = {"a", "b", "d"}
 
 
 KNOWN_NAMESPACES = {
@@ -413,11 +424,62 @@ def l010_symbols(package: Package, out: list[Finding]) -> None:
 # --- L011 -------------------------------------------------------------------
 
 
+def fidelity_plan_problems(plan: Any) -> list[str]:
+    """What is wrong with a `translation.fidelity_plan`, as sentences.
+
+    The plan says which model state, operation and signal a trace has to exercise for a
+    translation to be judged on that law (`docs/research/2026-11-28-tf-run-design.md`).
+    Checking its shape here rather than in `tf run` means a plan is refused while it is a
+    declaration, not after it has produced a number.
+    """
+    if not isinstance(plan, dict):
+        return [f"fidelity_plan is {type(plan).__name__}, expected a mapping"]
+    problems: list[str] = []
+    unknown = sorted(set(plan) - FIDELITY_KEYS)
+    if unknown:
+        problems.append(
+            f"fidelity_plan has unknown key(s) {unknown}; expected a subset of {sorted(FIDELITY_KEYS)}"
+        )
+    level = plan.get("level")
+    if level not in FIDELITY_LEVELS:
+        problems.append(
+            f"fidelity_plan.level is {level!r}; expected one of {sorted(FIDELITY_LEVELS)}"
+        )
+    for field_name, allowed in (("ops", FIDELITY_OPS), ("observe", FIDELITY_OBSERVES)):
+        values = plan.get(field_name)
+        if not isinstance(values, list) or not values:
+            problems.append(f"fidelity_plan.{field_name} must be a non-empty list")
+            continue
+        bad = [value for value in values if value not in allowed]
+        if bad:
+            problems.append(
+                f"fidelity_plan.{field_name} names {bad}; expected a subset of {sorted(allowed)}"
+            )
+    window = plan.get("window")
+    if isinstance(window, bool) or not isinstance(window, int) or window < 1:
+        problems.append(f"fidelity_plan.window is {window!r}; expected an integer >= 1")
+    if "distinct" in plan:
+        distinct = plan["distinct"]
+        if not isinstance(distinct, list):
+            problems.append("fidelity_plan.distinct must be a list of law binders")
+        else:
+            bad = [binder for binder in distinct if binder not in FIDELITY_BINDERS]
+            if bad:
+                problems.append(
+                    f"fidelity_plan.distinct names {bad}; expected a subset of {sorted(FIDELITY_BINDERS)}"
+                )
+    return problems
+
+
 def l011_translation(package: Package, out: list[Finding]) -> None:
     for entry in package.manifest.laws:
         if entry.law_class not in TRANSFERABLE_CLASSES:
             continue
         translation = entry.translation or {}
+        manifest_rel = _rel(package, package.manifest.path)
+        if "fidelity_plan" in translation:
+            for problem in fidelity_plan_problems(translation["fidelity_plan"]):
+                out.append(Finding("L011", problem, entry.name, manifest_rel))
         reason = entry.raw.get("translation_reason")
         if translation.get("sva") or (isinstance(reason, str) and reason.strip()):
             continue
@@ -426,7 +488,7 @@ def l011_translation(package: Package, out: list[Finding]) -> None:
                 "L011",
                 f"class {entry.law_class} needs a translation or a declared reason it is model-level",
                 entry.name,
-                _rel(package, package.manifest.path),
+                manifest_rel,
             )
         )
 
